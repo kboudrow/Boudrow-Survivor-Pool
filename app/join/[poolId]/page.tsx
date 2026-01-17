@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import NextImage from 'next/image'
 import { supabase } from '@/lib/supabaseClient'
@@ -22,9 +22,9 @@ type Pool = {
   plan?: 'free' | 'pro'
 }
 
-export default function PoolDetailPage() {
+export default function JoinPoolPage({ params }: { params: { poolId: string } }) {
   const router = useRouter()
-  const { poolId } = useParams<{ poolId: string }>() // Next 15: useParams in client pages
+  const poolId = params.poolId
 
   const [loading, setLoading] = useState(true)
   const [authed, setAuthed] = useState(false)
@@ -33,7 +33,6 @@ export default function PoolDetailPage() {
   const [pool, setPool] = useState<Pool | null>(null)
   const [memberCount, setMemberCount] = useState<number>(0)
   const [alreadyMember, setAlreadyMember] = useState<boolean>(false)
-  const [isOwner, setIsOwner] = useState<boolean>(false)
 
   const [error, setError] = useState<string | null>(null)
   const [joining, setJoining] = useState(false)
@@ -41,11 +40,16 @@ export default function PoolDetailPage() {
   const planIsFree = pool?.plan === 'free' || !pool?.plan
   const requiresUpgrade = planIsFree && memberCount >= 11
 
+  const isOwner = useMemo(() => {
+    return !!(userId && pool?.created_by && userId === pool.created_by)
+  }, [userId, pool])
+
+  // Load auth + pool
   useEffect(() => {
     let alive = true
+
     const init = async () => {
       try {
-        if (!poolId) return
         setLoading(true)
         setError(null)
 
@@ -55,7 +59,7 @@ export default function PoolDetailPage() {
         setAuthed(!!user)
         setUserId(user?.id ?? null)
 
-        // pool (ensure created_by is selected)
+        // pool (IMPORTANT: include created_by)
         const { data: p, error: pErr } = await supabase
           .from('pools')
           .select('*')
@@ -66,22 +70,19 @@ export default function PoolDetailPage() {
         if (!alive) return
         setPool(p)
 
-        // owner?
-        setIsOwner(!!user?.id && user.id === p.created_by)
+        // member count via RPC
+        const { data: cnt, error: cErr } = await supabase.rpc('count_pool_members', { p_pool_id: poolId })
+        if (cErr) throw cErr
+        setMemberCount((cnt as number) ?? 0)
 
-        // member count via RPC (RLS safe)
-        try {
-          const { data: cnt, error: cntErr } = await supabase.rpc('count_pool_members', { p_pool_id: poolId })
-          if (!cntErr) setMemberCount((cnt as number) ?? 0)
-        } catch { /* noop */ }
-
-        // membership check
+        // membership check (best-effort: direct select is usually OK with RLS you set)
         if (user?.id) {
           const { data: mem } = await supabase
             .from('pool_members')
             .select('profile_id')
             .eq('pool_id', poolId)
             .eq('profile_id', user.id)
+
           setAlreadyMember((mem || []).length > 0)
         } else {
           setAlreadyMember(false)
@@ -93,6 +94,7 @@ export default function PoolDetailPage() {
         if (alive) setLoading(false)
       }
     }
+
     init()
     return () => { alive = false }
   }, [poolId])
@@ -103,7 +105,7 @@ export default function PoolDetailPage() {
       provider: 'google',
       options: {
         redirectTo: typeof window !== 'undefined'
-          ? `${window.location.origin}/pools/${poolId}`
+          ? `${window.location.origin}/join/${poolId}`
           : undefined
       }
     })
@@ -116,23 +118,29 @@ export default function PoolDetailPage() {
       setError('Please sign in first.')
       return
     }
+    // (Optional) confirmation
+    const ok = window.confirm(`Join "${pool.name}"?`)
+    if (!ok) return
+
     setJoining(true)
     setError(null)
     try {
       await ensureProfile()
+
       const { error } = await supabase
         .from('pool_members')
         .insert({ pool_id: pool.id, profile_id: userId })
         .single()
+
       if (error) {
-        const msg = (error as any).message?.toLowerCase?.() ?? ''
-        if (msg.includes('row-level security')) {
-          setError('Join failed due to RLS. Ensure pool_members has WITH CHECK (auth.uid() = profile_id).')
+        if ((error as any).message?.toLowerCase?.().includes('row-level security')) {
+          setError('Join failed due to RLS policy. Ask the admin to allow authenticated inserts to pool_members (with check auth.uid() = profile_id).')
         } else {
           setError(error.message)
         }
         return
       }
+
       router.push('/pools')
     } catch (e: any) {
       setError(e?.message || 'Failed to join.')
@@ -145,34 +153,9 @@ export default function PoolDetailPage() {
     if (!pool) return null
     if (pool.deadline_mode !== 'fixed') return null
     if (!pool.deadline_fixed) return 'Sun 1:00 PM ET (default)'
-    return `${pool.deadline_fixed.toUpperCase()} ET`
+    const t = pool.deadline_fixed.trim().toUpperCase()
+    return `${t} ET`
   }, [pool])
-
-  const onCopyInvite = async () => {
-    if (!pool) return
-    const url = `${window.location.origin}/join/${pool.id}` // invite URL (works with /join/[poolId] page)
-    await navigator.clipboard.writeText(url)
-    alert('Invite link copied!')
-  }
-
-  const onExportCsv = async () => {
-    if (!pool) return
-    const { data, error } = await supabase
-      .from('pool_members')
-      .select('profile_id')
-      .eq('pool_id', pool.id)
-
-    if (error) return alert(`Export failed: ${error.message}`)
-    const rows = [['profile_id'], ...(data || []).map(r => [r.profile_id])]
-    const csv = rows.map(r => r.map(x => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${pool.name.replace(/\s+/g, '_')}_members.csv`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
 
   return (
     <main className="min-h-[70vh] py-10 px-6">
@@ -180,24 +163,19 @@ export default function PoolDetailPage() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <NextImage src="/football.png" alt="Football" width={40} height={40} />
-            <h1 className="text-2xl font-bold">Pool</h1>
+            <h1 className="text-2xl font-bold">Join Pool</h1>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={onCopyInvite} className="px-3 py-1.5 rounded-md bg-gray-100 hover:bg-gray-200 text-sm">
-              Copy Invite
-            </button>
-            <button onClick={onExportCsv} className="px-3 py-1.5 rounded-md bg-gray-100 hover:bg-gray-200 text-sm">
-              Export CSV
-            </button>
-            {isOwner && (
-              <Link
-                href={`/pools/${poolId}/admin`}
-                className="px-3 py-1.5 rounded-md bg-amber-600 text-white hover:bg-amber-700 text-sm"
-              >
-                Admin Panel
-              </Link>
-            )}
-          </div>
+
+          {/* Owner shortcut to Admin Panel for convenience */}
+          {isOwner && (
+            <Link
+              href={`/pools/${poolId}/admin`}
+              className="px-3 py-2 rounded-md bg-black text-white hover:bg-gray-900"
+              title="Admin tools"
+            >
+              Admin Panel
+            </Link>
+          )}
         </div>
 
         {loading && <p>Loading…</p>}
@@ -208,7 +186,8 @@ export default function PoolDetailPage() {
             <div className="mb-4">
               <h2 className="text-xl font-semibold">{pool.name}</h2>
               <p className="text-sm text-gray-600">
-                {pool.is_public ? 'Public' : 'Private'} · Starts week {pool.start_week} · Strikes {pool.strikes_allowed} · Tie = {pool.tie_rule}
+                {pool.is_public ? 'Public' : 'Private'} · Starts week {pool.start_week} ·
+                {' '}Strikes {pool.strikes_allowed} · Tie = {pool.tie_rule}
               </p>
               <p className="text-sm text-gray-600">
                 Pick Deadline: {pool.deadline_mode === 'rolling' ? 'Rolling (locks at kickoff)' : (fixedDeadlineLabel || 'Fixed')}
@@ -217,21 +196,13 @@ export default function PoolDetailPage() {
             </div>
 
             <div className="grid sm:grid-cols-3 gap-3 mb-6">
-              <div className="border rounded-lg p-3">
-                <div className="text-xs uppercase text-gray-500">Members</div>
-                <div className="text-lg font-semibold">{memberCount}</div>
-              </div>
-              <div className="border rounded-lg p-3">
-                <div className="text-xs uppercase text-gray-500">Visibility</div>
-                <div className="text-lg font-semibold">{pool.is_public ? 'Public' : 'Private'}</div>
-              </div>
-              <div className="border rounded-lg p-3">
-                <div className="text-xs uppercase text-gray-500">Plan</div>
-                <div className="text-lg font-semibold">{planIsFree ? 'Free' : 'Pro'}</div>
-              </div>
+              <Info label="Members" value={String(memberCount)} />
+              <Info label="Visibility" value={pool.is_public ? 'Public' : 'Private'} />
+              <Info label="Plan" value={pool.plan ?? 'Free'} />
             </div>
 
-            {requiresUpgrade && !alreadyMember && (
+            {/* Gate if free plan at/over 11 members (your monetization rule) */}
+            {authed && !isOwner && !alreadyMember && (planIsFree && requiresUpgrade) && (
               <div className="mb-4 p-3 border rounded-md bg-yellow-50 text-sm">
                 This pool is on the free plan with {memberCount} members. Upgrade to Pro to add more members.
               </div>
@@ -267,7 +238,7 @@ export default function PoolDetailPage() {
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   onClick={joinPool}
-                  disabled={joining || (requiresUpgrade && planIsFree)}
+                  disabled={joining || (requiresUpgrade && planIsFree && !isOwner)}
                   className="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
                 >
                   {joining ? 'Joining…' : 'Join Pool'}
@@ -280,7 +251,27 @@ export default function PoolDetailPage() {
           </>
         )}
       </div>
+
+      <div className="mx-auto w-full max-w-2xl text-xs text-gray-500 mt-4">
+        <p>
+          If you see an “RLS” error while joining, ensure there’s an insert policy on{' '}
+          <code className="mx-1 px-1 py-0.5 bg-gray-100 rounded">pool_members</code> like:
+        </p>
+        <pre className="mt-2 p-3 bg-gray-50 rounded border overflow-auto">{`create policy pool_member_self_join
+on public.pool_members
+for insert
+to authenticated
+with check (auth.uid() = profile_id);`}</pre>
+      </div>
     </main>
   )
 }
 
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border rounded-lg p-3">
+      <div className="text-xs uppercase text-gray-500">{label}</div>
+      <div className="text-lg font-semibold">{value}</div>
+    </div>
+  )
+}

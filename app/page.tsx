@@ -1,48 +1,46 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import Image from 'next/image'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { supabase } from '../lib/supabaseClient'
-import { ensureProfile } from '../lib/ensureProfile'
+import NextImage from 'next/image'
+import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabaseClient'
+import { ensureProfile } from '@/lib/ensureProfile'
 
 type Mode = 'idle' | 'signin' | 'signup'
 
 export default function Home() {
+  const router = useRouter()
+
   const [mode, setMode] = useState<Mode>('idle')
   const [isAuthed, setIsAuthed] = useState(false)
   const [status, setStatus] = useState('Not signed in')
+  const ensuredUserIdRef = useRef<string | null>(null)
 
-  // shared auth state
+  // auth form state
   const [authError, setAuthError] = useState<string | null>(null)
-
-  // sign-in fields
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-
-  // sign-up extra fields
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [password2, setPassword2] = useState('')
 
-  // track the last user we ran ensureProfile() for, so we don't double-run
-  const ensuredUserIdRef = useRef<string | null>(null)
+  // focus/scroll refs
+  const signInPanelRef = useRef<HTMLDivElement | null>(null)
+  const signUpPanelRef = useRef<HTMLDivElement | null>(null)
+  const signInEmailRef = useRef<HTMLInputElement | null>(null)
+  const signUpFirstRef = useRef<HTMLInputElement | null>(null)
 
-  // -------- Password rules (client-side checks) ----------
-  const pwChecks = useMemo(() => {
-    const len = password.length >= 8
-    const upper = /[A-Z]/.test(password)
-    const lower = /[a-z]/.test(password)
-    const num = /[0-9]/.test(password)
-    const special = /[^A-Za-z0-9]/.test(password)
-    const match = password && password2 && password === password2
-    return { len, upper, lower, num, special, match }
-  }, [password, password2])
-
-  const allPwOk = useMemo(
-    () => pwChecks.len && pwChecks.upper && pwChecks.lower && pwChecks.num && pwChecks.special && pwChecks.match,
-    [pwChecks]
-  )
+  // password checks
+  const pw = {
+    len: password.length >= 8,
+    upper: /[A-Z]/.test(password),
+    lower: /[a-z]/.test(password),
+    num: /[0-9]/.test(password),
+    special: /[^A-Za-z0-9]/.test(password),
+    match: !!password && !!password2 && password === password2,
+  }
+  const allPwOk = pw.len && pw.upper && pw.lower && pw.num && pw.special && pw.match
 
   const runEnsureProfileOnce = async (userId: string | null) => {
     if (!userId) {
@@ -51,14 +49,41 @@ export default function Home() {
     }
     if (ensuredUserIdRef.current === userId) return
     ensuredUserIdRef.current = userId
-
     setStatus('Signed in, ensuring profile…')
     const res = await ensureProfile()
     setStatus(res.ok ? 'Profile ready' : `Profile error: ${res.error}`)
     setMode('idle')
   }
 
-  // ---------- Auth flows ----------
+  const openSignIn = () => {
+    setAuthError(null)
+    setMode('signin')
+    requestAnimationFrame(() => {
+      signInPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      signInEmailRef.current?.focus()
+    })
+  }
+
+  const openSignUp = () => {
+    setAuthError(null)
+    setMode('signup')
+    requestAnimationFrame(() => {
+      signUpPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      signUpFirstRef.current?.focus()
+    })
+  }
+
+  // Gate helper: keep hero CTAs visible, but require auth on click
+  const requireAuthThen = (nextPath: string) => {
+    if (isAuthed) {
+      router.push(nextPath)
+      return
+    }
+    setAuthError(null)
+    openSignIn()
+  }
+
+  // auth handlers
   const signInWithGoogle = async () => {
     setAuthError(null)
     const { error } = await supabase.auth.signInWithOAuth({ provider: 'google' })
@@ -70,12 +95,10 @@ export default function Home() {
     if (!email || !password) return setAuthError('Please enter email and password.')
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) return setAuthError(error.message)
-    // onAuthStateChange will fire and call runEnsureProfileOnce
   }
 
   const signUpWithEmail = async () => {
     setAuthError(null)
-
     if (!firstName || !lastName) return setAuthError('Please enter your first and last name.')
     if (!email) return setAuthError('Please enter your email.')
     if (!password) return setAuthError('Please enter a password.')
@@ -85,12 +108,11 @@ export default function Home() {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { first_name: firstName, last_name: lastName } }
+      options: { data: { first_name: firstName, last_name: lastName } },
     })
     if (error) return setAuthError(error.message)
 
-    // If email confirmation is enabled, data.session may be null here; user will sign in via the magic link.
-    // If it's disabled, onAuthStateChange will fire below and ensureProfile will run once.
+    // If no session returned (email confirm disabled / etc.), sign in immediately
     if (!data?.session) {
       const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password })
       if (signInErr) return setAuthError(signInErr.message)
@@ -102,18 +124,18 @@ export default function Home() {
     setIsAuthed(false)
     setStatus('Not signed in')
     setMode('idle')
-    setEmail(''); setPassword(''); setPassword2('')
-    setFirstName(''); setLastName('')
+    setEmail('')
+    setPassword('')
+    setPassword2('')
+    setFirstName('')
+    setLastName('')
     setAuthError(null)
     ensuredUserIdRef.current = null
   }
 
-  // Load auth state + subscribe to changes
   useEffect(() => {
-    let unsub: (() => void) | null = null
-
+    let unsub: null | (() => void) = null
     const init = async () => {
-      // 1) get current user on mount
       const { data: { user }, error } = await supabase.auth.getUser()
       if (error) {
         setIsAuthed(false)
@@ -127,210 +149,327 @@ export default function Home() {
         setStatus('Not signed in')
       }
 
-      // 2) subscribe to changes; avoid calling ensureProfile more than once per user id
-      const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-        const uid = session?.user?.id ?? null
+      const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+        const uid = s?.user?.id ?? null
         const nowAuthed = !!uid
         setIsAuthed(nowAuthed)
         setStatus(nowAuthed ? 'Signed in' : 'Not signed in')
-        // ensureProfile runs only when we see a new uid
         runEnsureProfileOnce(uid)
-      })
 
+        // If they were trying to do something (CTAs), collapse auth panel on success
+        if (nowAuthed) setMode('idle')
+      })
       unsub = () => sub.subscription.unsubscribe()
     }
-
     init()
     return () => { if (unsub) unsub() }
   }, [])
 
   return (
-    <div className="min-h-[calc(100vh-60px)] flex flex-col">
-      {/* Page hero */}
-      <main className="flex-1 flex flex-col items-center justify-start pt-10 px-6 text-center">
-        <h1 className="text-5xl sm:text-6xl font-extrabold mb-6">Survivor Pool</h1>
+    <div className="min-h-screen flex flex-col">
+      {/* STICKY TOP BAR */}
+      <header className="sticky top-0 z-50 bg-white border-b">
+        <div className="mx-auto max-w-6xl px-6 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <NextImage src="/football.png" alt="Football" width={28} height={28} priority />
+            <span className="font-semibold">Survivor Pool</span>
+          </div>
 
-        {/* Optional hero image under the title; header already has a small football */}
-        <div className="mb-8">
-          <Image src="/football.png" alt="Football" width={160} height={160} className="mx-auto" />
+          <div className="flex items-center gap-2">
+            {isAuthed ? (
+              <>
+                <Link href="/pools" className="text-sm underline">
+                  My Pools
+                </Link>
+                <Link href="/profile" className="p-2 rounded-md hover:bg-gray-100" title="Profile">
+                  {/* simple "human" icon */}
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z" stroke="currentColor" strokeWidth="2" />
+                    <path d="M20 21a8 8 0 1 0-16 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                </Link>
+                <button onClick={signOut} className="px-3 py-1 rounded bg-gray-600 text-white">
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <>
+                <button onClick={openSignIn} className="px-3 py-1 rounded bg-emerald-600 text-white">
+                  Sign in
+                </button>
+                <button onClick={openSignUp} className="px-3 py-1 rounded bg-indigo-600 text-white">
+                  Sign up
+                </button>
+              </>
+            )}
+          </div>
         </div>
+      </header>
 
-        <p className="text-sm text-gray-600 mb-4">{status}</p>
-
-        {/* If NOT signed in and no panel open, show big buttons to open panels */}
-        {!isAuthed && mode === 'idle' && (
-          <div className="flex gap-3 mb-10">
-            <button onClick={() => setMode('signin')} className="px-4 py-2 rounded-md bg-black text-white">
-              Sign in
-            </button>
-            <button onClick={() => setMode('signup')} className="px-4 py-2 rounded-md bg-blue-600 text-white">
-              Sign up
-            </button>
-          </div>
-        )}
-
-        {/* If signed in, show navigation buttons */}
-        {isAuthed && mode === 'idle' && (
-          <div className="flex flex-wrap justify-center gap-3 mb-10">
-            <Link href="/pools/new" className="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700">
-              Create Pool
-            </Link>
-            <Link href="/pools" className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">
-              My Pools
-            </Link>
-            <button onClick={signOut} className="px-4 py-2 rounded-md bg-gray-600 text-white">
-              Sign out
-            </button>
-          </div>
-        )}
-
-        {/* ------------------ SIGN IN PANEL ------------------ */}
-        {mode === 'signin' && (
-          <div className="w-full max-w-md text-left border border-gray-200 rounded-lg p-4">
-            <h2 className="text-xl font-semibold mb-4">Sign in</h2>
-
-            <div className="flex flex-col gap-3 mb-1">
-              <label className="text-sm">
-                Email
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2"
-                  placeholder="you@example.com"
-                />
-              </label>
-              <label className="text-sm">
-                Password
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2"
-                  placeholder="••••••••"
-                />
-              </label>
+      {/* HERO */}
+      <main className="flex-1">
+        <section className="pt-16 pb-12 px-6 text-center">
+          <div className="mx-auto max-w-5xl">
+            <div className="mb-6 flex justify-center">
+              <NextImage src="/football.png" alt="Football" width={64} height={64} />
             </div>
 
-            <div className="text-xs mt-1 mb-3">
-              <a href="/forgot" className="underline">Forgot your password?</a>
-            </div>
+            <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight">
+              Run NFL Survivor Pools the simple way.
+            </h1>
 
-            {authError && <div className="text-red-600 mb-3">{authError}</div>}
+            <p className="mt-4 text-gray-600 max-w-2xl mx-auto">
+              Keep picks organized, locks automatic, and standings crystal clear. No spreadsheets. No chaos. Just a clean survivor pool experience for your group.
+            </p>
 
-            <div className="flex flex-col items-stretch gap-3">
+            {/* HERO CTA: ONLY Create/Join (NO sign in/up duplicates) */}
+            <div className="mt-7 flex flex-wrap gap-3 justify-center">
               <button
-                onClick={signInWithEmail}
-                className="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700"
+                type="button"
+                onClick={() => requireAuthThen('/pools/new')}
+                className="px-5 py-3 rounded-md bg-black text-white hover:bg-gray-900"
               >
-                Sign In
-              </button>
-
-              <div className="flex items-center my-2">
-                <div className="flex-grow h-px bg-gray-300"></div>
-                <span className="px-2 text-sm text-gray-500">OR</span>
-                <div className="flex-grow h-px bg-gray-300"></div>
-              </div>
-
-              <button
-                onClick={signInWithGoogle}
-                className="px-4 py-2 rounded-md bg-[#4285F4] text-white hover:bg-blue-600"
-              >
-                Continue with Google
+                Create a Pool
               </button>
 
               <button
-                onClick={() => setMode('idle')}
-                className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700"
+                type="button"
+                onClick={() => requireAuthThen('/join/search')}
+                className="px-5 py-3 rounded-md bg-white border hover:bg-gray-50"
               >
-                Cancel
+                Join a Pool
               </button>
+
+              {isAuthed && (
+                <Link href="/pools" className="px-5 py-3 rounded-md bg-blue-600 text-white hover:bg-blue-700">
+                  My Pools
+                </Link>
+              )}
             </div>
 
-            <div className="text-xs mt-3">
-              Don’t have an account?{' '}
-              <a href="#" onClick={(e) => { e.preventDefault(); setMode('signup') }} className="underline">Sign up</a>
-            </div>
+            {!isAuthed && (
+              <p className="mt-3 text-sm text-gray-500">
+                Sign in to create or join a pool.
+              </p>
+            )}
+
+            <p className="mt-2 text-xs text-gray-400">{status}</p>
           </div>
-        )}
+        </section>
 
-        {/* ------------------ SIGN UP PANEL ------------------ */}
-        {mode === 'signup' && (
-          <div className="w-full max-w-md text-left border border-gray-200 rounded-lg p-4">
-            <h2 className="text-xl font-semibold mb-4">Create your account</h2>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-              <label className="text-sm">
-                First name
-                <input
-                  type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)}
-                  className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2" placeholder="First name"
-                />
-              </label>
-              <label className="text-sm">
-                Last name
-                <input
-                  type="text" value={lastName} onChange={(e) => setLastName(e.target.value)}
-                  className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2" placeholder="Last name"
-                />
-              </label>
-            </div>
-
-            <div className="flex flex-col gap-3 mb-3">
-              <label className="text-sm">
-                Email
-                <input
-                  type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                  className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2" placeholder="you@example.com"
-                />
-              </label>
-              <label className="text-sm">
-                Password
-                <input
-                  type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-                  className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2" placeholder="At least 8 characters"
-                />
-              </label>
-              <label className="text-sm">
-                Re-enter password
-                <input
-                  type="password" value={password2} onChange={(e) => setPassword2(e.target.value)}
-                  className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2" placeholder="Re-enter password"
-                />
-              </label>
-            </div>
-
-            {/* Password checklist */}
-            <ul className="text-xs text-gray-700 mb-3 list-disc pl-5">
-              <li className={pwChecks.len ? 'text-green-700' : ''}>At least 8 characters</li>
-              <li className={pwChecks.upper ? 'text-green-700' : ''}>Contains an uppercase letter</li>
-              <li className={pwChecks.lower ? 'text-green-700' : ''}>Contains a lowercase letter</li>
-              <li className={pwChecks.num ? 'text-green-700' : ''}>Contains a number</li>
-              <li className={pwChecks.special ? 'text-green-700' : ''}>Contains a special character</li>
-              <li className={pwChecks.match ? 'text-green-700' : ''}>Passwords match</li>
-            </ul>
-
-            {authError && <div className="text-red-600 mb-3">{authError}</div>}
-
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={signUpWithEmail}
-                disabled={!allPwOk || !firstName || !lastName}
-                className="px-4 py-2 rounded-md bg-blue-600 text-white disabled:opacity-50"
-              >
-                Create Account
-              </button>
-              <button onClick={signInWithGoogle} className="px-4 py-2 rounded-md bg-[#4285F4] text-white">Continue with Google</button>
-              <button onClick={() => setMode('idle')} className="px-4 py-2 rounded-md bg-gray-600 text-white">Cancel</button>
-            </div>
-
-            <div className="text-xs mt-3">
-              Already have an account?{' '}
-              <a href="#" onClick={(e) => { e.preventDefault(); setMode('signin') }} className="underline">Sign in</a>
-            </div>
+        {/* FEATURES */}
+        <section className="px-6 py-10 bg-gray-50">
+          <div className="mx-auto max-w-5xl grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <Feature title="Automatic locks" desc="Rolling kickoff locks or a fixed weekly deadline—your choice." />
+            <Feature title="Public or private pools" desc="Run open pools, or protect access with a password." />
+            <Feature title="No repeat teams" desc="Once you pick a team, it’s gone. Enforced automatically." />
+            <Feature title="Strikes & elimination" desc="Set how many misses are allowed before you’re out." />
+            <Feature title="Standings that make sense" desc="Alive vs eliminated, weekly results, and current status in one view." />
+            <Feature title="Run it back next season" desc="Archive finished pools and restart with the same settings—empty roster." />
           </div>
+        </section>
+
+        {/* HOW IT WORKS */}
+        <section className="px-6 py-12">
+          <div className="mx-auto max-w-5xl grid sm:grid-cols-3 gap-6 text-center">
+            <How step="1" title="Create or Join" text="Start a pool or find one by name." />
+            <How step="2" title="Pick weekly" text="Choose one team. No repeats. (Double-pick weeks optional.)" />
+            <How step="3" title="Survive" text="Lose and take a strike. Run out and you’re eliminated." />
+          </div>
+        </section>
+
+        {/* Auth panels */}
+        {mode !== 'idle' && (
+          <section className="px-6 pb-14">
+            <div className="mx-auto w-full max-w-md border rounded-lg p-4 bg-white">
+              {mode === 'signin' ? (
+                <div ref={signInPanelRef}>
+                  <h2 className="text-xl font-semibold mb-3">Sign in</h2>
+
+                  <label className="text-sm block mb-2">
+                    Email
+                    <input
+                      ref={signInEmailRef}
+                      className="mt-1 w-full border rounded px-3 py-2"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') signInWithEmail() }}
+                    />
+                  </label>
+
+                  <label className="text-sm block mb-2">
+                    Password
+                    <input
+                      className="mt-1 w-full border rounded px-3 py-2"
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') signInWithEmail() }}
+                    />
+                  </label>
+
+                  <div className="flex items-center justify-between mb-2">
+                    <Link href="/forgot" className="text-sm underline text-gray-700">
+                      Forgot password?
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => { setMode('signup'); setAuthError(null) }}
+                      className="text-sm underline text-gray-700"
+                    >
+                      Need an account?
+                    </button>
+                  </div>
+
+                  {authError && <p className="text-red-600 mb-2">{authError}</p>}
+
+                  <div className="flex gap-2">
+                    <button type="button" onClick={signInWithEmail} className="px-4 py-2 rounded bg-black text-white">
+                      Sign In
+                    </button>
+                    <button type="button" onClick={signInWithGoogle} className="px-4 py-2 rounded bg-[#4285F4] text-white">
+                      Google
+                    </button>
+                    <button type="button" onClick={() => setMode('idle')} className="px-4 py-2 rounded bg-gray-200">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div ref={signUpPanelRef}>
+                  <h2 className="text-xl font-semibold mb-3">Create your account</h2>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="text-sm">
+                      First name
+                      <input
+                        ref={signUpFirstRef}
+                        className="mt-1 w-full border rounded px-3 py-2"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                      />
+                    </label>
+                    <label className="text-sm">
+                      Last name
+                      <input
+                        className="mt-1 w-full border rounded px-3 py-2"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                      />
+                    </label>
+                  </div>
+
+                  <label className="text-sm block mt-2">
+                    Email
+                    <input
+                      className="mt-1 w-full border rounded px-3 py-2"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                  </label>
+
+                  <label className="text-sm block mt-2">
+                    Password
+                    <input
+                      className="mt-1 w-full border rounded px-3 py-2"
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                  </label>
+
+                  <label className="text-sm block mt-2">
+                    Re-enter password
+                    <input
+                      className="mt-1 w-full border rounded px-3 py-2"
+                      type="password"
+                      value={password2}
+                      onChange={(e) => setPassword2(e.target.value)}
+                    />
+                  </label>
+
+                  <ul className="text-xs text-gray-600 mt-2 list-disc pl-5">
+                    <li className={pw.len ? 'text-green-700' : ''}>At least 8 chars</li>
+                    <li className={pw.upper ? 'text-green-700' : ''}>Uppercase</li>
+                    <li className={pw.lower ? 'text-green-700' : ''}>Lowercase</li>
+                    <li className={pw.num ? 'text-green-700' : ''}>Number</li>
+                    <li className={pw.special ? 'text-green-700' : ''}>Special</li>
+                    <li className={pw.match ? 'text-green-700' : ''}>Match</li>
+                  </ul>
+
+                  {authError && <p className="text-red-600 mt-2">{authError}</p>}
+
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      disabled={!allPwOk}
+                      onClick={signUpWithEmail}
+                      className="px-4 py-2 rounded bg-indigo-600 text-white disabled:opacity-50"
+                    >
+                      Create Account
+                    </button>
+                    <button type="button" onClick={() => setMode('idle')} className="px-4 py-2 rounded bg-gray-200">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
         )}
       </main>
+
+      {/* FOOTER */}
+      <footer className="mt-auto border-t px-6 py-8 text-sm text-gray-600 bg-white">
+        <div className="mx-auto max-w-5xl grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div>
+            <div className="font-semibold mb-2">Survivor Pool</div>
+            <p>Pool management for friends, families, and offices. Not betting — just rules, picks, and bragging rights.</p>
+          </div>
+          <div>
+            <div className="font-semibold mb-2">Product</div>
+            <ul className="space-y-1">
+              <li><Link href="/how-it-works" className="underline">How it works</Link></li>
+              <li><Link href="/faq" className="underline">FAQ</Link></li>
+            </ul>
+          </div>
+          <div>
+            <div className="font-semibold mb-2">Legal</div>
+            <ul className="space-y-1">
+              <li><Link href="/terms" className="underline">Terms</Link></li>
+              <li><Link href="/privacy" className="underline">Privacy</Link></li>
+            </ul>
+          </div>
+          <div>
+            <div className="font-semibold mb-2">Disclaimer</div>
+            <p className="text-xs">
+              Not affiliated with or endorsed by the NFL or its clubs. Team names/logos are used for identification only.
+            </p>
+          </div>
+        </div>
+        <div className="mt-6 text-xs text-gray-500">© {new Date().getFullYear()} Survivor Pool. All rights reserved.</div>
+      </footer>
+    </div>
+  )
+}
+
+function Feature({ title, desc }: { title: string; desc: string }) {
+  return (
+    <div className="border rounded-lg p-4 bg-white">
+      <div className="font-semibold">{title}</div>
+      <div className="text-sm text-gray-600">{desc}</div>
+    </div>
+  )
+}
+
+function How({ step, title, text }: { step: string; title: string; text: string }) {
+  return (
+    <div className="border rounded-lg p-5">
+      <div className="text-xs uppercase text-gray-500">Step {step}</div>
+      <div className="text-lg font-semibold">{title}</div>
+      <p className="text-sm text-gray-600 mt-1">{text}</p>
     </div>
   )
 }
