@@ -2,7 +2,6 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import { useSearchParams } from 'next/navigation'
 import { getErrorMessage } from '@/lib/errorMessage'
 import { supabase } from '@/lib/supabaseClient'
@@ -65,39 +64,40 @@ type MemberStats = {
 }
 
 /** ---------------- Teams + Logos ---------------- */
+const espnLogo = (abbr: string) => `https://a.espncdn.com/i/teamlogos/nfl/500/scoreboard/${abbr.toLowerCase()}.png`
 const NFL_TEAMS: Team[] = [
-  { abbr: 'ARI', name: 'Arizona Cardinals', logo: '/nfl-logos/ARI.svg' },
-  { abbr: 'ATL', name: 'Atlanta Falcons', logo: '/nfl-logos/ATL.svg' },
-  { abbr: 'BAL', name: 'Baltimore Ravens', logo: '/nfl-logos/BAL.svg' },
-  { abbr: 'BUF', name: 'Buffalo Bills', logo: '/nfl-logos/BUF.svg' },
-  { abbr: 'CAR', name: 'Carolina Panthers', logo: '/nfl-logos/CAR.svg' },
-  { abbr: 'CHI', name: 'Chicago Bears', logo: '/nfl-logos/CHI.svg' },
-  { abbr: 'CIN', name: 'Cincinnati Bengals', logo: '/nfl-logos/CIN.svg' },
-  { abbr: 'CLE', name: 'Cleveland Browns', logo: '/nfl-logos/CLE.svg' },
-  { abbr: 'DAL', name: 'Dallas Cowboys', logo: '/nfl-logos/DAL.svg' },
-  { abbr: 'DEN', name: 'Denver Broncos', logo: '/nfl-logos/DEN.svg' },
-  { abbr: 'DET', name: 'Detroit Lions', logo: '/nfl-logos/DET.svg' },
-  { abbr: 'GB', name: 'Green Bay Packers', logo: '/nfl-logos/GB.svg' },
-  { abbr: 'HOU', name: 'Houston Texans', logo: '/nfl-logos/HOU.svg' },
-  { abbr: 'IND', name: 'Indianapolis Colts', logo: '/nfl-logos/IND.svg' },
-  { abbr: 'JAX', name: 'Jacksonville Jaguars', logo: '/nfl-logos/JAX.svg' },
-  { abbr: 'KC', name: 'Kansas City Chiefs', logo: '/nfl-logos/KC.svg' },
-  { abbr: 'LV', name: 'Las Vegas Raiders', logo: '/nfl-logos/LV.svg' },
-  { abbr: 'LAC', name: 'Los Angeles Chargers', logo: '/nfl-logos/LAC.svg' },
-  { abbr: 'LAR', name: 'Los Angeles Rams', logo: '/nfl-logos/LAR.svg' },
-  { abbr: 'MIA', name: 'Miami Dolphins', logo: '/nfl-logos/MIA.svg' },
-  { abbr: 'MIN', name: 'Minnesota Vikings', logo: '/nfl-logos/MIN.svg' },
-  { abbr: 'NE', name: 'New England Patriots', logo: '/nfl-logos/NE.svg' },
-  { abbr: 'NO', name: 'New Orleans Saints', logo: '/nfl-logos/NO.svg' },
-  { abbr: 'NYG', name: 'New York Giants', logo: '/nfl-logos/NYG.svg' },
-  { abbr: 'NYJ', name: 'New York Jets', logo: '/nfl-logos/NYJ.svg' },
-  { abbr: 'PHI', name: 'Philadelphia Eagles', logo: '/nfl-logos/PHI.svg' },
-  { abbr: 'PIT', name: 'Pittsburgh Steelers', logo: '/nfl-logos/PIT.svg' },
-  { abbr: 'SF', name: 'San Francisco 49ers', logo: '/nfl-logos/SF.svg' },
-  { abbr: 'SEA', name: 'Seattle Seahawks', logo: '/nfl-logos/SEA.svg' },
-  { abbr: 'TB', name: 'Tampa Bay Buccaneers', logo: '/nfl-logos/TB.svg' },
-  { abbr: 'TEN', name: 'Tennessee Titans', logo: '/nfl-logos/TEN.svg' },
-  { abbr: 'WAS', name: 'Washington Commanders', logo: '/nfl-logos/WAS.svg' },
+  { abbr: 'ARI', name: 'Arizona Cardinals', logo: espnLogo('ARI') },
+  { abbr: 'ATL', name: 'Atlanta Falcons', logo: espnLogo('ATL') },
+  { abbr: 'BAL', name: 'Baltimore Ravens', logo: espnLogo('BAL') },
+  { abbr: 'BUF', name: 'Buffalo Bills', logo: espnLogo('BUF') },
+  { abbr: 'CAR', name: 'Carolina Panthers', logo: espnLogo('CAR') },
+  { abbr: 'CHI', name: 'Chicago Bears', logo: espnLogo('CHI') },
+  { abbr: 'CIN', name: 'Cincinnati Bengals', logo: espnLogo('CIN') },
+  { abbr: 'CLE', name: 'Cleveland Browns', logo: espnLogo('CLE') },
+  { abbr: 'DAL', name: 'Dallas Cowboys', logo: espnLogo('DAL') },
+  { abbr: 'DEN', name: 'Denver Broncos', logo: espnLogo('DEN') },
+  { abbr: 'DET', name: 'Detroit Lions', logo: espnLogo('DET') },
+  { abbr: 'GB', name: 'Green Bay Packers', logo: espnLogo('GB') },
+  { abbr: 'HOU', name: 'Houston Texans', logo: espnLogo('HOU') },
+  { abbr: 'IND', name: 'Indianapolis Colts', logo: espnLogo('IND') },
+  { abbr: 'JAX', name: 'Jacksonville Jaguars', logo: espnLogo('JAX') },
+  { abbr: 'KC', name: 'Kansas City Chiefs', logo: espnLogo('KC') },
+  { abbr: 'LV', name: 'Las Vegas Raiders', logo: espnLogo('LV') },
+  { abbr: 'LAC', name: 'Los Angeles Chargers', logo: espnLogo('LAC') },
+  { abbr: 'LAR', name: 'Los Angeles Rams', logo: espnLogo('LAR') },
+  { abbr: 'MIA', name: 'Miami Dolphins', logo: espnLogo('MIA') },
+  { abbr: 'MIN', name: 'Minnesota Vikings', logo: espnLogo('MIN') },
+  { abbr: 'NE', name: 'New England Patriots', logo: espnLogo('NE') },
+  { abbr: 'NO', name: 'New Orleans Saints', logo: espnLogo('NO') },
+  { abbr: 'NYG', name: 'New York Giants', logo: espnLogo('NYG') },
+  { abbr: 'NYJ', name: 'New York Jets', logo: espnLogo('NYJ') },
+  { abbr: 'PHI', name: 'Philadelphia Eagles', logo: espnLogo('PHI') },
+  { abbr: 'PIT', name: 'Pittsburgh Steelers', logo: espnLogo('PIT') },
+  { abbr: 'SF', name: 'San Francisco 49ers', logo: espnLogo('SF') },
+  { abbr: 'SEA', name: 'Seattle Seahawks', logo: espnLogo('SEA') },
+  { abbr: 'TB', name: 'Tampa Bay Buccaneers', logo: espnLogo('TB') },
+  { abbr: 'TEN', name: 'Tennessee Titans', logo: espnLogo('TEN') },
+  { abbr: 'WAS', name: 'Washington Commanders', logo: espnLogo('WSH') },
 ]
 const teamByAbbr = (abbr?: string | null) => NFL_TEAMS.find((t) => t.abbr === abbr) || null
 const toAbbr = (input: string): string => {
@@ -306,7 +306,8 @@ function TeamPickerModal(props: {
                 >
                   <div className="relative w-8 h-8 shrink-0">
                     {t.logo ? (
-                      <Image src={t.logo} alt={t.name} fill sizes="32px" className="object-contain" />
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={t.logo} alt={t.name} className="h-8 w-8 object-contain" />
                     ) : (
                       <div className="w-8 h-8 rounded-full border flex items-center justify-center text-xs">{t.abbr}</div>
                     )}
