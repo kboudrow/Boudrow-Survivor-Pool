@@ -1016,6 +1016,26 @@ export type Database = {
         }
         Returns: undefined
       }
+      admin_pool_week_overview: {
+        Args: { p_pool_id: string; p_week: number }
+        Returns: {
+          display_name: string
+          draft_team_abbr: string
+          draft_updated_at: string
+          eliminated: boolean
+          eliminated_week: number
+          final_team_abbr: string
+          joined_at: string
+          locked_at: string
+          losses: number
+          pushes: number
+          result: string
+          role: string
+          strikes_used: number
+          user_id: string
+          wins: number
+        }[]
+      }
       admin_remove_member: {
         Args: { p_pool_id: string; p_profile_id: string }
         Returns: undefined

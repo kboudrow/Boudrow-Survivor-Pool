@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getErrorMessage } from '@/lib/errorMessage'
@@ -12,71 +12,184 @@ type Pool = {
   created_by: string
   double_pick_weeks: number[] | null
   archived: boolean
+  season: number | null
+}
+
+type AdminRow = {
+  user_id: string
+  display_name: string
+  role: string
+  joined_at: string | null
+  draft_team_abbr: string | null
+  draft_updated_at: string | null
+  final_team_abbr: string | null
+  locked_at: string | null
+  result: string | null
+  wins: number
+  losses: number
+  pushes: number
+  strikes_used: number
+  eliminated: boolean
+  eliminated_week: number | null
+}
+
+const ALL_WEEKS = Array.from({ length: 18 }, (_, i) => i + 1)
+const TEAMS = [
+  'ARI',
+  'ATL',
+  'BAL',
+  'BUF',
+  'CAR',
+  'CHI',
+  'CIN',
+  'CLE',
+  'DAL',
+  'DEN',
+  'DET',
+  'GB',
+  'HOU',
+  'IND',
+  'JAX',
+  'KC',
+  'LV',
+  'LAC',
+  'LAR',
+  'MIA',
+  'MIN',
+  'NE',
+  'NO',
+  'NYG',
+  'NYJ',
+  'PHI',
+  'PIT',
+  'SEA',
+  'SF',
+  'TB',
+  'TEN',
+  'WAS',
+]
+
+function fmt(value?: string | null) {
+  if (!value) return '-'
+  return new Date(value).toLocaleString()
 }
 
 export default function PoolAdminPage() {
   const router = useRouter()
   const { poolId } = useParams<{ poolId: string }>()
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [isOwner, setIsOwner] = useState(false)
   const [pool, setPool] = useState<Pool | null>(null)
+  const [rows, setRows] = useState<AdminRow[]>([])
 
-  const [doubleWeeksText, setDoubleWeeksText] = useState('') // e.g. "5,8,12"
+  const [selectedWeek, setSelectedWeek] = useState(1)
+  const [doubleWeeksText, setDoubleWeeksText] = useState('')
   const [archiving, setArchiving] = useState(false)
   const [savingDouble, setSavingDouble] = useState(false)
+  const [runningAction, setRunningAction] = useState<string | null>(null)
+  const [draftTeams, setDraftTeams] = useState<Record<string, string>>({})
+  const [finalTeams, setFinalTeams] = useState<Record<string, string>>({})
+
+  const memberCount = rows.length
+  const stats = useMemo(() => {
+    const alive = rows.filter((row) => !row.eliminated).length
+    return { alive, eliminated: rows.length - alive }
+  }, [rows])
+
+  const loadOverview = async (week = selectedWeek) => {
+    if (!poolId) return
+    setRefreshing(true)
+    setError(null)
+    try {
+      const [{ data: p, error: pErr }, { data: overview, error: overviewErr }] = await Promise.all([
+        supabase.from('pools').select('id,name,created_by,double_pick_weeks,archived,season').eq('id', poolId).maybeSingle<Pool>(),
+        supabase.rpc('admin_pool_week_overview', { p_pool_id: poolId, p_week: week }),
+      ])
+      if (pErr) throw pErr
+      if (overviewErr) throw overviewErr
+      if (!p) throw new Error('Pool not found')
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      setPool(p)
+      setIsOwner(!!user?.id && user.id === p.created_by)
+      setDoubleWeeksText((p.double_pick_weeks || []).join(','))
+      setRows((overview || []) as AdminRow[])
+
+      const nextDrafts: Record<string, string> = {}
+      const nextFinals: Record<string, string> = {}
+      for (const row of (overview || []) as AdminRow[]) {
+        nextDrafts[row.user_id] = row.draft_team_abbr || ''
+        nextFinals[row.user_id] = row.final_team_abbr || ''
+      }
+      setDraftTeams(nextDrafts)
+      setFinalTeams(nextFinals)
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to load admin data.'))
+    } finally {
+      setRefreshing(false)
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
     let alive = true
     const init = async () => {
-      try {
-        if (!poolId) return
-        setLoading(true)
-        setError(null)
-
-        const [{ data: { user } }, { data: p, error: pErr }] = await Promise.all([
-          supabase.auth.getUser(),
-          supabase.from('pools').select('id,name,created_by,double_pick_weeks,archived').eq('id', poolId).maybeSingle<Pool>()
-        ])
-        if (pErr) throw pErr
-        if (!p) throw new Error('Pool not found')
-
-        setPool(p)
-        setIsOwner(!!user?.id && user.id === p.created_by)
-        setDoubleWeeksText((p.double_pick_weeks || []).join(','))
-      } catch (e: unknown) {
-        if (!alive) return
-        setError(getErrorMessage(e, 'Failed to load admin data.'))
-      } finally {
-        if (alive) setLoading(false)
-      }
+      if (!poolId || !alive) return
+      setLoading(true)
+      await loadOverview(selectedWeek)
     }
     init()
-    return () => { alive = false }
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [poolId])
 
-  // Optional hard guard: bounce non-owners back to pool
   useEffect(() => {
     if (!loading && !error && pool && !isOwner) {
       router.replace(`/pools/${poolId}`)
     }
   }, [loading, error, pool, isOwner, poolId, router])
 
+  const runAction = async (label: string, action: () => Promise<string | void>) => {
+    setRunningAction(label)
+    setError(null)
+    setNotice(null)
+    try {
+      const message = await action()
+      setNotice(message || `${label} complete.`)
+      await loadOverview(selectedWeek)
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, `${label} failed.`))
+    } finally {
+      setRunningAction(null)
+    }
+  }
+
   const saveDoubleWeeks = async () => {
     if (!pool) return
-    setSavingDouble(true); setError(null)
+    setSavingDouble(true)
+    setError(null)
+    setNotice(null)
     try {
       const weeks = doubleWeeksText
         .split(',')
-        .map(s => parseInt(s.trim(), 10))
-        .filter(n => Number.isFinite(n) && n >= 1 && n <= 18)
+        .map((s) => parseInt(s.trim(), 10))
+        .filter((n) => Number.isFinite(n) && n >= 1 && n <= 18)
 
       const { error } = await supabase.rpc('admin_set_double_weeks', {
         p_pool_id: pool.id,
-        p_weeks: weeks
+        p_weeks: weeks,
       })
       if (error) throw error
-      alert('Double-pick weeks saved.')
+      setNotice('Double-pick weeks saved.')
+      setPool({ ...pool, double_pick_weeks: weeks })
     } catch (e: unknown) {
       setError(getErrorMessage(e, 'Failed to save double-pick weeks.'))
     } finally {
@@ -86,14 +199,17 @@ export default function PoolAdminPage() {
 
   const toggleArchive = async () => {
     if (!pool) return
-    setArchiving(true); setError(null)
+    setArchiving(true)
+    setError(null)
+    setNotice(null)
     try {
       const { error } = await supabase.rpc('admin_archive_pool', {
         p_pool_id: pool.id,
-        p_archived: !pool.archived
+        p_archived: !pool.archived,
       })
       if (error) throw error
       setPool({ ...pool, archived: !pool.archived })
+      setNotice(pool.archived ? 'Pool unarchived.' : 'Pool archived.')
     } catch (e: unknown) {
       setError(getErrorMessage(e, 'Failed to update archive state.'))
     } finally {
@@ -101,61 +217,269 @@ export default function PoolAdminPage() {
     }
   }
 
+  const finalizeLocked = () =>
+    runAction('Finalize locked picks', async () => {
+      if (!pool) return
+      const { data, error } = await supabase.rpc('finalize_locked_picks_for_pool', { p_pool_id: pool.id })
+      if (error) throw error
+      return `Finalized ${data ?? 0} pick(s).`
+    })
+
+  const adjudicate = () =>
+    runAction('Adjudicate results', async () => {
+      if (!pool) return
+      const { data, error } = await supabase.rpc('adjudicate_completed_weeks', { p_season: pool.season ?? new Date().getFullYear() })
+      if (error) throw error
+      return `Adjudicated ${data ?? 0} pick result(s).`
+    })
+
+  const saveDraft = (row: AdminRow) =>
+    runAction('Save draft pick', async () => {
+      if (!pool) return
+      const team = draftTeams[row.user_id]?.trim().toUpperCase()
+      if (!team) {
+        const { error } = await supabase.rpc('admin_clear_user_week_drafts', {
+          p_pool_id: pool.id,
+          p_target_user: row.user_id,
+          p_week: selectedWeek,
+          p_reason: 'Cleared from admin panel',
+        })
+        if (error) throw error
+        return 'Draft pick cleared.'
+      }
+
+      const { error } = await supabase.rpc('admin_upsert_user_draft', {
+        p_pool_id: pool.id,
+        p_target_user: row.user_id,
+        p_week: selectedWeek,
+        p_team_abbr: team,
+        p_reason: 'Updated from admin panel',
+      })
+      if (error) throw error
+      return `Draft pick saved as ${team}.`
+    })
+
+  const saveFinal = (row: AdminRow) =>
+    runAction('Override final pick', async () => {
+      if (!pool) return
+      const team = finalTeams[row.user_id]?.trim().toUpperCase()
+      if (!team) throw new Error('Choose a team before overriding a final pick.')
+
+      const { error } = await supabase.rpc('admin_override_final_pick', {
+        p_pool_id: pool.id,
+        p_target_user: row.user_id,
+        p_week: selectedWeek,
+        p_team_abbr: team,
+        p_reason: 'Updated from admin panel',
+      })
+      if (error) throw error
+      return `Final pick overridden as ${team}.`
+    })
+
+  const removeMember = (row: AdminRow) =>
+    runAction('Remove member', async () => {
+      if (!pool) return
+      const confirmed = window.confirm(`Remove ${row.display_name} from this pool? This cannot be undone from this screen.`)
+      if (!confirmed) return 'Remove member canceled.'
+
+      const { error } = await supabase.rpc('admin_remove_member', {
+        p_pool_id: pool.id,
+        p_profile_id: row.user_id,
+      })
+      if (error) throw error
+      return `${row.display_name} removed.`
+    })
+
   return (
-    <main className="min-h-[70vh] py-10 px-6">
-      <div className="mx-auto w-full max-w-3xl">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold">Admin Panel</h1>
-          <Link href={`/pools/${poolId}`} className="px-3 py-1.5 rounded-md bg-gray-100 hover:bg-gray-200 text-sm">
-            Back to Pool
-          </Link>
+    <main className="min-h-[70vh] bg-gray-50 py-8 px-4">
+      <div className="mx-auto w-full max-w-6xl">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold">Admin Panel</h1>
+            <p className="text-sm text-gray-600">{pool ? `${pool.name} · ${pool.season ?? 'Season not set'}` : 'Pool controls'}</p>
+          </div>
+          <div className="flex gap-2">
+            <Link href={`/pools?pool=${poolId}`} className="rounded-md bg-gray-100 px-3 py-1.5 text-sm hover:bg-gray-200">
+              Back to Pool
+            </Link>
+            <button onClick={() => loadOverview(selectedWeek)} disabled={refreshing} className="rounded-md bg-gray-900 px-3 py-1.5 text-sm text-white disabled:opacity-50">
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </button>
+          </div>
         </div>
 
-        {loading && <p>Loading…</p>}
-        {!loading && error && <p className="text-red-600">{error}</p>}
+        {loading && <p>Loading...</p>}
+        {!loading && error && <p className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+        {!loading && notice && <p className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{notice}</p>}
 
-        {!loading && !error && pool && isOwner && (
-          <div className="space-y-6">
-            <section className="border rounded-lg p-4">
-              <h2 className="font-semibold mb-2">Pool Settings</h2>
-              <div className="mb-3 text-sm text-gray-700">
-                <div><span className="font-medium">Name:</span> {pool.name}</div>
-                <div><span className="font-medium">Archived:</span> {pool.archived ? 'Yes' : 'No'}</div>
+        {!loading && pool && isOwner && (
+          <div className="space-y-5">
+            <section className="grid gap-3 md:grid-cols-4">
+              <div className="rounded-lg border bg-white p-4">
+                <div className="text-xs uppercase text-gray-500">Members</div>
+                <div className="text-2xl font-bold">{memberCount}</div>
               </div>
-
-              <label className="block text-sm font-medium mb-1">
-                Double-pick weeks (comma-separated, 1–18)
-              </label>
-              <input
-                value={doubleWeeksText}
-                onChange={(e) => setDoubleWeeksText(e.target.value)}
-                className="w-full border rounded-md px-3 py-2 mb-3"
-                placeholder="e.g. 5,8,12"
-              />
-              <button
-                onClick={saveDoubleWeeks}
-                disabled={savingDouble}
-                className="px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
-              >
-                {savingDouble ? 'Saving…' : 'Save double-pick weeks'}
-              </button>
-
-              <hr className="my-4" />
-
-              <button
-                onClick={toggleArchive}
-                disabled={archiving}
-                className="px-4 py-2 rounded-md bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50"
-              >
-                {archiving ? 'Updating…' : (pool.archived ? 'Unarchive Pool' : 'Archive Pool')}
-              </button>
+              <div className="rounded-lg border bg-white p-4">
+                <div className="text-xs uppercase text-gray-500">Alive</div>
+                <div className="text-2xl font-bold text-emerald-700">{stats.alive}</div>
+              </div>
+              <div className="rounded-lg border bg-white p-4">
+                <div className="text-xs uppercase text-gray-500">Eliminated</div>
+                <div className="text-2xl font-bold text-red-700">{stats.eliminated}</div>
+              </div>
+              <div className="rounded-lg border bg-white p-4">
+                <div className="text-xs uppercase text-gray-500">Archived</div>
+                <div className="text-2xl font-bold">{pool.archived ? 'Yes' : 'No'}</div>
+              </div>
             </section>
 
-            {/* You can add Members and Edit Picks sections here as you wire up admin_remove_member / edit-pick RPCs */}
+            <section className="rounded-lg border bg-white p-4">
+              <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h2 className="font-semibold">League Controls</h2>
+                  <p className="text-sm text-gray-600">Use these after schedule/result changes or when testing pool state.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={finalizeLocked} disabled={!!runningAction} className="rounded-md bg-indigo-600 px-3 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">
+                    Finalize locked picks
+                  </button>
+                  <button onClick={adjudicate} disabled={!!runningAction} className="rounded-md bg-emerald-600 px-3 py-2 text-sm text-white hover:bg-emerald-700 disabled:opacity-50">
+                    Adjudicate results
+                  </button>
+                  <button onClick={toggleArchive} disabled={archiving} className="rounded-md bg-amber-600 px-3 py-2 text-sm text-white hover:bg-amber-700 disabled:opacity-50">
+                    {archiving ? 'Updating...' : pool.archived ? 'Unarchive pool' : 'Archive pool'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Double-pick weeks</label>
+                  <input
+                    value={doubleWeeksText}
+                    onChange={(e) => setDoubleWeeksText(e.target.value)}
+                    className="w-full rounded-md border px-3 py-2 text-sm"
+                    placeholder="e.g. 5,8,12"
+                  />
+                </div>
+                <button onClick={saveDoubleWeeks} disabled={savingDouble} className="self-end rounded-md bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50">
+                  {savingDouble ? 'Saving...' : 'Save weeks'}
+                </button>
+              </div>
+            </section>
+
+            <section className="rounded-lg border bg-white p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="font-semibold">Members & Picks</h2>
+                  <p className="text-sm text-gray-600">View and manage picks for the selected week.</p>
+                </div>
+                <label className="flex items-center gap-2 text-sm">
+                  Week
+                  <select
+                    value={selectedWeek}
+                    onChange={(e) => {
+                      const week = Number(e.target.value)
+                      setSelectedWeek(week)
+                      loadOverview(week)
+                    }}
+                    className="rounded-md border px-2 py-1"
+                  >
+                    {ALL_WEEKS.map((week) => (
+                      <option key={week} value={week}>
+                        {week}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[980px] border text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="border p-2 text-left">Member</th>
+                      <th className="border p-2 text-left">Draft pick</th>
+                      <th className="border p-2 text-left">Final pick</th>
+                      <th className="border p-2 text-left">Result</th>
+                      <th className="border p-2 text-left">Record</th>
+                      <th className="border p-2 text-left">Status</th>
+                      <th className="border p-2 text-left">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row) => (
+                      <tr key={row.user_id} className="align-top hover:bg-gray-50">
+                        <td className="border p-2">
+                          <div className="font-medium">{row.display_name}</div>
+                          <div className="text-xs text-gray-500">{row.role} · joined {fmt(row.joined_at)}</div>
+                        </td>
+                        <td className="border p-2">
+                          <select
+                            value={draftTeams[row.user_id] || ''}
+                            onChange={(e) => setDraftTeams((prev) => ({ ...prev, [row.user_id]: e.target.value }))}
+                            className="w-full rounded-md border px-2 py-1"
+                          >
+                            <option value="">No draft</option>
+                            {TEAMS.map((team) => (
+                              <option key={team} value={team}>
+                                {team}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="mt-1 text-xs text-gray-500">Saved {fmt(row.draft_updated_at)}</div>
+                        </td>
+                        <td className="border p-2">
+                          <select
+                            value={finalTeams[row.user_id] || ''}
+                            onChange={(e) => setFinalTeams((prev) => ({ ...prev, [row.user_id]: e.target.value }))}
+                            className="w-full rounded-md border px-2 py-1"
+                          >
+                            <option value="">No final</option>
+                            {TEAMS.map((team) => (
+                              <option key={team} value={team}>
+                                {team}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="mt-1 text-xs text-gray-500">Locked {fmt(row.locked_at)}</div>
+                        </td>
+                        <td className="border p-2">{row.result || 'Pending'}</td>
+                        <td className="border p-2">
+                          {row.wins}-{row.losses}
+                          {row.pushes ? `-${row.pushes}` : ''}
+                          <div className="text-xs text-gray-500">{row.strikes_used} strike(s)</div>
+                        </td>
+                        <td className="border p-2">
+                          {row.eliminated ? (
+                            <span className="rounded-full bg-red-600 px-2 py-0.5 text-xs text-white">Eliminated{row.eliminated_week ? ` W${row.eliminated_week}` : ''}</span>
+                          ) : (
+                            <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-xs text-white">Alive</span>
+                          )}
+                        </td>
+                        <td className="border p-2">
+                          <div className="flex flex-wrap gap-2">
+                            <button onClick={() => saveDraft(row)} disabled={!!runningAction} className="rounded-md bg-gray-100 px-2 py-1 hover:bg-gray-200 disabled:opacity-50">
+                              Save draft
+                            </button>
+                            <button onClick={() => saveFinal(row)} disabled={!!runningAction} className="rounded-md bg-indigo-600 px-2 py-1 text-white hover:bg-indigo-700 disabled:opacity-50">
+                              Override final
+                            </button>
+                            <button onClick={() => removeMember(row)} disabled={!!runningAction} className="rounded-md bg-red-50 px-2 py-1 text-red-700 hover:bg-red-100 disabled:opacity-50">
+                              Remove
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {rows.length === 0 && <p className="mt-3 text-sm text-gray-600">No members found.</p>}
+            </section>
           </div>
         )}
       </div>
     </main>
   )
 }
-
