@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
+import { getErrorMessage } from '@/lib/errorMessage'
 import { supabase } from '../../lib/supabaseClient'
 
 export default function ResetPage() {
@@ -62,8 +64,8 @@ export default function ResetPage() {
         // neither present
         setExchangeError('This page must be opened from your password reset email link.')
         setReady(true)
-      } catch (e: any) {
-        setExchangeError(e?.message || 'Unexpected error handling reset link.')
+      } catch (e: unknown) {
+        setExchangeError(getErrorMessage(e, 'Unexpected error handling reset link.'))
         setReady(true)
       }
     }
@@ -102,11 +104,11 @@ export default function ResetPage() {
           <>
             <p className="text-red-600 mb-3">{exchangeError}</p>
             <ol className="list-decimal ml-5 text-sm mb-3">
-              <li>Go to <a href="/forgot" className="underline">Forgot Password</a> and request a new link.</li>
+              <li>Go to <Link href="/forgot" className="underline">Forgot Password</Link> and request a new link.</li>
               <li>Open the email on the <b>same device & browser</b> you used to request it.</li>
               <li>Click the link — it should bring you back here with a code or tokens.</li>
             </ol>
-            <a href="/" className="px-4 py-2 rounded-md bg-gray-600 text-white inline-block">Home</a>
+            <Link href="/" className="px-4 py-2 rounded-md bg-gray-600 text-white inline-block">Home</Link>
           </>
         )}
 
@@ -155,9 +157,9 @@ export default function ResetPage() {
               >
                 {saving ? 'Saving…' : 'Set new password'}
               </button>
-              <a href="/" className="px-4 py-2 rounded-md bg-gray-600 text-white text-center">
+              <Link href="/" className="px-4 py-2 rounded-md bg-gray-600 text-white text-center">
                 Home
-              </a>
+              </Link>
             </div>
           </>
         )}

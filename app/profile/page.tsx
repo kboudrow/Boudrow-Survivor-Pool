@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { getErrorMessage } from '@/lib/errorMessage'
 import { supabase } from '@/lib/supabaseClient'
 import { ensureProfile } from '@/lib/ensureProfile'
 
@@ -18,6 +19,45 @@ type HistoryRow = {
   pushes: number | null
 }
 
+type ProfileUsernameRow = {
+  username: string | null
+}
+
+function isWon(status?: string | null) {
+  return (status || '').trim().toLowerCase() === 'won'
+}
+
+function isEliminated(status?: string | null) {
+  return (status || '').trim().toLowerCase().startsWith('eliminated')
+}
+
+function n0(v: number | null | undefined) {
+  return typeof v === 'number' && Number.isFinite(v) ? v : 0
+}
+
+function computeBestFinish(rows: HistoryRow[]) {
+  if (rows.some((r) => isWon(r.status))) return 'Won'
+
+  let maxElimWeek = 0
+  for (const r of rows) {
+    const w = r.eliminated_week
+    if (typeof w === 'number' && Number.isFinite(w) && w > maxElimWeek) maxElimWeek = w
+  }
+  if (maxElimWeek > 0) return 'Eliminated Week ' + String(maxElimWeek)
+
+  if (rows.length > 0) return 'In progress'
+  return '—'
+}
+
+function StatTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border border-gray-200 rounded-lg p-3">
+      <div className="text-xs uppercase tracking-wide text-gray-500">{label}</div>
+      <div className="text-sm font-semibold">{value}</div>
+    </div>
+  )
+}
+
 export default function ProfilePage() {
   const router = useRouter()
 
@@ -25,25 +65,25 @@ export default function ProfilePage() {
   const [err, setErr] = useState<string | null>(null)
 
   const [userId, setUserId] = useState<string | null>(null)
-  const [currentEmail, setCurrentEmail] = useState<string>('')
+  const [currentEmail, setCurrentEmail] = useState('')
 
-  // profile fields
+  // username
   const [username, setUsername] = useState('')
   const [savingUsername, setSavingUsername] = useState(false)
   const [usernameMsg, setUsernameMsg] = useState<string | null>(null)
 
-  // email change
+  // email
   const [newEmail, setNewEmail] = useState('')
   const [savingEmail, setSavingEmail] = useState(false)
   const [emailMsg, setEmailMsg] = useState<string | null>(null)
 
-  // password change
+  // password
   const [newPassword, setNewPassword] = useState('')
   const [newPassword2, setNewPassword2] = useState('')
   const [savingPw, setSavingPw] = useState(false)
   const [pwMsg, setPwMsg] = useState<string | null>(null)
 
-  // password reset email (fallback / convenience)
+  // reset email
   const [resetSending, setResetSending] = useState(false)
   const [resetMsg, setResetMsg] = useState<string | null>(null)
 
@@ -63,8 +103,52 @@ export default function ProfilePage() {
     }
   }, [newPassword, newPassword2])
 
-  const allPwOk =
-    pwChecks.len && pwChecks.upper && pwChecks.lower && pwChecks.num && pwChecks.special && pwChecks.match
+  const allPwOk = pwChecks.len && pwChecks.upper && pwChecks.lower && pwChecks.num && pwChecks.special && pwChecks.match
+
+  const loadHistory = async () => {
+    setHistoryLoading(true)
+    setErr(null)
+    try {
+      const { data, error } = await supabase.rpc('get_my_pool_history')
+      if (error) throw error
+      setHistory(((data as unknown) as HistoryRow[]) || [])
+    } catch (e: unknown) {
+      setErr(getErrorMessage(e, 'Failed to load history.'))
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
+  const stats = useMemo(() => {
+    const poolsPlayed = history.length
+    const poolsWon = history.filter((r) => isWon(r.status)).length
+    const poolsEliminated = history.filter((r) => isEliminated(r.status) || (typeof r.eliminated_week === 'number' && r.eliminated_week > 0)).length
+
+    const totalWins = history.reduce((a, r) => a + n0(r.wins), 0)
+    const totalLosses = history.reduce((a, r) => a + n0(r.losses), 0)
+    const totalPushes = history.reduce((a, r) => a + n0(r.pushes), 0)
+    const totalStrikes = history.reduce((a, r) => a + n0(r.strikes_used), 0)
+
+    let lastSeasonPlayed: number | null = null
+    for (const r of history) {
+      const s = r.season
+      if (typeof s === 'number' && Number.isFinite(s)) {
+        if (lastSeasonPlayed === null || s > lastSeasonPlayed) lastSeasonPlayed = s
+      }
+    }
+
+    const recordLabel = totalPushes > 0 ? `${totalWins}-${totalLosses}-${totalPushes}` : `${totalWins}-${totalLosses}`
+
+    return {
+      poolsPlayed,
+      poolsWon,
+      poolsEliminated,
+      bestFinish: computeBestFinish(history),
+      recordLabel,
+      totalStrikes,
+      lastSeasonPlayed,
+    }
+  }, [history])
 
   useEffect(() => {
     let alive = true
@@ -76,81 +160,43 @@ export default function ProfilePage() {
 
         const { data: userResp, error: userErr } = await supabase.auth.getUser()
         if (userErr) throw userErr
-
         const user = userResp.user
+
         if (!user) {
           router.push('/')
           return
         }
 
-        // make sure profiles row exists
+        // best-effort profile row creation
         const ensured = await ensureProfile()
-        if (!ensured.ok) {
-          // not fatal, but helpful to surface
-          console.warn('ensureProfile failed:', ensured.error)
-        }
+        if (!ensured.ok) console.warn('ensureProfile failed:', ensured.error)
 
         if (!alive) return
         setUserId(user.id)
         setCurrentEmail(user.email || '')
         setNewEmail(user.email || '')
 
-        // load my profile fields (no other emails exposed)
-        const { data: prof, error: profErr } = await supabase
-          .from('profiles')
-          .select('username')
-          .eq('id', user.id)
-          .maybeSingle()
-
+        // load username
+        const { data: prof, error: profErr } = await supabase.from('profiles').select('username').eq('id', user.id).maybeSingle()
         if (profErr) throw profErr
-        setUsername((prof as any)?.username || '')
-
-        // load history
-        await loadHistory()
-      } catch (e: any) {
         if (!alive) return
-        setErr(e?.message || 'Failed to load profile.')
+        setUsername((prof as ProfileUsernameRow | null)?.username || '')
+
+        await loadHistory()
+      } catch (e: unknown) {
+        if (!alive) return
+        setErr(getErrorMessage(e, 'Failed to load profile.'))
       } finally {
         if (alive) setLoading(false)
       }
     }
 
-    const loadHistory = async () => {
-      setHistoryLoading(true)
-      try {
-        const { data, error } = await supabase.rpc('get_my_pool_history')
-        if (error) throw error
-        setHistory(((data as any[]) || []) as HistoryRow[])
-      } catch (e: any) {
-        setErr(e?.message || 'Failed to load history.')
-      } finally {
-        setHistoryLoading(false)
-      }
-    }
-
-    // expose for first load call
-    ;(load as any).loadHistory = loadHistory
     load()
-
     return () => {
       alive = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  const loadHistory = async () => {
-    setHistoryLoading(true)
-    setErr(null)
-    try {
-      const { data, error } = await supabase.rpc('get_my_pool_history')
-      if (error) throw error
-      setHistory(((data as any[]) || []) as HistoryRow[])
-    } catch (e: any) {
-      setErr(e?.message || 'Failed to load history.')
-    } finally {
-      setHistoryLoading(false)
-    }
-  }
 
   const saveUsername = async () => {
     if (!userId) return
@@ -168,8 +214,8 @@ export default function ProfilePage() {
 
       setUsername(cleaned)
       setUsernameMsg('Saved.')
-    } catch (e: any) {
-      setErr(e?.message || 'Failed to save username.')
+    } catch (e: unknown) {
+      setErr(getErrorMessage(e, 'Failed to save username.'))
     } finally {
       setSavingUsername(false)
     }
@@ -184,13 +230,12 @@ export default function ProfilePage() {
       if (!cleaned) throw new Error('Please enter an email address.')
       if (cleaned === currentEmail) throw new Error('That’s already your current email.')
 
-      // Supabase will typically email a confirmation link depending on your auth settings
       const { error } = await supabase.auth.updateUser({ email: cleaned })
       if (error) throw error
 
       setEmailMsg('Email update requested. Check your inbox to confirm.')
-    } catch (e: any) {
-      setErr(e?.message || 'Failed to request email change.')
+    } catch (e: unknown) {
+      setErr(getErrorMessage(e, 'Failed to request email change.'))
     } finally {
       setSavingEmail(false)
     }
@@ -209,8 +254,8 @@ export default function ProfilePage() {
       setNewPassword('')
       setNewPassword2('')
       setPwMsg('Password updated.')
-    } catch (e: any) {
-      setErr(e?.message || 'Failed to update password.')
+    } catch (e: unknown) {
+      setErr(getErrorMessage(e, 'Failed to update password.'))
     } finally {
       setSavingPw(false)
     }
@@ -229,8 +274,8 @@ export default function ProfilePage() {
       if (error) throw error
 
       setResetMsg('Password reset email sent. Check your inbox.')
-    } catch (e: any) {
-      setErr(e?.message || 'Failed to send reset email.')
+    } catch (e: unknown) {
+      setErr(getErrorMessage(e, 'Failed to send reset email.'))
     } finally {
       setResetSending(false)
     }
@@ -261,13 +306,39 @@ export default function ProfilePage() {
 
         {!loading && (
           <div className="grid gap-4">
+            {/* Stats */}
+            <section className="border rounded-lg p-4 bg-white">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <div>
+                  <h2 className="text-lg font-semibold">Your Stats</h2>
+                  <p className="text-xs text-gray-500">Based on your pool history. No one can see your email.</p>
+                </div>
+                <button
+                  onClick={loadHistory}
+                  className="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200 text-sm"
+                  disabled={historyLoading}
+                >
+                  {historyLoading ? 'Refreshing…' : 'Refresh'}
+                </button>
+              </div>
+
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <StatTile label="Pools played" value={String(stats.poolsPlayed)} />
+                <StatTile label="Pools won" value={String(stats.poolsWon)} />
+                <StatTile label="Pools eliminated" value={String(stats.poolsEliminated)} />
+                <StatTile label="Best finish" value={stats.bestFinish} />
+                <StatTile label="Career record" value={stats.recordLabel} />
+                <StatTile label="Total strikes" value={String(stats.totalStrikes)} />
+                <StatTile label="Last season played" value={stats.lastSeasonPlayed !== null ? String(stats.lastSeasonPlayed) : '—'} />
+              </div>
+            </section>
+
             {/* Account */}
             <section className="border rounded-lg p-4 bg-white">
               <h2 className="text-lg font-semibold mb-2">Account</h2>
               <div className="text-sm text-gray-700">
                 <div>
-                  <span className="text-gray-500">Current email:</span>{' '}
-                  <span className="font-medium">{currentEmail || '—'}</span>
+                  <span className="text-gray-500">Current email:</span> <span className="font-medium">{currentEmail || '—'}</span>
                 </div>
               </div>
 
@@ -318,9 +389,7 @@ export default function ProfilePage() {
                     className="w-full border rounded-md px-3 py-2"
                     placeholder="e.g. Kev, Boudrow, etc."
                   />
-                  <p className="text-xs text-gray-500 mt-2">
-                    This is what others see in standings. (No emails are shown.)
-                  </p>
+                  <p className="text-xs text-gray-500 mt-2">This is what others see in standings. (No emails are shown.)</p>
                   {usernameMsg && <div className="text-sm text-emerald-700 mt-2">{usernameMsg}</div>}
                 </div>
                 <div className="flex items-end">
@@ -413,16 +482,18 @@ export default function ProfilePage() {
                       {history.map((r) => (
                         <tr key={r.pool_id} className="hover:bg-gray-50">
                           <td className="p-2 border">
-                            <div className="font-medium">{r.pool_name}</div>
+                            <Link href={`/pools/${r.pool_id}`} className="font-medium underline">
+                              {r.pool_name}
+                            </Link>
                             <div className="text-xs text-gray-500">{r.pool_id.slice(0, 8)}…</div>
                           </td>
                           <td className="p-2 border">{r.season ?? '—'}</td>
                           <td className="p-2 border">{r.status ?? '—'}</td>
                           <td className="p-2 border">
-                            {(r.wins ?? 0)}-{(r.losses ?? 0)}
-                            {(r.pushes ?? 0) ? `-${r.pushes}` : ''}
+                            {n0(r.wins)}-{n0(r.losses)}
+                            {n0(r.pushes) ? `-${n0(r.pushes)}` : ''}
                           </td>
-                          <td className="p-2 border">{r.strikes_used ?? 0}</td>
+                          <td className="p-2 border">{n0(r.strikes_used)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -430,9 +501,7 @@ export default function ProfilePage() {
                 </div>
               )}
 
-              <p className="text-xs text-gray-500 mt-2">
-                This page only shows <b>your</b> account data and <b>your</b> pool history.
-              </p>
+              <p className="text-xs text-gray-500 mt-2">This page only shows <b>your</b> account data and <b>your</b> pool history.</p>
             </section>
           </div>
         )}

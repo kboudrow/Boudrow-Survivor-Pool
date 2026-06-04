@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import NextImage from 'next/image'
+import { getErrorMessage } from '@/lib/errorMessage'
 import { supabase } from '@/lib/supabaseClient'
 import { ensureProfile } from '@/lib/ensureProfile'
 
@@ -86,9 +87,9 @@ export default function PoolDetailPage() {
         } else {
           setAlreadyMember(false)
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!alive) return
-        setError(e?.message || 'Failed to load pool.')
+        setError(getErrorMessage(e, 'Failed to load pool.'))
       } finally {
         if (alive) setLoading(false)
       }
@@ -125,7 +126,7 @@ export default function PoolDetailPage() {
         .insert({ pool_id: pool.id, profile_id: userId })
         .single()
       if (error) {
-        const msg = (error as any).message?.toLowerCase?.() ?? ''
+        const msg = error.message.toLowerCase()
         if (msg.includes('row-level security')) {
           setError('Join failed due to RLS. Ensure pool_members has WITH CHECK (auth.uid() = profile_id).')
         } else {
@@ -134,8 +135,8 @@ export default function PoolDetailPage() {
         return
       }
       router.push('/pools')
-    } catch (e: any) {
-      setError(e?.message || 'Failed to join.')
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to join.'))
     } finally {
       setJoining(false)
     }

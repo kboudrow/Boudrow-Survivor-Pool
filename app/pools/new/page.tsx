@@ -7,16 +7,21 @@ import { supabase } from '@/lib/supabaseClient'
 const ALL_WEEKS = Array.from({ length: 18 }, (_, i) => i + 1)
 
 /** Turn DB/SDK errors into plain-English UI messages */
-function formatCreatePoolError(e: any): string {
+function formatCreatePoolError(e: unknown): string {
+  const errorInfo =
+    e && typeof e === 'object'
+      ? e as { message?: unknown; error_description?: unknown; details?: unknown; hint?: unknown; code?: unknown }
+      : null
+
   const msg: string =
-    e?.message ||
-    e?.error_description ||
+    (typeof errorInfo?.message === 'string' ? errorInfo.message : '') ||
+    (typeof errorInfo?.error_description === 'string' ? errorInfo.error_description : '') ||
     (typeof e === 'string' ? e : '') ||
     'Something went wrong.'
 
-  const details: string | undefined = e?.details
-  const hint: string | undefined = e?.hint
-  const code: string | undefined = e?.code
+  const details = typeof errorInfo?.details === 'string' ? errorInfo.details : undefined
+  const hint = typeof errorInfo?.hint === 'string' ? errorInfo.hint : undefined
+  const code = typeof errorInfo?.code === 'string' ? errorInfo.code : undefined
 
   const full = [msg, details, hint].filter(Boolean).join(' — ')
   const lower = full.toLowerCase()
@@ -169,7 +174,7 @@ export default function CreatePoolPage() {
       }
 
       router.push(`/pools/${pool.id}`)
-    } catch (e: any) {
+    } catch (e: unknown) {
       const msg = formatCreatePoolError(e)
       setError(msg)
       scrollToTopAndFocusIfNeeded(msg)
@@ -242,7 +247,7 @@ export default function CreatePoolPage() {
 
           <div className="field">
             <label htmlFor="tiebreaker">Tie Counts As</label>
-            <select id="tiebreaker" value={tiebreaker} onChange={(e) => setTiebreaker(e.target.value as any)}>
+            <select id="tiebreaker" value={tiebreaker} onChange={(e) => setTiebreaker(e.target.value as 'Win' | 'Loss' | 'Push')}>
               <option value="Win">Win</option>
               <option value="Loss">Loss</option>
               <option value="Push">Push</option>

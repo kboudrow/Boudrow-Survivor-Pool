@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import NextImage from 'next/image'
+import { getErrorMessage } from '@/lib/errorMessage'
 import { supabase } from '@/lib/supabaseClient'
 import { ensureProfile } from '@/lib/ensureProfile'
 
@@ -87,9 +88,9 @@ export default function JoinPoolPage({ params }: { params: { poolId: string } })
         } else {
           setAlreadyMember(false)
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!alive) return
-        setError(e?.message || 'Failed to load pool.')
+        setError(getErrorMessage(e, 'Failed to load pool.'))
       } finally {
         if (alive) setLoading(false)
       }
@@ -133,7 +134,7 @@ export default function JoinPoolPage({ params }: { params: { poolId: string } })
         .single()
 
       if (error) {
-        if ((error as any).message?.toLowerCase?.().includes('row-level security')) {
+        if (error.message.toLowerCase().includes('row-level security')) {
           setError('Join failed due to RLS policy. Ask the admin to allow authenticated inserts to pool_members (with check auth.uid() = profile_id).')
         } else {
           setError(error.message)
@@ -142,8 +143,8 @@ export default function JoinPoolPage({ params }: { params: { poolId: string } })
       }
 
       router.push('/pools')
-    } catch (e: any) {
-      setError(e?.message || 'Failed to join.')
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to join.'))
     } finally {
       setJoining(false)
     }

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { getErrorMessage } from '@/lib/errorMessage'
 import { supabase } from '@/lib/supabaseClient'
 
 type Pool = {
@@ -43,9 +44,9 @@ export default function PoolAdminPage() {
         setPool(p)
         setIsOwner(!!user?.id && user.id === p.created_by)
         setDoubleWeeksText((p.double_pick_weeks || []).join(','))
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!alive) return
-        setError(e?.message || 'Failed to load admin data.')
+        setError(getErrorMessage(e, 'Failed to load admin data.'))
       } finally {
         if (alive) setLoading(false)
       }
@@ -76,8 +77,8 @@ export default function PoolAdminPage() {
       })
       if (error) throw error
       alert('Double-pick weeks saved.')
-    } catch (e: any) {
-      setError(e?.message || 'Failed to save double-pick weeks.')
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to save double-pick weeks.'))
     } finally {
       setSavingDouble(false)
     }
@@ -93,8 +94,8 @@ export default function PoolAdminPage() {
       })
       if (error) throw error
       setPool({ ...pool, archived: !pool.archived })
-    } catch (e: any) {
-      setError(e?.message || 'Failed to update archive state.')
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to update archive state.'))
     } finally {
       setArchiving(false)
     }

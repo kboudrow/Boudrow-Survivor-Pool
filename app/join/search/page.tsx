@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import NextImage from 'next/image'
+import { getErrorMessage } from '@/lib/errorMessage'
 import { supabase } from '@/lib/supabaseClient'
 
 type Pool = {
@@ -78,7 +79,7 @@ export default function JoinSearchPage() {
             .eq('profile_id', user.id)
 
           if (!memErr) {
-            excludePoolIds = (memRows || []).map((r: any) => r.pool_id)
+            excludePoolIds = (memRows || []).map((r) => r.pool_id)
           }
 
           // Also exclude pools the user created (optional, but usually what you want on a "join" page)
@@ -88,7 +89,7 @@ export default function JoinSearchPage() {
             .eq('created_by', user.id)
 
           if (!createdErr) {
-            excludePoolIds = excludePoolIds.concat((createdRows || []).map((r: any) => r.id))
+            excludePoolIds = excludePoolIds.concat((createdRows || []).map((r) => r.id))
           }
 
           // De-dupe
@@ -116,9 +117,9 @@ export default function JoinSearchPage() {
         if (!alive) return
 
         setRecent((data || []) as Pool[])
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!alive) return
-        setError(e?.message || 'Failed to load pools.')
+        setError(getErrorMessage(e, 'Failed to load pools.'))
       } finally {
         if (alive) setRecentLoading(false)
       }
@@ -152,8 +153,8 @@ export default function JoinSearchPage() {
           if (error) throw error
           setResults((data || []) as Pool[])
         }
-      } catch (e: any) {
-        setError(e?.message || 'Search failed.')
+      } catch (e: unknown) {
+        setError(getErrorMessage(e, 'Search failed.'))
       } finally {
         setSearching(false)
       }
@@ -162,7 +163,6 @@ export default function JoinSearchPage() {
 
   useEffect(() => {
     runSearch(query)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query])
 
   const openPoolModal = async (p: Pool) => {
@@ -220,8 +220,8 @@ export default function JoinSearchPage() {
       const { error } = await supabase.rpc('join_pool', { p_pool_id: selected.id })
       if (error) throw error
       router.push(`/pools/${selected.id}`)
-    } catch (e: any) {
-      setError(e?.message || 'Join failed.')
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Join failed.'))
     } finally {
       setJoining(false)
     }
@@ -241,8 +241,8 @@ export default function JoinSearchPage() {
       })
       if (error) throw error
       router.push(`/pools/${selected.id}`)
-    } catch (e: any) {
-      setError(e?.message || 'Join failed.')
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Join failed.'))
     } finally {
       setJoining(false)
     }

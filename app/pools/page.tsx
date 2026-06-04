@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { getErrorMessage } from '@/lib/errorMessage'
 import { supabase } from '@/lib/supabaseClient'
 
 /** ---------------- Types ---------------- */
@@ -48,6 +49,7 @@ type Game = {
 type SeasonWeek = { season: number; week: number; week_sunday_date: string }
 
 type PickRow = { user_id: string; team_abbr: string; result: 'win' | 'loss' | 'push' | null }
+type DraftPickRow = { week: number; team_abbr: string; updated_at: string | null }
 
 type MemberStats = {
   pool_id: string
@@ -157,7 +159,7 @@ function tzOffsetMinutes(zone: string, utcDate: Date): number {
 function etLocalToUtcISO(ymd: string, hhmm: string): string {
   const [y, m, d] = ymd.split('-').map(Number)
   const [H, M] = hhmm.split(':').map(Number)
-  let guess = Date.UTC(y, m - 1, d, H, M, 0, 0)
+  const guess = Date.UTC(y, m - 1, d, H, M, 0, 0)
   const off1 = tzOffsetMinutes('America/New_York', new Date(guess))
   let utcMs = guess - off1 * 60_000
   const off2 = tzOffsetMinutes('America/New_York', new Date(utcMs))
@@ -463,7 +465,7 @@ export default function MyPoolsPage() {
         if (memErr) throw memErr
 
         let memberPools: Pool[] = []
-        const ids = (memberships || []).map((m: any) => m.pool_id)
+        const ids = (memberships || []).map((m) => m.pool_id)
         if (ids.length > 0) {
           // ✅ CHANGE #2: only non-archived pools you are a member of
           const { data, error } = await supabase
@@ -482,9 +484,9 @@ export default function MyPoolsPage() {
 
         if (!alive) return
         setPools(Array.from(map.values()))
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!alive) return
-        setError(e?.message || 'Failed to load pools.')
+        setError(getErrorMessage(e, 'Failed to load pools.'))
       } finally {
         if (alive) setLoading(false)
       }
@@ -519,7 +521,7 @@ export default function MyPoolsPage() {
 
       if (pool?.deadline_mode === 'fixed') {
         const t24 = normalizeTimeTo24h(pool.deadline_fixed) || '13:00'
-        const season = (data && (data as any[])[0]?.season) || new Date().getFullYear()
+        const season = data?.[0]?.season || new Date().getFullYear()
         const { data: sw } = await supabase
           .from('season_weeks')
           .select('season, week, week_sunday_date')
@@ -535,7 +537,6 @@ export default function MyPoolsPage() {
     }
 
     if (teamPickerWeek) loadWeekGames(teamPickerWeek)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamPickerWeek, pool?.deadline_mode, pool?.deadline_fixed])
 
   /** ---------- Standings loader ---------- */
@@ -590,8 +591,8 @@ export default function MyPoolsPage() {
         if (error) throw error
       }
       setDraftSavedAt(new Date().toISOString())
-    } catch (e: any) {
-      alert(e?.message || 'Failed to save draft')
+    } catch (e: unknown) {
+      alert(getErrorMessage(e, 'Failed to save draft'))
     }
   }
 
@@ -618,8 +619,8 @@ export default function MyPoolsPage() {
       const { error } = await supabase.from('pool_pick_drafts').delete().eq('pool_id', selectedId).eq('user_id', userId)
       if (error) throw error
       setDraftSavedAt(new Date().toISOString())
-    } catch (e: any) {
-      alert(e?.message || 'Failed to clear picks')
+    } catch (e: unknown) {
+      alert(getErrorMessage(e, 'Failed to clear picks'))
     }
   }
 
@@ -662,7 +663,7 @@ export default function MyPoolsPage() {
   }, [teamSearch])
 
   /** ---------- OWNER CHECK (for Admin Panel button) ---------- */
-  const amOwner = useMemo(() => !!pool && !!userId && pool.created_by === userId, [pool?.created_by, userId])
+  const amOwner = useMemo(() => !!pool && !!userId && pool.created_by === userId, [pool, userId])
 
   /** ---------- Open / close modal ---------- */
   const openPool = async (id: string) => {
@@ -711,9 +712,9 @@ export default function MyPoolsPage() {
         const { data: drafts } = await supabase.from('pool_pick_drafts').select('week, team_abbr, updated_at').eq('pool_id', id).eq('user_id', userId)
         const next: Record<number, Team | null> = {}
         let latest: string | null = null
-        for (const r of drafts || []) {
-          next[(r as any).week] = teamByAbbr((r as any).team_abbr) || { abbr: (r as any).team_abbr, name: (r as any).team_abbr }
-          const upAt = (r as any).updated_at as string | null
+        for (const r of (drafts || []) as DraftPickRow[]) {
+          next[r.week] = teamByAbbr(r.team_abbr) || { abbr: r.team_abbr, name: r.team_abbr }
+          const upAt = r.updated_at
           if (upAt && (!latest || upAt > latest)) latest = upAt
         }
         setMyDraftPicks(next)

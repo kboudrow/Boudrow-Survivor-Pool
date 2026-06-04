@@ -167,51 +167,12 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* STICKY TOP BAR */}
-      <header className="sticky top-0 z-50 bg-white border-b">
-        <div className="mx-auto max-w-6xl px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <NextImage src="/football.png" alt="Football" width={28} height={28} priority />
-            <span className="font-semibold">Survivor Pool</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {isAuthed ? (
-              <>
-                <Link href="/pools" className="text-sm underline">
-                  My Pools
-                </Link>
-                <Link href="/profile" className="p-2 rounded-md hover:bg-gray-100" title="Profile">
-                  {/* simple "human" icon */}
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z" stroke="currentColor" strokeWidth="2" />
-                    <path d="M20 21a8 8 0 1 0-16 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                </Link>
-                <button onClick={signOut} className="px-3 py-1 rounded bg-gray-600 text-white">
-                  Sign out
-                </button>
-              </>
-            ) : (
-              <>
-                <button onClick={openSignIn} className="px-3 py-1 rounded bg-emerald-600 text-white">
-                  Sign in
-                </button>
-                <button onClick={openSignUp} className="px-3 py-1 rounded bg-indigo-600 text-white">
-                  Sign up
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </header>
-
-      {/* HERO */}
+      {/* HERO (no top nav on homepage) */}
       <main className="flex-1">
         <section className="pt-16 pb-12 px-6 text-center">
           <div className="mx-auto max-w-5xl">
             <div className="mb-6 flex justify-center">
-              <NextImage src="/football.png" alt="Football" width={64} height={64} />
+              <NextImage src="/football.png" alt="Football" width={64} height={64} priority />
             </div>
 
             <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight">
@@ -222,7 +183,7 @@ export default function Home() {
               Keep picks organized, locks automatic, and standings crystal clear. No spreadsheets. No chaos. Just a clean survivor pool experience for your group.
             </p>
 
-            {/* HERO CTA: ONLY Create/Join (NO sign in/up duplicates) */}
+            {/* HERO CTA: Create/Join + (only when authed) My Pools */}
             <div className="mt-7 flex flex-wrap gap-3 justify-center">
               <button
                 type="button"
@@ -247,10 +208,27 @@ export default function Home() {
               )}
             </div>
 
-            {!isAuthed && (
+            {!isAuthed ? (
               <p className="mt-3 text-sm text-gray-500">
-                Sign in to create or join a pool.
+                You’ll need to{' '}
+                <button type="button" onClick={openSignIn} className="underline text-gray-700 hover:text-black">
+                  sign in
+                </button>{' '}
+                (or{' '}
+                <button type="button" onClick={openSignUp} className="underline text-gray-700 hover:text-black">
+                  create an account
+                </button>
+                ) to create or join a pool.
               </p>
+            ) : (
+              <div className="mt-3 flex items-center justify-center gap-3 text-sm text-gray-600">
+                <Link href="/profile" className="underline hover:text-black">
+                  Profile
+                </Link>
+                <button type="button" onClick={signOut} className="underline hover:text-black">
+                  Sign out
+                </button>
+              </div>
             )}
 
             <p className="mt-2 text-xs text-gray-400">{status}</p>

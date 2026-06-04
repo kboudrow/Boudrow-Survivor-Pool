@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { getErrorMessage } from '@/lib/errorMessage'
 import { supabase } from '@/lib/supabaseClient'
 
 type Pool = {
@@ -101,7 +102,7 @@ export default function ArchivesPage() {
         if (memErr) throw memErr
 
         let memberArchived: Pool[] = []
-        const ids = (memRows || []).map((r: any) => r.pool_id)
+        const ids = (memRows || []).map((r) => r.pool_id)
 
         if (ids.length > 0) {
           const { data: memberPools, error: memberPoolsErr } = await supabase
@@ -129,9 +130,9 @@ export default function ArchivesPage() {
 
         if (!alive) return
         setPools(merged)
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!alive) return
-        setError(e?.message || 'Failed to load archived pools.')
+        setError(getErrorMessage(e, 'Failed to load archived pools.'))
       } finally {
         if (alive) setLoading(false)
       }
@@ -178,8 +179,8 @@ export default function ArchivesPage() {
       if (!newPoolId) throw new Error('Clone succeeded but no pool id was returned.')
 
       router.push(`/pools/${newPoolId}`)
-    } catch (e: any) {
-      setModalErr(e?.message || 'Failed to run it back.')
+    } catch (e: unknown) {
+      setModalErr(getErrorMessage(e, 'Failed to run it back.'))
     } finally {
       setRunning(false)
     }
