@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabaseClient'
 type Pool = {
   id: string
   name: string
+  season?: number | null
   is_public: boolean
   start_week: number
   include_playoffs: boolean
@@ -518,6 +519,7 @@ function MyPoolsContent() {
       const { data, error } = await supabase
         .from('nfl_games')
         .select('id, season, week, game_time, home_team, away_team, status, winner, home_score, away_score')
+        .eq('season', pool?.season ?? new Date().getFullYear())
         .eq('week', week)
         .order('game_time', { ascending: true })
 
@@ -526,7 +528,7 @@ function MyPoolsContent() {
 
       if (pool?.deadline_mode === 'fixed') {
         const t24 = normalizeTimeTo24h(pool.deadline_fixed) || '13:00'
-        const season = data?.[0]?.season || new Date().getFullYear()
+        const season = pool?.season ?? data?.[0]?.season ?? new Date().getFullYear()
         const { data: sw } = await supabase
           .from('season_weeks')
           .select('season, week, week_sunday_date')
@@ -542,7 +544,7 @@ function MyPoolsContent() {
     }
 
     if (teamPickerWeek) loadWeekGames(teamPickerWeek)
-  }, [teamPickerWeek, pool?.deadline_mode, pool?.deadline_fixed])
+  }, [teamPickerWeek, pool?.deadline_mode, pool?.deadline_fixed, pool?.season])
 
   /** ---------- Standings loader ---------- */
   const loadStandings = async (week: number, poolId?: string) => {

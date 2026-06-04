@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 
 const ALL_WEEKS = Array.from({ length: 18 }, (_, i) => i + 1)
+const DEFAULT_SEASON = 2026
 
 /** Turn DB/SDK errors into plain-English UI messages */
 function formatCreatePoolError(e: unknown): string {
@@ -146,6 +147,7 @@ export default function CreatePoolPage() {
           deadline_fixed,
           notes: notes?.trim() ? notes.trim() : null,
           created_by: user.id,
+          season: DEFAULT_SEASON,
           double_pick_weeks: doubleWeeks,
           plan: 'free',
           pick_privacy: 'hidden',
