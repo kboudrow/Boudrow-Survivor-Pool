@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { useSearchParams } from 'next/navigation'
 import { getErrorMessage } from '@/lib/errorMessage'
 import { supabase } from '@/lib/supabaseClient'
 
@@ -394,7 +395,10 @@ function TeamPickerModal(props: {
 }
 
 /** ---------------- Page ---------------- */
-export default function MyPoolsPage() {
+function MyPoolsContent() {
+  const searchParams = useSearchParams()
+  const requestedPoolId = searchParams.get('pool')
+
   // base state
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -407,6 +411,7 @@ export default function MyPoolsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [pool, setPool] = useState<Pool | null>(null)
   const [detailsLoading, setDetailsLoading] = useState(false)
+  const openedPoolParamRef = useRef<string | null>(null)
 
   // members
   const [members, setMembers] = useState<Profile[]>([])
@@ -734,6 +739,17 @@ export default function MyPoolsPage() {
     setSelectedId(null)
     setPool(null)
   }
+
+  useEffect(() => {
+    if (loading || !requestedPoolId) return
+    if (openedPoolParamRef.current === requestedPoolId) return
+    if (!pools.some((p) => p.id === requestedPoolId)) return
+
+    openedPoolParamRef.current = requestedPoolId
+    openPool(requestedPoolId)
+    // openPool is intentionally omitted so a query param opens once after pool data loads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, requestedPoolId, pools])
 
   /** ---------------- UI ---------------- */
   return (
@@ -1106,5 +1122,13 @@ export default function MyPoolsPage() {
         </div>
       )}
     </main>
+  )
+}
+
+export default function MyPoolsPage() {
+  return (
+    <Suspense fallback={<main className="min-h-[60vh] py-8">Loading pools...</main>}>
+      <MyPoolsContent />
+    </Suspense>
   )
 }

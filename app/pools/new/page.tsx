@@ -173,7 +173,7 @@ export default function CreatePoolPage() {
         if (pwdErr) throw pwdErr
       }
 
-      router.push(`/pools/${pool.id}`)
+      router.push(`/pools?pool=${pool.id}`)
     } catch (e: unknown) {
       const msg = formatCreatePoolError(e)
       setError(msg)

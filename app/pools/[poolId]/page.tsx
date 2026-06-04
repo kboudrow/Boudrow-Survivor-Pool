@@ -134,7 +134,7 @@ export default function PoolDetailPage() {
         }
         return
       }
-      router.push('/pools')
+      router.push(`/pools?pool=${pool.id}`)
     } catch (e: unknown) {
       setError(getErrorMessage(e, 'Failed to join.'))
     } finally {
@@ -258,8 +258,8 @@ export default function PoolDetailPage() {
             {authed && alreadyMember && (
               <div className="mt-4 flex items-center gap-2">
                 <span className="text-sm text-emerald-700">You’re already a member of this pool.</span>
-                <Link href="/pools" className="px-3 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 text-sm">
-                  Go to My Pools
+                <Link href={`/pools?pool=${pool.id}`} className="px-3 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 text-sm">
+                  Open Pool
                 </Link>
               </div>
             )}
