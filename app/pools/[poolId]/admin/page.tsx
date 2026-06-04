@@ -20,6 +20,7 @@ type AdminRow = {
   display_name: string
   role: string
   joined_at: string | null
+  slot: number
   draft_team_abbr: string | null
   draft_updated_at: string | null
   final_team_abbr: string | null
@@ -73,6 +74,7 @@ function fmt(value?: string | null) {
   if (!value) return '-'
   return new Date(value).toLocaleString()
 }
+const rowKey = (row: AdminRow) => `${row.user_id}:${row.slot}`
 
 export default function PoolAdminPage() {
   const router = useRouter()
@@ -93,10 +95,11 @@ export default function PoolAdminPage() {
   const [draftTeams, setDraftTeams] = useState<Record<string, string>>({})
   const [finalTeams, setFinalTeams] = useState<Record<string, string>>({})
 
-  const memberCount = rows.length
+  const memberCount = new Set(rows.map((row) => row.user_id)).size
   const stats = useMemo(() => {
-    const alive = rows.filter((row) => !row.eliminated).length
-    return { alive, eliminated: rows.length - alive }
+    const uniqueMembers = Array.from(new Map(rows.map((row) => [row.user_id, row])).values())
+    const alive = uniqueMembers.filter((row) => !row.eliminated).length
+    return { alive, eliminated: uniqueMembers.length - alive }
   }, [rows])
 
   const loadOverview = async (week = selectedWeek) => {
@@ -124,8 +127,8 @@ export default function PoolAdminPage() {
       const nextDrafts: Record<string, string> = {}
       const nextFinals: Record<string, string> = {}
       for (const row of (overview || []) as AdminRow[]) {
-        nextDrafts[row.user_id] = row.draft_team_abbr || ''
-        nextFinals[row.user_id] = row.final_team_abbr || ''
+        nextDrafts[rowKey(row)] = row.draft_team_abbr || ''
+        nextFinals[rowKey(row)] = row.final_team_abbr || ''
       }
       setDraftTeams(nextDrafts)
       setFinalTeams(nextFinals)
@@ -236,12 +239,14 @@ export default function PoolAdminPage() {
   const saveDraft = (row: AdminRow) =>
     runAction('Save draft pick', async () => {
       if (!pool) return
-      const team = draftTeams[row.user_id]?.trim().toUpperCase()
+      const key = rowKey(row)
+      const team = draftTeams[key]?.trim().toUpperCase()
       if (!team) {
-        const { error } = await supabase.rpc('admin_clear_user_week_drafts', {
+        const { error } = await supabase.rpc('admin_clear_user_week_draft_slot', {
           p_pool_id: pool.id,
           p_target_user: row.user_id,
           p_week: selectedWeek,
+          p_slot: row.slot,
           p_reason: 'Cleared from admin panel',
         })
         if (error) throw error
@@ -253,6 +258,7 @@ export default function PoolAdminPage() {
         p_target_user: row.user_id,
         p_week: selectedWeek,
         p_team_abbr: team,
+        p_slot: row.slot,
         p_reason: 'Updated from admin panel',
       })
       if (error) throw error
@@ -262,7 +268,7 @@ export default function PoolAdminPage() {
   const saveFinal = (row: AdminRow) =>
     runAction('Override final pick', async () => {
       if (!pool) return
-      const team = finalTeams[row.user_id]?.trim().toUpperCase()
+      const team = finalTeams[rowKey(row)]?.trim().toUpperCase()
       if (!team) throw new Error('Choose a team before overriding a final pick.')
 
       const { error } = await supabase.rpc('admin_override_final_pick', {
@@ -270,6 +276,7 @@ export default function PoolAdminPage() {
         p_target_user: row.user_id,
         p_week: selectedWeek,
         p_team_abbr: team,
+        p_slot: row.slot,
         p_reason: 'Updated from admin panel',
       })
       if (error) throw error
@@ -399,6 +406,7 @@ export default function PoolAdminPage() {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="border p-2 text-left">Member</th>
+                      <th className="border p-2 text-left">Slot</th>
                       <th className="border p-2 text-left">Draft pick</th>
                       <th className="border p-2 text-left">Final pick</th>
                       <th className="border p-2 text-left">Result</th>
@@ -409,15 +417,16 @@ export default function PoolAdminPage() {
                   </thead>
                   <tbody>
                     {rows.map((row) => (
-                      <tr key={row.user_id} className="align-top hover:bg-gray-50">
+                      <tr key={rowKey(row)} className="align-top hover:bg-gray-50">
                         <td className="border p-2">
                           <div className="font-medium">{row.display_name}</div>
                           <div className="text-xs text-gray-500">{row.role} · joined {fmt(row.joined_at)}</div>
                         </td>
+                        <td className="border p-2">Pick {row.slot}</td>
                         <td className="border p-2">
                           <select
-                            value={draftTeams[row.user_id] || ''}
-                            onChange={(e) => setDraftTeams((prev) => ({ ...prev, [row.user_id]: e.target.value }))}
+                            value={draftTeams[rowKey(row)] || ''}
+                            onChange={(e) => setDraftTeams((prev) => ({ ...prev, [rowKey(row)]: e.target.value }))}
                             className="w-full rounded-md border px-2 py-1"
                           >
                             <option value="">No draft</option>
@@ -431,8 +440,8 @@ export default function PoolAdminPage() {
                         </td>
                         <td className="border p-2">
                           <select
-                            value={finalTeams[row.user_id] || ''}
-                            onChange={(e) => setFinalTeams((prev) => ({ ...prev, [row.user_id]: e.target.value }))}
+                            value={finalTeams[rowKey(row)] || ''}
+                            onChange={(e) => setFinalTeams((prev) => ({ ...prev, [rowKey(row)]: e.target.value }))}
                             className="w-full rounded-md border px-2 py-1"
                           >
                             <option value="">No final</option>

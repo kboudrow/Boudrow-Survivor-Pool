@@ -24,6 +24,7 @@ export type Database = {
           old_team_abbr: string | null
           pool_id: string
           reason: string | null
+          slot: number | null
           target_user_id: string
           week: number
         }
@@ -36,6 +37,7 @@ export type Database = {
           old_team_abbr?: string | null
           pool_id: string
           reason?: string | null
+          slot?: number | null
           target_user_id: string
           week: number
         }
@@ -48,6 +50,7 @@ export type Database = {
           old_team_abbr?: string | null
           pool_id?: string
           reason?: string | null
+          slot?: number | null
           target_user_id?: string
           week?: number
         }
@@ -567,6 +570,7 @@ export type Database = {
       pool_pick_drafts: {
         Row: {
           pool_id: string
+          slot: number
           team_abbr: string
           updated_at: string
           user_id: string
@@ -574,6 +578,7 @@ export type Database = {
         }
         Insert: {
           pool_id: string
+          slot?: number
           team_abbr: string
           updated_at?: string
           user_id: string
@@ -581,6 +586,7 @@ export type Database = {
         }
         Update: {
           pool_id?: string
+          slot?: number
           team_abbr?: string
           updated_at?: string
           user_id?: string
@@ -624,6 +630,7 @@ export type Database = {
           locked_at: string
           pool_id: string
           result: string | null
+          slot: number
           team_abbr: string
           user_id: string
           week: number
@@ -634,6 +641,7 @@ export type Database = {
           locked_at: string
           pool_id: string
           result?: string | null
+          slot?: number
           team_abbr: string
           user_id: string
           week: number
@@ -644,6 +652,7 @@ export type Database = {
           locked_at?: string
           pool_id?: string
           result?: string | null
+          slot?: number
           team_abbr?: string
           user_id?: string
           week?: number
@@ -997,6 +1006,16 @@ export type Database = {
         Returns: undefined
       }
       admin_can_manage: { Args: { p_pool_id: string }; Returns: boolean }
+      admin_clear_user_week_draft_slot: {
+        Args: {
+          p_pool_id: string
+          p_reason?: string
+          p_slot: number
+          p_target_user: string
+          p_week: number
+        }
+        Returns: number
+      }
       admin_clear_user_week_drafts: {
         Args: {
           p_pool_id: string
@@ -1006,16 +1025,28 @@ export type Database = {
         }
         Returns: number
       }
-      admin_override_final_pick: {
-        Args: {
-          p_pool_id: string
-          p_reason?: string
-          p_target_user: string
-          p_team_abbr: string
-          p_week: number
-        }
-        Returns: undefined
-      }
+      admin_override_final_pick:
+        | {
+            Args: {
+              p_pool_id: string
+              p_reason?: string
+              p_target_user: string
+              p_team_abbr: string
+              p_week: number
+            }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              p_pool_id: string
+              p_reason?: string
+              p_slot?: number
+              p_target_user: string
+              p_team_abbr: string
+              p_week: number
+            }
+            Returns: undefined
+          }
       admin_pool_week_overview: {
         Args: { p_pool_id: string; p_week: number }
         Returns: {
@@ -1031,6 +1062,7 @@ export type Database = {
           pushes: number
           result: string
           role: string
+          slot: number
           strikes_used: number
           user_id: string
           wins: number
