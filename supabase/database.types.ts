@@ -984,6 +984,10 @@ export type Database = {
       }
     }
     Functions: {
+      adjudicate_completed_weeks: {
+        Args: { p_season: number }
+        Returns: number
+      }
       adjudicate_results: {
         Args: { p_season: number; p_week: number }
         Returns: number

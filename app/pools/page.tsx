@@ -446,6 +446,11 @@ function MyPoolsContent() {
     if (error) throw error
   }
 
+  const adjudicateCompletedWeeks = async (season?: number | null) => {
+    const { error } = await supabase.rpc('adjudicate_completed_weeks', { p_season: season ?? new Date().getFullYear() })
+    if (error) throw error
+  }
+
   const loadMyPicks = async (poolId: string) => {
     if (!userId) return
 
@@ -581,15 +586,16 @@ function MyPoolsContent() {
   }, [teamPickerWeek, pool?.deadline_mode, pool?.deadline_fixed, pool?.season])
 
   /** ---------- Standings loader ---------- */
-  const loadStandings = async (week: number, poolId?: string) => {
+  const loadStandings = async (week: number, poolId?: string, poolSeason?: number | null) => {
     const pid = poolId ?? selectedId
     if (!pid) return
     setStandingsLoading(true)
     try {
       await finalizeLockedPicks(pid)
+      await adjudicateCompletedWeeks(poolSeason ?? pool?.season)
       await loadMyPicks(pid)
     } catch (e: unknown) {
-      console.warn('Failed to finalize locked picks', e)
+      console.warn('Failed to refresh finalized picks or standings results', e)
     }
 
     const { data: stats } = await supabase
@@ -798,7 +804,7 @@ function MyPoolsContent() {
 
       await loadMyPicks(id)
 
-      await loadStandings(1, id)
+      await loadStandings(1, id, poolRow.season)
     } catch {
       // surfaced below
     } finally {
