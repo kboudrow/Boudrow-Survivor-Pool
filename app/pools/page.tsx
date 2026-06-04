@@ -52,6 +52,7 @@ type SeasonWeek = { season: number; week: number; week_sunday_date: string }
 
 type PickRow = { user_id: string; team_abbr: string; result: 'win' | 'loss' | 'push' | null }
 type DraftPickRow = { week: number; team_abbr: string; updated_at: string | null }
+type FinalPickRow = { week: number; team_abbr: string; locked_at: string; result: 'win' | 'loss' | 'push' | null }
 
 type MemberStats = {
   pool_id: string
@@ -421,6 +422,7 @@ function MyPoolsContent() {
   // picks (mine)
   const weeks = useMemo(() => Array.from({ length: 18 }, (_, i) => i + 1), [])
   const [myDraftPicks, setMyDraftPicks] = useState<Record<number, Team | null>>({})
+  const [myFinalPicks, setMyFinalPicks] = useState<Record<number, FinalPickRow>>({})
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null)
 
   // team picker (single source of truth — no duplicates)
@@ -438,6 +440,38 @@ function MyPoolsContent() {
   const [statsByUser, setStatsByUser] = useState<Record<string, MemberStats>>({})
   const [aliveCount, setAliveCount] = useState(0)
   const [elimCount, setElimCount] = useState(0)
+
+  const finalizeLockedPicks = async (poolId: string) => {
+    const { error } = await supabase.rpc('finalize_locked_picks_for_pool', { p_pool_id: poolId })
+    if (error) throw error
+  }
+
+  const loadMyPicks = async (poolId: string) => {
+    if (!userId) return
+
+    const [{ data: finalPicks, error: finalErr }, { data: drafts, error: draftErr }] = await Promise.all([
+      supabase.from('pool_picks').select('week, team_abbr, locked_at, result').eq('pool_id', poolId).eq('user_id', userId),
+      supabase.from('pool_pick_drafts').select('week, team_abbr, updated_at').eq('pool_id', poolId).eq('user_id', userId),
+    ])
+    if (finalErr) throw finalErr
+    if (draftErr) throw draftErr
+
+    const locked: Record<number, FinalPickRow> = {}
+    for (const pick of (finalPicks || []) as FinalPickRow[]) {
+      locked[pick.week] = pick
+    }
+    setMyFinalPicks(locked)
+
+    const next: Record<number, Team | null> = {}
+    let latest: string | null = null
+    for (const r of (drafts || []) as DraftPickRow[]) {
+      next[r.week] = teamByAbbr(r.team_abbr) || { abbr: r.team_abbr, name: r.team_abbr }
+      const upAt = r.updated_at
+      if (upAt && (!latest || upAt > latest)) latest = upAt
+    }
+    setMyDraftPicks(next)
+    setDraftSavedAt(latest)
+  }
   const [standingsLoading, setStandingsLoading] = useState(false)
 
   // monetization flags
@@ -551,6 +585,12 @@ function MyPoolsContent() {
     const pid = poolId ?? selectedId
     if (!pid) return
     setStandingsLoading(true)
+    try {
+      await finalizeLockedPicks(pid)
+      await loadMyPicks(pid)
+    } catch (e: unknown) {
+      console.warn('Failed to finalize locked picks', e)
+    }
 
     const { data: stats } = await supabase
       .from('pool_member_stats')
@@ -589,6 +629,10 @@ function MyPoolsContent() {
   /** ---------- Draft save / clear ---------- */
   const saveDraft = async (week: number, team: Team | null) => {
     if (!selectedId || !userId) return
+    if (myFinalPicks[week]) {
+      alert(`Week ${week} is locked and can no longer be changed.`)
+      return
+    }
     try {
       if (team) {
         const { error } = await supabase.from('pool_pick_drafts').upsert({ pool_id: selectedId, user_id: userId, week, team_abbr: team.abbr })
@@ -604,7 +648,25 @@ function MyPoolsContent() {
   }
 
   const onPickTeam = async (week: number, team: Team) => {
-    const alreadyUsedElsewhere = Object.entries(myDraftPicks).some(([wk, t]) => Number(wk) !== week && t?.abbr === team.abbr)
+    if (myFinalPicks[week]) {
+      alert(`Week ${week} is locked and can no longer be changed.`)
+      return
+    }
+    if (teamPickerWeek === week) {
+      const game = weekGames.find((g) => toAbbr(g.home_team) === team.abbr || toAbbr(g.away_team) === team.abbr)
+      if (game) {
+        const kickoffMs = Date.parse(game.game_time)
+        const fixedMs = pool?.deadline_mode === 'fixed' && fixedLockUtc ? Date.parse(fixedLockUtc) : Infinity
+        const lockMs = Math.min(kickoffMs, fixedMs)
+        if (Date.now() >= lockMs) {
+          alert(`${team.name} is locked for Week ${week}.`)
+          return
+        }
+      }
+    }
+    const alreadyUsedElsewhere =
+      Object.entries(myDraftPicks).some(([wk, t]) => Number(wk) !== week && t?.abbr === team.abbr) ||
+      Object.entries(myFinalPicks).some(([wk, pick]) => Number(wk) !== week && pick.team_abbr === team.abbr)
     if (alreadyUsedElsewhere) {
       alert(`${team.name} was already used in another week.`)
       return
@@ -615,13 +677,23 @@ function MyPoolsContent() {
   }
 
   const clearPick = async (week: number) => {
+    if (myFinalPicks[week]) {
+      alert(`Week ${week} is locked and can no longer be changed.`)
+      return
+    }
     setMyDraftPicks((prev) => ({ ...prev, [week]: null }))
     await saveDraft(week, null)
   }
 
   const clearAllPicks = async () => {
     if (!selectedId || !userId) return
-    setMyDraftPicks({})
+    setMyDraftPicks((prev) => {
+      const next = { ...prev }
+      weeks.forEach((week) => {
+        if (!myFinalPicks[week]) next[week] = null
+      })
+      return next
+    })
     try {
       const { error } = await supabase.from('pool_pick_drafts').delete().eq('pool_id', selectedId).eq('user_id', userId)
       if (error) throw error
@@ -646,10 +718,13 @@ function MyPoolsContent() {
 
   const exportCsv = () => {
     if (!pool) return
-    const rows = [['Week', 'Team', 'Abbr']]
+    const rows = [['Week', 'Team', 'Abbr', 'Status']]
     weeks.forEach((w) => {
-      const t = myDraftPicks[w]
-      rows.push([String(w), t?.name ?? '', t?.abbr ?? ''])
+      const finalPick = myFinalPicks[w]
+      const draftPick = myDraftPicks[w]
+      const finalTeam = finalPick ? teamByAbbr(finalPick.team_abbr) || { abbr: finalPick.team_abbr, name: finalPick.team_abbr } : null
+      const team = finalTeam || draftPick
+      rows.push([String(w), team?.name ?? '', team?.abbr ?? '', finalPick ? 'Locked' : draftPick ? 'Draft' : ''])
     })
     const csv = rows.map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -662,7 +737,11 @@ function MyPoolsContent() {
   }
 
   /** ---------- Derived ---------- */
-  const usedTeamAbbrs = useMemo(() => Object.values(myDraftPicks).filter(Boolean).map((t) => (t as Team).abbr), [myDraftPicks])
+  const usedTeamAbbrs = useMemo(() => {
+    const draftTeams = Object.values(myDraftPicks).filter(Boolean).map((t) => (t as Team).abbr)
+    const finalTeams = Object.values(myFinalPicks).map((p) => p.team_abbr)
+    return Array.from(new Set([...draftTeams, ...finalTeams]))
+  }, [myDraftPicks, myFinalPicks])
   const filteredTeams = useMemo(() => {
     const q = teamSearch.trim().toLowerCase()
     if (!q) return NFL_TEAMS
@@ -684,6 +763,7 @@ function MyPoolsContent() {
     setMembers([])
     setMemberCount(0)
     setMyDraftPicks({})
+    setMyFinalPicks({})
     setDraftSavedAt(null)
     setTeamPickerWeek(null)
     setTeamSearch('')
@@ -714,19 +794,9 @@ function MyPoolsContent() {
         setMembers((profiles || []) as Profile[])
       }
 
-      // preload my drafts
-      if (userId) {
-        const { data: drafts } = await supabase.from('pool_pick_drafts').select('week, team_abbr, updated_at').eq('pool_id', id).eq('user_id', userId)
-        const next: Record<number, Team | null> = {}
-        let latest: string | null = null
-        for (const r of (drafts || []) as DraftPickRow[]) {
-          next[r.week] = teamByAbbr(r.team_abbr) || { abbr: r.team_abbr, name: r.team_abbr }
-          const upAt = r.updated_at
-          if (upAt && (!latest || upAt > latest)) latest = upAt
-        }
-        setMyDraftPicks(next)
-        setDraftSavedAt(latest)
-      }
+      await finalizeLockedPicks(id)
+
+      await loadMyPicks(id)
 
       await loadStandings(1, id)
     } catch {
@@ -900,20 +970,33 @@ function MyPoolsContent() {
                       <table className="min-w-[900px] w-full border border-gray-200 rounded-lg text-sm">
                         <tbody>
                           <tr className="bg-gray-50">
-                            {weeks.map((w) => (
-                              <td key={`pick-${w}`} className="border border-gray-200 p-2 text-center">
-                                <div className="flex items-center justify-center gap-2">
-                                  <button className="text-blue-600 underline" onClick={() => setTeamPickerWeek(w)}>
-                                    {myDraftPicks[w]?.abbr ? `Change (${myDraftPicks[w]!.abbr})` : 'Pick'}
-                                  </button>
-                                  {myDraftPicks[w] && (
-                                    <button className="text-gray-500 underline" title="Clear this pick" onClick={() => clearPick(w)}>
-                                      Clear
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            ))}
+                            {weeks.map((w) => {
+                              const finalPick = myFinalPicks[w]
+                              const draftPick = myDraftPicks[w]
+
+                              return (
+                                <td key={`pick-${w}`} className="border border-gray-200 p-2 text-center">
+                                  <div className="flex items-center justify-center gap-2">
+                                    {finalPick ? (
+                                      <span className="inline-flex items-center rounded-full border border-gray-300 bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
+                                        Locked ({finalPick.team_abbr})
+                                      </span>
+                                    ) : (
+                                      <>
+                                        <button className="text-blue-600 underline" onClick={() => setTeamPickerWeek(w)}>
+                                          {draftPick?.abbr ? `Change (${draftPick.abbr})` : 'Pick'}
+                                        </button>
+                                        {draftPick && (
+                                          <button className="text-gray-500 underline" title="Clear this pick" onClick={() => clearPick(w)}>
+                                            Clear
+                                          </button>
+                                        )}
+                                      </>
+                                    )}
+                                  </div>
+                                </td>
+                              )
+                            })}
                           </tr>
                           <tr>
                             {weeks.map((w) => (

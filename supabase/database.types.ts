@@ -1038,6 +1038,14 @@ export type Database = {
         Returns: string
       }
       count_pool_members: { Args: { p_pool_id: string }; Returns: number }
+      finalize_locked_picks: {
+        Args: { p_pool_id: string; p_week: number }
+        Returns: number
+      }
+      finalize_locked_picks_for_pool: {
+        Args: { p_pool_id: string }
+        Returns: number
+      }
       finalize_picks_week: {
         Args: { p_pool_id: string; p_week: number }
         Returns: number
