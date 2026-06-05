@@ -6,7 +6,6 @@ import Link from 'next/link'
 import NextImage from 'next/image'
 import { getErrorMessage } from '@/lib/errorMessage'
 import { supabase } from '@/lib/supabaseClient'
-import { ensureProfile } from '@/lib/ensureProfile'
 
 type Pool = {
   id: string
@@ -38,6 +37,7 @@ export default function PoolDetailPage() {
 
   const [error, setError] = useState<string | null>(null)
   const [joining, setJoining] = useState(false)
+  const [password, setPassword] = useState('')
 
   const planIsFree = pool?.plan === 'free' || !pool?.plan
   const requiresUpgrade = planIsFree && memberCount >= 11
@@ -120,18 +120,12 @@ export default function PoolDetailPage() {
     setJoining(true)
     setError(null)
     try {
-      await ensureProfile()
-      const { error } = await supabase
-        .from('pool_members')
-        .insert({ pool_id: pool.id, profile_id: userId })
-        .single()
+      const { error } = await supabase.rpc('join_pool', {
+        p_pool_id: pool.id,
+        p_password: pool.is_public ? null : password || null,
+      })
       if (error) {
-        const msg = error.message.toLowerCase()
-        if (msg.includes('row-level security')) {
-          setError('Join failed due to RLS. Ensure pool_members has WITH CHECK (auth.uid() = profile_id).')
-        } else {
-          setError(error.message)
-        }
+        setError(error.message)
         return
       }
       router.push(`/pools?pool=${pool.id}`)
@@ -266,9 +260,18 @@ export default function PoolDetailPage() {
 
             {authed && !alreadyMember && (
               <div className="mt-4 flex flex-wrap gap-2">
+                {!pool.is_public && (
+                  <input
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full rounded-md border px-3 py-2"
+                    placeholder="Enter pool password"
+                    type="password"
+                  />
+                )}
                 <button
                   onClick={joinPool}
-                  disabled={joining || (requiresUpgrade && planIsFree)}
+                  disabled={joining || (requiresUpgrade && planIsFree) || (!pool.is_public && !password.trim())}
                   className="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
                 >
                   {joining ? 'Joining…' : 'Join Pool'}

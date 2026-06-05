@@ -158,15 +158,7 @@ export default function CreatePoolPage() {
       if (insErr) throw insErr
       if (!pool) throw new Error('Failed to create pool.')
 
-      // 2) add creator as member
-      const { error: memErr } = await supabase
-        .from('pool_members')
-        .insert({ pool_id: pool.id, profile_id: user.id })
-        .single()
-
-      if (memErr) throw memErr
-
-      // 3) if private, set password via RPC (hash in DB)
+      // 2) if private, set password via RPC (hash in DB)
       if (!isPublic) {
         const { error: pwdErr } = await supabase.rpc('set_pool_password', {
           p_pool_id: pool.id,
@@ -174,6 +166,14 @@ export default function CreatePoolPage() {
         })
         if (pwdErr) throw pwdErr
       }
+
+      // 3) join creator through the same secure path used by every player
+      const { error: joinErr } = await supabase.rpc('join_pool', {
+        p_pool_id: pool.id,
+        p_password: isPublic ? null : password,
+      })
+
+      if (joinErr) throw joinErr
 
       router.push(`/pools?pool=${pool.id}`)
     } catch (e: unknown) {
