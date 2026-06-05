@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import NextImage from 'next/image'
 import { getErrorMessage } from '@/lib/errorMessage'
@@ -24,9 +24,9 @@ type Pool = {
   max_members?: number | null
 }
 
-export default function JoinPoolPage({ params }: { params: { poolId: string } }) {
+export default function JoinPoolPage() {
   const router = useRouter()
-  const poolId = params.poolId
+  const { poolId } = useParams<{ poolId: string }>()
 
   const [loading, setLoading] = useState(true)
   const [authed, setAuthed] = useState(false)
