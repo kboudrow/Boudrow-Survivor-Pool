@@ -72,6 +72,7 @@ export default function CreatePoolPage() {
   const [isPublic, setIsPublic] = useState(true)
   const [password, setPassword] = useState('')
   const [password2, setPassword2] = useState('')
+  const [maxMembers, setMaxMembers] = useState(25)
 
   // double pick weeks
   const [doubleWeeks, setDoubleWeeks] = useState<number[]>([])
@@ -151,6 +152,9 @@ export default function CreatePoolPage() {
           double_pick_weeks: doubleWeeks,
           plan: 'free',
           pick_privacy: 'hidden',
+          activation_status: 'draft',
+          payment_status: 'unpaid',
+          max_members: maxMembers,
         })
         .select('*')
         .single()
@@ -175,7 +179,7 @@ export default function CreatePoolPage() {
 
       if (joinErr) throw joinErr
 
-      router.push(`/pools?pool=${pool.id}`)
+      router.push(`/pools/${pool.id}/admin`)
     } catch (e: unknown) {
       const msg = formatCreatePoolError(e)
       setError(msg)
@@ -287,6 +291,19 @@ export default function CreatePoolPage() {
           </div>
         </div>
 
+        <div className="field">
+          <label htmlFor="maxMembers">Member Limit</label>
+          <select id="maxMembers" value={maxMembers} onChange={(e) => setMaxMembers(Number(e.target.value))}>
+            <option value={10}>10 members</option>
+            <option value={25}>25 members</option>
+            <option value={50}>50 members</option>
+            <option value={100}>100 members</option>
+            <option value={250}>250 members</option>
+            <option value={500}>500 members</option>
+          </select>
+          <p className="hint">This protects public pools from unexpected signups. You can adjust it before activation.</p>
+        </div>
+
         {!isPublic && (
           <div className="grid2">
             <div className="field">
@@ -341,7 +358,7 @@ export default function CreatePoolPage() {
         </div>
 
         <button className="primary" type="submit" disabled={loading}>
-          {loading ? 'Creating…' : 'Create Pool'}
+          {loading ? 'Creating...' : 'Create Draft Pool'}
         </button>
       </form>
 

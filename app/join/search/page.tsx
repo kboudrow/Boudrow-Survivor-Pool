@@ -20,6 +20,8 @@ type Pool = {
   notes: string | null
   created_by: string
   created_at?: string | null
+  activation_status?: 'draft' | 'active' | 'cancelled' | string | null
+  max_members?: number | null
 }
 
 function formatPoolMeta(pool: Pool) {
@@ -113,8 +115,9 @@ export default function JoinSearchPage() {
 
         let request = supabase
           .from('pools')
-          .select('id, name, is_public, allow_discovery, start_week, include_playoffs, strikes_allowed, tie_rule, deadline_mode, deadline_fixed, notes, created_by, created_at')
+          .select('id, name, is_public, allow_discovery, start_week, include_playoffs, strikes_allowed, tie_rule, deadline_mode, deadline_fixed, notes, created_by, created_at, activation_status, max_members')
           .eq('archived', false)
+          .eq('activation_status', 'active')
           .eq('allow_discovery', true)
           .order('created_at', { ascending: false })
           .limit(30)
@@ -253,6 +256,7 @@ export default function JoinSearchPage() {
   const showEmptyRecent = !recentLoading && !query.trim() && recent.length === 0
   const selectedAlreadyJoined = selected ? joinedPoolIds.has(selected.id) : false
   const selectedOwnedByMe = selected ? selected.created_by === userId : false
+  const selectedIsFull = !!(selected && memberCount !== null && selected.max_members && memberCount >= selected.max_members)
 
   return (
     <main className="min-h-[70vh] py-8 px-4">
@@ -330,7 +334,7 @@ export default function JoinSearchPage() {
 
             <div className="mb-3 grid gap-3 sm:grid-cols-3">
               <Info label="Visibility" value={selected.is_public ? 'Public' : 'Private'} />
-              <Info label="Members" value={memberCount !== null ? String(memberCount) : '-'} />
+              <Info label="Members" value={memberCount !== null ? `${memberCount}/${selected.max_members ?? '-'}` : '-'} />
               <Info label="Strikes Allowed" value={String(selected.strikes_allowed ?? '-')} />
               <Info label="Tie Counts As" value={selected.tie_rule ?? '-'} />
               <Info label="Start Week" value={`Week ${selected.start_week}`} />
@@ -345,6 +349,10 @@ export default function JoinSearchPage() {
                 <button onClick={() => router.push(`/pools?pool=${selected.id}`)} className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
                   Open Pool
                 </button>
+              </div>
+            ) : selectedIsFull ? (
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                This pool is full.
               </div>
             ) : selected.is_public ? (
               <button

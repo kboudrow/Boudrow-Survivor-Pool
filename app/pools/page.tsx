@@ -22,6 +22,8 @@ type Pool = {
   created_by: string
   double_pick_weeks?: number[] | null
   plan?: 'free' | 'pro'
+  activation_status?: 'draft' | 'active' | 'cancelled' | string | null
+  max_members?: number | null
 }
 
 type MemberRow = { profile_id: string }
@@ -488,8 +490,9 @@ function MyPoolsContent() {
   const [standingsLoading, setStandingsLoading] = useState(false)
 
   // monetization flags
-  const planIsFree = pool?.plan === 'free' || !pool?.plan
-  const requiresUpgrade = planIsFree && memberCount >= 11
+  const isDraftPool = pool?.activation_status !== 'active'
+  const requiresUpgrade = false
+  const planIsFree = false
 
   /** ---------- Load user + pools ---------- */
   useEffect(() => {
@@ -956,8 +959,16 @@ function MyPoolsContent() {
                     </div>
                   )}
 
+                  {isDraftPool && (
+                    <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                      This pool is still a draft. Only the creator can activate it from the admin panel before members can join.
+                    </div>
+                  )}
+
                   <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
                     <InfoTile label="Visibility" value={pool.is_public ? 'Public' : 'Private'} />
+                    <InfoTile label="Status" value={pool.activation_status === 'active' ? 'Active' : 'Draft'} />
+                    <InfoTile label="Member Limit" value={pool.max_members ? `${memberCount}/${pool.max_members}` : String(memberCount)} />
                     <InfoTile label="Start Week" value={`Week ${pool.start_week}`} />
                     <InfoTile label="Season" value={pool.include_playoffs ? 'Regular + Playoffs' : 'Regular only'} />
                     <InfoTile label="Strikes Allowed" value={String(pool.strikes_allowed)} />

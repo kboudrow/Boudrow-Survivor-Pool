@@ -20,6 +20,8 @@ type Pool = {
   notes: string | null
   created_by: string
   plan?: 'free' | 'pro'
+  activation_status?: 'draft' | 'active' | 'cancelled' | string | null
+  max_members?: number | null
 }
 
 export default function PoolDetailPage() {
@@ -39,8 +41,8 @@ export default function PoolDetailPage() {
   const [joining, setJoining] = useState(false)
   const [password, setPassword] = useState('')
 
-  const planIsFree = pool?.plan === 'free' || !pool?.plan
-  const requiresUpgrade = planIsFree && memberCount >= 11
+  const isActive = pool?.activation_status === 'active'
+  const isFull = !!(pool?.max_members && memberCount >= pool.max_members)
 
   useEffect(() => {
     let alive = true
@@ -214,21 +216,27 @@ export default function PoolDetailPage() {
             <div className="grid sm:grid-cols-3 gap-3 mb-6">
               <div className="border rounded-lg p-3">
                 <div className="text-xs uppercase text-gray-500">Members</div>
-                <div className="text-lg font-semibold">{memberCount}</div>
+                <div className="text-lg font-semibold">{pool.max_members ? `${memberCount}/${pool.max_members}` : memberCount}</div>
               </div>
               <div className="border rounded-lg p-3">
                 <div className="text-xs uppercase text-gray-500">Visibility</div>
                 <div className="text-lg font-semibold">{pool.is_public ? 'Public' : 'Private'}</div>
               </div>
               <div className="border rounded-lg p-3">
-                <div className="text-xs uppercase text-gray-500">Plan</div>
-                <div className="text-lg font-semibold">{planIsFree ? 'Free' : 'Pro'}</div>
+                <div className="text-xs uppercase text-gray-500">Status</div>
+                <div className="text-lg font-semibold">{isActive ? 'Active' : 'Draft'}</div>
               </div>
             </div>
 
-            {requiresUpgrade && !alreadyMember && (
-              <div className="mb-4 p-3 border rounded-md bg-yellow-50 text-sm">
-                This pool is on the free plan with {memberCount} members. Upgrade to Pro to add more members.
+            {!isActive && !alreadyMember && !isOwner && (
+              <div className="mb-4 p-3 border border-amber-200 rounded-md bg-amber-50 text-sm text-amber-800">
+                This pool is not accepting members yet.
+              </div>
+            )}
+
+            {isFull && !alreadyMember && !isOwner && (
+              <div className="mb-4 p-3 border border-amber-200 rounded-md bg-amber-50 text-sm text-amber-800">
+                This pool is full.
               </div>
             )}
 
@@ -271,7 +279,7 @@ export default function PoolDetailPage() {
                 )}
                 <button
                   onClick={joinPool}
-                  disabled={joining || (requiresUpgrade && planIsFree) || (!pool.is_public && !password.trim())}
+                  disabled={joining || (!isActive && !isOwner) || (isFull && !isOwner) || (!pool.is_public && !password.trim())}
                   className="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
                 >
                   {joining ? 'Joining…' : 'Join Pool'}

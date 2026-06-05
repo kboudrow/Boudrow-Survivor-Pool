@@ -690,6 +690,9 @@ export type Database = {
       }
       pools: {
         Row: {
+          activated_at: string | null
+          activated_by: string | null
+          activation_status: string
           allow_discovery: boolean
           archived: boolean
           archived_at: string | null
@@ -704,11 +707,13 @@ export type Database = {
           include_playoffs: boolean
           is_public: boolean
           join_password_hash: string | null
+          max_members: number
           mulligans: number
           name: string
           name_normalized: string | null
           notes: string | null
           password_hash: string | null
+          payment_status: string
           pick_privacy: string
           pinned_rank: number | null
           plan: string
@@ -717,12 +722,17 @@ export type Database = {
           sponsored_until: string | null
           start_week: number
           strikes_allowed: string | null
+          stripe_checkout_session_id: string | null
+          stripe_payment_intent_id: string | null
           tie_rule: string | null
           ties: Database["public"]["Enums"]["ties_rule"]
           visibility: Database["public"]["Enums"]["pool_visibility"]
           winner_user_id: string | null
         }
         Insert: {
+          activated_at?: string | null
+          activated_by?: string | null
+          activation_status?: string
           allow_discovery?: boolean
           archived?: boolean
           archived_at?: string | null
@@ -737,11 +747,13 @@ export type Database = {
           include_playoffs?: boolean
           is_public?: boolean
           join_password_hash?: string | null
+          max_members?: number
           mulligans?: number
           name: string
           name_normalized?: string | null
           notes?: string | null
           password_hash?: string | null
+          payment_status?: string
           pick_privacy?: string
           pinned_rank?: number | null
           plan?: string
@@ -750,12 +762,17 @@ export type Database = {
           sponsored_until?: string | null
           start_week?: number
           strikes_allowed?: string | null
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
           tie_rule?: string | null
           ties?: Database["public"]["Enums"]["ties_rule"]
           visibility?: Database["public"]["Enums"]["pool_visibility"]
           winner_user_id?: string | null
         }
         Update: {
+          activated_at?: string | null
+          activated_by?: string | null
+          activation_status?: string
           allow_discovery?: boolean
           archived?: boolean
           archived_at?: string | null
@@ -770,11 +787,13 @@ export type Database = {
           include_playoffs?: boolean
           is_public?: boolean
           join_password_hash?: string | null
+          max_members?: number
           mulligans?: number
           name?: string
           name_normalized?: string | null
           notes?: string | null
           password_hash?: string | null
+          payment_status?: string
           pick_privacy?: string
           pinned_rank?: number | null
           plan?: string
@@ -783,6 +802,8 @@ export type Database = {
           sponsored_until?: string | null
           start_week?: number
           strikes_allowed?: string | null
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
           tie_rule?: string | null
           ties?: Database["public"]["Enums"]["ties_rule"]
           visibility?: Database["public"]["Enums"]["pool_visibility"]

@@ -20,6 +20,8 @@ type Pool = {
   notes: string | null
   created_by: string
   plan?: 'free' | 'pro'
+  activation_status?: 'draft' | 'active' | 'cancelled' | string | null
+  max_members?: number | null
 }
 
 export default function JoinPoolPage({ params }: { params: { poolId: string } }) {
@@ -38,8 +40,8 @@ export default function JoinPoolPage({ params }: { params: { poolId: string } })
   const [joining, setJoining] = useState(false)
   const [password, setPassword] = useState('')
 
-  const planIsFree = pool?.plan === 'free' || !pool?.plan
-  const requiresUpgrade = planIsFree && memberCount >= 11
+  const isActive = pool?.activation_status === 'active'
+  const isFull = !!(pool?.max_members && memberCount >= pool.max_members)
 
   const isOwner = useMemo(() => {
     return !!(userId && pool?.created_by && userId === pool.created_by)
@@ -191,15 +193,20 @@ export default function JoinPoolPage({ params }: { params: { poolId: string } })
             </div>
 
             <div className="grid sm:grid-cols-3 gap-3 mb-6">
-              <Info label="Members" value={String(memberCount)} />
+              <Info label="Members" value={pool.max_members ? `${memberCount}/${pool.max_members}` : String(memberCount)} />
               <Info label="Visibility" value={pool.is_public ? 'Public' : 'Private'} />
-              <Info label="Plan" value={pool.plan ?? 'Free'} />
+              <Info label="Status" value={isActive ? 'Active' : 'Draft'} />
             </div>
 
-            {/* Gate if free plan at/over 11 members (your monetization rule) */}
-            {authed && !isOwner && !alreadyMember && (planIsFree && requiresUpgrade) && (
-              <div className="mb-4 p-3 border rounded-md bg-yellow-50 text-sm">
-                This pool is on the free plan with {memberCount} members. Upgrade to Pro to add more members.
+            {!isActive && !isOwner && !alreadyMember && (
+              <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                This pool is not accepting members yet.
+              </div>
+            )}
+
+            {isFull && !isOwner && !alreadyMember && (
+              <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                This pool is full.
               </div>
             )}
 
@@ -242,7 +249,7 @@ export default function JoinPoolPage({ params }: { params: { poolId: string } })
                 )}
                 <button
                   onClick={joinPool}
-                  disabled={joining || (requiresUpgrade && planIsFree && !isOwner) || (!pool.is_public && !password.trim())}
+                  disabled={joining || (!isActive && !isOwner) || (isFull && !isOwner) || (!pool.is_public && !password.trim())}
                   className="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
                 >
                   {joining ? 'Joining…' : 'Join Pool'}

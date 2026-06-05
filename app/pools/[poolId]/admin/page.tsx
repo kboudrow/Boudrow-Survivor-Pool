@@ -13,6 +13,9 @@ type Pool = {
   double_pick_weeks: number[] | null
   archived: boolean
   season: number | null
+  activation_status?: 'draft' | 'active' | 'cancelled' | string | null
+  max_members?: number | null
+  payment_status?: 'unpaid' | 'paid' | 'not_required' | 'waived' | 'refunded' | string | null
 }
 
 type AdminRow = {
@@ -108,7 +111,7 @@ export default function PoolAdminPage() {
     setError(null)
     try {
       const [{ data: p, error: pErr }, { data: overview, error: overviewErr }] = await Promise.all([
-        supabase.from('pools').select('id,name,created_by,double_pick_weeks,archived,season').eq('id', poolId).maybeSingle<Pool>(),
+        supabase.from('pools').select('id,name,created_by,double_pick_weeks,archived,season,activation_status,max_members,payment_status').eq('id', poolId).maybeSingle<Pool>(),
         supabase.rpc('admin_pool_week_overview', { p_pool_id: poolId, p_week: week }),
       ])
       if (pErr) throw pErr
@@ -324,7 +327,7 @@ export default function PoolAdminPage() {
             <section className="grid gap-3 md:grid-cols-4">
               <div className="rounded-lg border bg-white p-4">
                 <div className="text-xs uppercase text-gray-500">Members</div>
-                <div className="text-2xl font-bold">{memberCount}</div>
+                <div className="text-2xl font-bold">{pool.max_members ? `${memberCount}/${pool.max_members}` : memberCount}</div>
               </div>
               <div className="rounded-lg border bg-white p-4">
                 <div className="text-xs uppercase text-gray-500">Alive</div>
@@ -337,6 +340,30 @@ export default function PoolAdminPage() {
               <div className="rounded-lg border bg-white p-4">
                 <div className="text-xs uppercase text-gray-500">Archived</div>
                 <div className="text-2xl font-bold">{pool.archived ? 'Yes' : 'No'}</div>
+              </div>
+            </section>
+
+            <section className="rounded-lg border bg-white p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="font-semibold">Pool Activation</h2>
+                  <p className="text-sm text-gray-600">
+                    Draft pools are not joinable until the creator completes the $50 activation payment.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-sm font-medium text-slate-700">
+                    {pool.activation_status === 'active' ? 'Active' : 'Draft'}
+                  </span>
+                  <span className="rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-sm font-medium text-slate-700">
+                    Payment: {pool.payment_status ?? 'unpaid'}
+                  </span>
+                  {pool.activation_status !== 'active' && (
+                    <button disabled className="rounded-md bg-gray-300 px-3 py-2 text-sm font-medium text-gray-600">
+                      Stripe setup needed
+                    </button>
+                  )}
+                </div>
               </div>
             </section>
 
