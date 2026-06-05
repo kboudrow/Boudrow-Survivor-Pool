@@ -171,19 +171,20 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* HERO (no top nav on homepage) */}
       <main className="flex-1">
-        <section className="pt-16 pb-12 px-6 text-center">
+        <section className="relative overflow-hidden border-b border-slate-200 bg-[linear-gradient(135deg,#f8fafc_0%,#eff6ff_45%,#fff7ed_100%)] px-6 pb-14 pt-14 text-center">
           <div className="mx-auto max-w-5xl">
             <div className="mb-6 flex justify-center">
-              <NextImage src="/football.png" alt="Football" width={64} height={64} priority />
+              <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-orange-200">
+                <NextImage src="/football.png" alt="Football" width={64} height={64} priority />
+              </div>
             </div>
 
-            <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight">
+            <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight text-slate-950">
               Run NFL Survivor Pools the simple way.
             </h1>
 
-            <p className="mt-4 text-gray-600 max-w-2xl mx-auto">
+            <p className="mt-4 text-slate-600 max-w-2xl mx-auto">
               Keep picks organized, locks automatic, and standings crystal clear. No spreadsheets. No chaos. Just a clean survivor pool experience for your group.
             </p>
 
@@ -192,7 +193,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => requireAuthThen('/pools/new')}
-                className="px-5 py-3 rounded-md bg-black text-white hover:bg-gray-900"
+                className="rounded-md bg-blue-600 px-5 py-3 font-semibold text-white shadow-sm hover:bg-blue-700"
               >
                 Create a Pool
               </button>
@@ -200,13 +201,13 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => requireAuthThen('/join/search')}
-                className="px-5 py-3 rounded-md bg-white border hover:bg-gray-50"
+                className="rounded-md border border-slate-200 bg-white px-5 py-3 font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
               >
                 Join a Pool
               </button>
 
               {isAuthed && (
-                <Link href="/pools" className="px-5 py-3 rounded-md bg-blue-600 text-white hover:bg-blue-700">
+                <Link href="/pools" className="rounded-md bg-orange-500 px-5 py-3 font-semibold text-white shadow-sm hover:bg-orange-600">
                   My Pools
                 </Link>
               )}
@@ -240,7 +241,7 @@ export default function Home() {
         </section>
 
         {/* FEATURES */}
-        <section className="px-6 py-10 bg-gray-50">
+        <section className="px-6 py-10 bg-white">
           <div className="mx-auto max-w-5xl grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <Feature title="Automatic locks" desc="Rolling kickoff locks or a fixed weekly deadline—your choice." />
             <Feature title="Public or private pools" desc="Run open pools, or protect access with a password." />
@@ -252,7 +253,7 @@ export default function Home() {
         </section>
 
         {/* HOW IT WORKS */}
-        <section className="px-6 py-12">
+        <section className="px-6 py-12 bg-slate-50">
           <div className="mx-auto max-w-5xl grid sm:grid-cols-3 gap-6 text-center">
             <How step="1" title="Create or Join" text="Start a pool or find one by name." />
             <How step="2" title="Pick weekly" text="Choose one team. No repeats. (Double-pick weeks optional.)" />
@@ -263,7 +264,7 @@ export default function Home() {
         {/* Auth panels */}
         {mode !== 'idle' && (
           <section className="px-6 pb-14">
-            <div className="mx-auto w-full max-w-md border rounded-lg p-4 bg-white">
+            <div className="mx-auto w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               {mode === 'signin' ? (
                 <div ref={signInPanelRef}>
                   <h2 className="text-xl font-semibold mb-3">Sign in</h2>
