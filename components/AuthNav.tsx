@@ -54,11 +54,25 @@ export function AuthNav() {
     router.push('/')
   }
 
+  const signInWithGoogle = async () => {
+    const { supabase }: SupabaseClientModule = await import('@/lib/supabaseClient')
+    const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo },
+    })
+    if (error) window.alert(error.message)
+  }
+
   if (!loaded || !isAuthed) {
     return (
-      <Link href="/" className="shrink-0 rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700">
+      <button
+        type="button"
+        onClick={signInWithGoogle}
+        className="shrink-0 rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+      >
         Sign in
-      </Link>
+      </button>
     )
   }
 

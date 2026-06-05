@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
@@ -14,7 +14,7 @@ export default function Home() {
 
   const [mode, setMode] = useState<Mode>('idle')
   const [isAuthed, setIsAuthed] = useState(false)
-  const [status, setStatus] = useState('Not signed in')
+  const [, setStatus] = useState('Not signed in')
   const ensuredUserIdRef = useRef<string | null>(null)
 
   // auth form state
@@ -49,7 +49,7 @@ export default function Home() {
     }
     if (ensuredUserIdRef.current === userId) return
     ensuredUserIdRef.current = userId
-    setStatus('Signed in, ensuring profile…')
+    setStatus('Signed in, ensuring profileâ€¦')
     const res = await ensureProfile()
     setStatus(res.ok ? 'Profile ready' : `Profile error: ${res.error}`)
     setMode('idle')
@@ -121,20 +121,6 @@ export default function Home() {
       const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password })
       if (signInErr) return setAuthError(signInErr.message)
     }
-  }
-
-  const signOut = async () => {
-    await supabase.auth.signOut()
-    setIsAuthed(false)
-    setStatus('Not signed in')
-    setMode('idle')
-    setEmail('')
-    setPassword('')
-    setPassword2('')
-    setFirstName('')
-    setLastName('')
-    setAuthError(null)
-    ensuredUserIdRef.current = null
   }
 
   useEffect(() => {
@@ -213,9 +199,9 @@ export default function Home() {
               )}
             </div>
 
-            {!isAuthed ? (
+            {!isAuthed && (
               <p className="mt-3 text-sm text-gray-500">
-                You’ll need to{' '}
+                Youâ€™ll need to{' '}
                 <button type="button" onClick={openSignIn} className="underline text-gray-700 hover:text-black">
                   sign in
                 </button>{' '}
@@ -225,30 +211,19 @@ export default function Home() {
                 </button>
                 ) to create or join a pool.
               </p>
-            ) : (
-              <div className="mt-3 flex items-center justify-center gap-3 text-sm text-gray-600">
-                <Link href="/profile" className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white no-underline hover:bg-blue-700" aria-label="Profile" title="Profile">
-                  SP
-                </Link>
-                <button type="button" onClick={signOut} className="underline hover:text-black">
-                  Sign out
-                </button>
-              </div>
             )}
-
-            <p className="mt-2 text-xs text-gray-400">{status}</p>
           </div>
         </section>
 
         {/* FEATURES */}
         <section className="px-6 py-10 bg-white">
           <div className="mx-auto max-w-5xl grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Feature title="Automatic locks" desc="Rolling kickoff locks or a fixed weekly deadline—your choice." />
+            <Feature title="Automatic locks" desc="Rolling kickoff locks or a fixed weekly deadlineâ€”your choice." />
             <Feature title="Public or private pools" desc="Run open pools, or protect access with a password." />
-            <Feature title="No repeat teams" desc="Once you pick a team, it’s gone. Enforced automatically." />
-            <Feature title="Strikes & elimination" desc="Set how many misses are allowed before you’re out." />
+            <Feature title="No repeat teams" desc="Once you pick a team, itâ€™s gone. Enforced automatically." />
+            <Feature title="Strikes & elimination" desc="Set how many misses are allowed before youâ€™re out." />
             <Feature title="Standings that make sense" desc="Alive vs eliminated, weekly results, and current status in one view." />
-            <Feature title="Run it back next season" desc="Archive finished pools and restart with the same settings—empty roster." />
+            <Feature title="Run it back next season" desc="Archive finished pools and restart with the same settingsâ€”empty roster." />
           </div>
         </section>
 
@@ -257,7 +232,7 @@ export default function Home() {
           <div className="mx-auto max-w-5xl grid sm:grid-cols-3 gap-6 text-center">
             <How step="1" title="Create or Join" text="Start a pool or find one by name." />
             <How step="2" title="Pick weekly" text="Choose one team. No repeats. (Double-pick weeks optional.)" />
-            <How step="3" title="Survive" text="Lose and take a strike. Run out and you’re eliminated." />
+            <How step="3" title="Survive" text="Lose and take a strike. Run out and youâ€™re eliminated." />
           </div>
         </section>
 
@@ -409,7 +384,7 @@ export default function Home() {
         <div className="mx-auto max-w-5xl grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <div>
             <div className="font-semibold mb-2">Survivor Pool</div>
-            <p>Pool management for friends, families, and offices. Not betting — just rules, picks, and bragging rights.</p>
+            <p>Pool management for friends, families, and offices. Not betting â€” just rules, picks, and bragging rights.</p>
           </div>
           <div>
             <div className="font-semibold mb-2">Product</div>
@@ -432,7 +407,7 @@ export default function Home() {
             </p>
           </div>
         </div>
-        <div className="mt-6 text-xs text-gray-500">© {new Date().getFullYear()} Survivor Pool. All rights reserved.</div>
+        <div className="mt-6 text-xs text-gray-500">Â© {new Date().getFullYear()} Survivor Pool. All rights reserved.</div>
       </footer>
     </div>
   )
