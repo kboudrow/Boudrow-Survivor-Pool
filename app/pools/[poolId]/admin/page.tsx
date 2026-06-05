@@ -93,6 +93,7 @@ export default function PoolAdminPage() {
   const [selectedWeek, setSelectedWeek] = useState(1)
   const [doubleWeeksText, setDoubleWeeksText] = useState('')
   const [archiving, setArchiving] = useState(false)
+  const [activating, setActivating] = useState(false)
   const [savingDouble, setSavingDouble] = useState(false)
   const [runningAction, setRunningAction] = useState<string | null>(null)
   const [draftTeams, setDraftTeams] = useState<Record<string, string>>({})
@@ -220,6 +221,42 @@ export default function PoolAdminPage() {
       setError(getErrorMessage(e, 'Failed to update archive state.'))
     } finally {
       setArchiving(false)
+    }
+  }
+
+  const startActivationCheckout = async () => {
+    if (!pool) return
+    setActivating(true)
+    setError(null)
+    setNotice(null)
+
+    try {
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession()
+
+      if (sessionError) throw sessionError
+      if (!session?.access_token) throw new Error('Please sign in again before activating this pool.')
+
+      const response = await fetch('/api/stripe/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ poolId: pool.id }),
+      })
+
+      const payload = (await response.json()) as { url?: string; error?: string }
+      if (!response.ok || !payload.url) {
+        throw new Error(payload.error || 'Failed to start checkout.')
+      }
+
+      window.location.href = payload.url
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to start checkout.'))
+      setActivating(false)
     }
   }
 
@@ -359,8 +396,12 @@ export default function PoolAdminPage() {
                     Payment: {pool.payment_status ?? 'unpaid'}
                   </span>
                   {pool.activation_status !== 'active' && (
-                    <button disabled className="rounded-md bg-gray-300 px-3 py-2 text-sm font-medium text-gray-600">
-                      Stripe setup needed
+                    <button
+                      onClick={startActivationCheckout}
+                      disabled={activating}
+                      className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {activating ? 'Opening Stripe...' : 'Activate for $50'}
                     </button>
                   )}
                 </div>
