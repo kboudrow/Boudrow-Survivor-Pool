@@ -854,8 +854,8 @@ function MyPoolsContent() {
 
         {/* ✅ NEW: Archived button + Create Pool button */}
         <div className="flex items-center gap-2">
-          <Link href="/archives" className="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200">
-            Archived
+          <Link href="/profile" className="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200">
+            History
           </Link>
           <Link href="/pools/new" className="px-3 py-2 rounded-md bg-green-600 text-white hover:bg-green-700">
             Create Pool

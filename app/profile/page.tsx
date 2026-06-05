@@ -295,6 +295,9 @@ export default function ProfilePage() {
             <Link href="/pools" className="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200">
               My Pools
             </Link>
+            <Link href="/archives" className="px-3 py-2 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100">
+              History
+            </Link>
             <button onClick={signOut} className="px-3 py-2 rounded-md bg-gray-700 text-white hover:bg-gray-800">
               Sign out
             </button>

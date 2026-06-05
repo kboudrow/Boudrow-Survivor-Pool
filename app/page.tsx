@@ -227,8 +227,8 @@ export default function Home() {
               </p>
             ) : (
               <div className="mt-3 flex items-center justify-center gap-3 text-sm text-gray-600">
-                <Link href="/profile" className="underline hover:text-black">
-                  Profile
+                <Link href="/profile" className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white no-underline hover:bg-blue-700" aria-label="Profile" title="Profile">
+                  SP
                 </Link>
                 <button type="button" onClick={signOut} className="underline hover:text-black">
                   Sign out
