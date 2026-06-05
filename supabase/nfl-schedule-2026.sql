@@ -4,6 +4,9 @@
 
 begin;
 
+delete from public.nfl_games
+where season = 2026;
+
 insert into public.season_weeks (season, week, week_sunday_date)
 values
   (2026, 1, '2026-09-13'),
