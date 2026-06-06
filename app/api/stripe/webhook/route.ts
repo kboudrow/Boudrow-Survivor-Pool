@@ -4,7 +4,7 @@ import { stripe } from '@/lib/stripe'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
 export async function POST(request: Request) {
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim()
   if (!webhookSecret || webhookSecret === 'whsec_replace_me') {
     return NextResponse.json({ error: 'Stripe webhook secret is not configured.' }, { status: 500 })
   }
