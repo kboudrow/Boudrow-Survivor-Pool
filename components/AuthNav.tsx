@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 
 type SupabaseClientModule = typeof import('@/lib/supabaseClient')
 
@@ -13,7 +12,6 @@ function getInitials(email: string | null) {
 }
 
 export function AuthNav() {
-  const router = useRouter()
   const [loaded, setLoaded] = useState(false)
   const [email, setEmail] = useState<string | null>(null)
   const isAuthed = !!email
@@ -51,28 +49,17 @@ export function AuthNav() {
     const { supabase }: SupabaseClientModule = await import('@/lib/supabaseClient')
     await supabase.auth.signOut()
     setEmail(null)
-    router.push('/')
-  }
-
-  const signInWithGoogle = async () => {
-    const { supabase }: SupabaseClientModule = await import('@/lib/supabaseClient')
-    const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo },
-    })
-    if (error) window.alert(error.message)
+    window.location.href = '/'
   }
 
   if (!loaded || !isAuthed) {
     return (
-      <button
-        type="button"
-        onClick={signInWithGoogle}
+      <Link
+        href="/?auth=signin"
         className="shrink-0 rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
       >
         Sign in
-      </button>
+      </Link>
     )
   }
 

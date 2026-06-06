@@ -73,6 +73,15 @@ export default function Home() {
     })
   }
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('auth') === 'signin') {
+      openSignIn()
+      window.history.replaceState(null, '', window.location.pathname)
+    }
+  }, [])
+
   // Gate helper: keep hero CTAs visible, but require auth on click
   const requireAuthThen = (nextPath: string) => {
     if (isAuthed) {
