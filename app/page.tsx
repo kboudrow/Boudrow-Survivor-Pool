@@ -49,7 +49,7 @@ export default function Home() {
     }
     if (ensuredUserIdRef.current === userId) return
     ensuredUserIdRef.current = userId
-    setStatus('Signed in, ensuring profileâ€¦')
+    setStatus('Signed in, ensuring profile...')
     const res = await ensureProfile()
     setStatus(res.ok ? 'Profile ready' : `Profile error: ${res.error}`)
     setMode('idle')
@@ -210,7 +210,7 @@ export default function Home() {
 
             {!isAuthed && (
               <p className="mt-3 text-sm text-gray-500">
-                Youâ€™ll need to{' '}
+                You&apos;ll need to{' '}
                 <button type="button" onClick={openSignIn} className="underline text-gray-700 hover:text-black">
                   sign in
                 </button>{' '}
@@ -227,12 +227,12 @@ export default function Home() {
         {/* FEATURES */}
         <section className="px-6 py-10 bg-white">
           <div className="mx-auto max-w-5xl grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Feature title="Automatic locks" desc="Rolling kickoff locks or a fixed weekly deadlineâ€”your choice." />
+            <Feature title="Automatic locks" desc="Rolling kickoff locks or a fixed weekly deadline - your choice." />
             <Feature title="Public or private pools" desc="Run open pools, or protect access with a password." />
-            <Feature title="No repeat teams" desc="Once you pick a team, itâ€™s gone. Enforced automatically." />
-            <Feature title="Strikes & elimination" desc="Set how many misses are allowed before youâ€™re out." />
+            <Feature title="No repeat teams" desc="Once you pick a team, it's gone. Enforced automatically." />
+            <Feature title="Strikes & elimination" desc="Set how many misses are allowed before you're out." />
             <Feature title="Standings that make sense" desc="Alive vs eliminated, weekly results, and current status in one view." />
-            <Feature title="Run it back next season" desc="Archive finished pools and restart with the same settingsâ€”empty roster." />
+            <Feature title="Run it back next season" desc="Archive finished pools and restart with the same settings - empty roster." />
           </div>
         </section>
 
@@ -241,7 +241,7 @@ export default function Home() {
           <div className="mx-auto max-w-5xl grid sm:grid-cols-3 gap-6 text-center">
             <How step="1" title="Create or Join" text="Start a pool or find one by name." />
             <How step="2" title="Pick weekly" text="Choose one team. No repeats. (Double-pick weeks optional.)" />
-            <How step="3" title="Survive" text="Lose and take a strike. Run out and youâ€™re eliminated." />
+            <How step="3" title="Survive" text="Lose and take a strike. Run out and you're eliminated." />
           </div>
         </section>
 
@@ -393,7 +393,7 @@ export default function Home() {
         <div className="mx-auto max-w-5xl grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <div>
             <div className="font-semibold mb-2">Survivor Pool</div>
-            <p>Pool management for friends, families, and offices. Not betting â€” just rules, picks, and bragging rights.</p>
+            <p>Pool management for friends, families, and offices. Not betting - just rules, picks, and bragging rights.</p>
           </div>
           <div>
             <div className="font-semibold mb-2">Product</div>
@@ -416,7 +416,7 @@ export default function Home() {
             </p>
           </div>
         </div>
-        <div className="mt-6 text-xs text-gray-500">Â© {new Date().getFullYear()} Survivor Pool. All rights reserved.</div>
+        <div className="mt-6 text-xs text-gray-500">&copy; {new Date().getFullYear()} Survivor Pool. All rights reserved.</div>
       </footer>
     </div>
   )
