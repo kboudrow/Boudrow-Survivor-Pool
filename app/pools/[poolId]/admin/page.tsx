@@ -79,6 +79,7 @@ function fmt(value?: string | null) {
   return new Date(value).toLocaleString()
 }
 const rowKey = (row: AdminRow) => `${row.user_id}:${row.slot}`
+const hasFinalPick = (row: AdminRow) => !!row.final_team_abbr || !!row.locked_at
 
 export default function PoolAdminPage() {
   const router = useRouter()
@@ -408,6 +409,9 @@ export default function PoolAdminPage() {
   const saveDraft = (row: AdminRow) =>
     runAction('Save draft pick', async () => {
       if (!pool) return
+      if (hasFinalPick(row)) {
+        throw new Error('This pick is already final. Use Override final to change the official pick.')
+      }
       const key = rowKey(row)
       const team = draftTeams[key]?.trim().toUpperCase()
       if (!team) {
@@ -439,6 +443,10 @@ export default function PoolAdminPage() {
       if (!pool) return
       const team = finalTeams[rowKey(row)]?.trim().toUpperCase()
       if (!team) throw new Error('Choose a team before overriding a final pick.')
+      if (hasFinalPick(row)) {
+        const confirmed = window.confirm(`Change ${row.display_name}'s official Pick ${row.slot} for week ${selectedWeek} to ${team}?`)
+        if (!confirmed) return 'Final pick override canceled.'
+      }
 
       const { error } = await supabase.rpc('admin_override_final_pick', {
         p_pool_id: pool.id,
@@ -455,6 +463,9 @@ export default function PoolAdminPage() {
   const removeMember = (row: AdminRow) =>
     runAction('Remove member', async () => {
       if (!pool) return
+      if (settingsLocked) {
+        throw new Error('Members cannot be removed after the league has started.')
+      }
       const confirmed = window.confirm(`Remove ${row.display_name} from this pool? This cannot be undone from this screen.`)
       if (!confirmed) return 'Remove member canceled.'
 
@@ -635,7 +646,7 @@ export default function PoolAdminPage() {
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="font-semibold">Members & Picks</h2>
-                  <p className="text-sm text-gray-600">View and manage picks for the selected week.</p>
+                  <p className="text-sm text-gray-600">Draft picks are pending. Final picks are official and count toward standings.</p>
                 </div>
                 <label className="flex items-center gap-2 text-sm">
                   Week
@@ -663,8 +674,8 @@ export default function PoolAdminPage() {
                     <tr>
                       <th className="border p-2 text-left">Member</th>
                       <th className="border p-2 text-left">Slot</th>
-                      <th className="border p-2 text-left">Draft pick</th>
-                      <th className="border p-2 text-left">Final pick</th>
+                      <th className="border p-2 text-left">Pending draft</th>
+                      <th className="border p-2 text-left">Official final pick</th>
                       <th className="border p-2 text-left">Result</th>
                       <th className="border p-2 text-left">Record</th>
                       <th className="border p-2 text-left">Status</th>
@@ -680,6 +691,12 @@ export default function PoolAdminPage() {
                         </td>
                         <td className="border p-2">Pick {row.slot}</td>
                         <td className="border p-2">
+                          {hasFinalPick(row) ? (
+                            <div className="rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700">
+                              This pick is final. Draft changes are locked.
+                            </div>
+                          ) : (
+                            <>
                           <select
                             value={draftTeams[rowKey(row)] || ''}
                             onChange={(e) => setDraftTeams((prev) => ({ ...prev, [rowKey(row)]: e.target.value }))}
@@ -693,6 +710,8 @@ export default function PoolAdminPage() {
                             ))}
                           </select>
                           <div className="mt-1 text-xs text-gray-500">Saved {fmt(row.draft_updated_at)}</div>
+                            </>
+                          )}
                         </td>
                         <td className="border p-2">
                           <select
@@ -707,7 +726,10 @@ export default function PoolAdminPage() {
                               </option>
                             ))}
                           </select>
-                          <div className="mt-1 text-xs text-gray-500">Locked {fmt(row.locked_at)}</div>
+                          <div className="mt-1 text-xs text-gray-500">
+                            {row.locked_at ? `Locked ${fmt(row.locked_at)}` : 'No official pick yet'}
+                          </div>
+                          {row.result && <div className="mt-1 text-xs font-medium text-amber-700">Result already set. Override will clear it.</div>}
                         </td>
                         <td className="border p-2">{row.result || 'Pending'}</td>
                         <td className="border p-2">
@@ -724,13 +746,23 @@ export default function PoolAdminPage() {
                         </td>
                         <td className="border p-2">
                           <div className="flex flex-wrap gap-2">
-                            <button onClick={() => saveDraft(row)} disabled={!!runningAction} className="rounded-md bg-gray-100 px-2 py-1 hover:bg-gray-200 disabled:opacity-50">
+                            <button
+                              onClick={() => saveDraft(row)}
+                              disabled={!!runningAction || hasFinalPick(row)}
+                              title={hasFinalPick(row) ? 'This pick is already final. Use Override final.' : undefined}
+                              className="rounded-md bg-gray-100 px-2 py-1 hover:bg-gray-200 disabled:opacity-50"
+                            >
                               Save draft
                             </button>
                             <button onClick={() => saveFinal(row)} disabled={!!runningAction} className="rounded-md bg-indigo-600 px-2 py-1 text-white hover:bg-indigo-700 disabled:opacity-50">
                               Override final
                             </button>
-                            <button onClick={() => removeMember(row)} disabled={!!runningAction} className="rounded-md bg-red-50 px-2 py-1 text-red-700 hover:bg-red-100 disabled:opacity-50">
+                            <button
+                              onClick={() => removeMember(row)}
+                              disabled={!!runningAction || settingsLocked}
+                              title={settingsLocked ? 'Members cannot be removed after the league starts.' : undefined}
+                              className="rounded-md bg-red-50 px-2 py-1 text-red-700 hover:bg-red-100 disabled:opacity-50"
+                            >
                               Remove
                             </button>
                           </div>
