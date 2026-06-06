@@ -408,6 +408,7 @@ export default function Home() {
             <ul className="space-y-1">
               <li><Link href="/terms" className="underline">Terms</Link></li>
               <li><Link href="/privacy" className="underline">Privacy</Link></li>
+              <li><Link href="/cookies" className="underline">Cookies</Link></li>
             </ul>
           </div>
           <div>

@@ -1,153 +1,173 @@
-// app/privacy/page.tsx
 import Link from 'next/link'
 
 export const metadata = {
   title: 'Privacy Policy | Survivor Pool',
+  description: 'Privacy Policy for Survivor Pool accounts, picks, payments, ads, cookies, and pool history.',
 }
+
+const lastUpdated = 'Last updated: June 6, 2026'
 
 function SectionTitle({ id, children }: { id: string; children: React.ReactNode }) {
   return (
-    <h2 id={id} className="text-xl font-semibold mt-10 mb-3 scroll-mt-24">
+    <h2 id={id} className="mt-10 scroll-mt-24 text-xl font-semibold text-slate-950">
       {children}
     </h2>
   )
 }
 
 export default function PrivacyPage() {
-  const lastUpdated = 'Last updated: __________'
-
   return (
-    <main className="min-h-[70vh] px-6 py-10">
+    <main className="min-h-[70vh] bg-white px-6 py-10">
       <div className="mx-auto w-full max-w-3xl">
-        <div className="flex items-center justify-between gap-3 mb-8">
+        <div className="mb-8 flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-bold">Privacy Policy</h1>
-            <p className="text-sm text-gray-500 mt-2">{lastUpdated}</p>
+            <h1 className="text-3xl font-bold text-slate-950">Privacy Policy</h1>
+            <p className="mt-2 text-sm text-slate-500">{lastUpdated}</p>
           </div>
-          <Link href="/" className="text-sm underline text-gray-700">
+          <Link href="/" className="text-sm underline text-slate-700">
             Back to home
           </Link>
         </div>
 
-        <div className="border rounded-lg p-4 bg-gray-50 text-sm text-gray-700">
-          <div className="font-semibold mb-2">In plain English</div>
-          <ul className="list-disc pl-5 space-y-1">
-            <li>We use your info to run the product (account, pools, picks, and standings).</li>
-            <li>We don’t show your email to other users.</li>
-            <li>We don’t sell your personal information.</li>
-            <li>In the future, we may add analytics—this policy includes a section for that.</li>
+        <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-950">
+          <div className="mb-2 font-semibold">Plain-English summary</div>
+          <ul className="list-disc space-y-1 pl-5">
+            <li>We use account, profile, pool, pick, payment, and technical data to run the app.</li>
+            <li>Your email is not shown to other pool members.</li>
+            <li>Your display name, pool membership, picks, status, and standings may be visible inside pools you join.</li>
+            <li>We do not sell your personal information.</li>
+            <li>Ads, analytics, or similar tools may use cookies or identifiers if enabled.</li>
           </ul>
         </div>
 
-        <nav className="mt-8 border rounded-lg p-4">
-          <div className="font-semibold mb-2">Contents</div>
-          <ul className="text-sm text-gray-700 space-y-1">
-            <li><a className="underline" href="#info-we-collect">1. Information We Collect</a></li>
-            <li><a className="underline" href="#how-we-use">2. How We Use Information</a></li>
-            <li><a className="underline" href="#sharing">3. How We Share Information</a></li>
-            <li><a className="underline" href="#public-private">4. What’s Visible to Others</a></li>
-            <li><a className="underline" href="#cookies">5. Cookies & Similar Technologies</a></li>
-            <li><a className="underline" href="#analytics">6. Analytics (If Enabled in the Future)</a></li>
-            <li><a className="underline" href="#retention">7. Data Retention</a></li>
-            <li><a className="underline" href="#your-rights">8. Your Choices & Rights</a></li>
-            <li><a className="underline" href="#security">9. Security</a></li>
-            <li><a className="underline" href="#children">10. Children’s Privacy</a></li>
-            <li><a className="underline" href="#changes">11. Changes to this Policy</a></li>
-            <li><a className="underline" href="#contact">12. Contact</a></li>
+        <nav className="mt-8 rounded-lg border border-slate-200 p-4">
+          <div className="mb-2 font-semibold">Contents</div>
+          <ul className="space-y-1 text-sm text-slate-700">
+            <li><a className="underline" href="#scope">1. Scope</a></li>
+            <li><a className="underline" href="#info-we-collect">2. Information we collect</a></li>
+            <li><a className="underline" href="#how-we-use">3. How we use information</a></li>
+            <li><a className="underline" href="#visible">4. What other users can see</a></li>
+            <li><a className="underline" href="#sharing">5. How we share information</a></li>
+            <li><a className="underline" href="#payments">6. Payments</a></li>
+            <li><a className="underline" href="#ads">7. Ads, analytics, and cookies</a></li>
+            <li><a className="underline" href="#retention">8. Data retention</a></li>
+            <li><a className="underline" href="#choices">9. Your choices and rights</a></li>
+            <li><a className="underline" href="#security">10. Security</a></li>
+            <li><a className="underline" href="#children">11. Children&apos;s privacy</a></li>
+            <li><a className="underline" href="#changes">12. Changes</a></li>
+            <li><a className="underline" href="#contact">13. Contact</a></li>
           </ul>
         </nav>
 
-        <SectionTitle id="info-we-collect">1. Information We Collect</SectionTitle>
-        <p className="text-gray-700 leading-7">
-          We collect information to provide and improve the Service.
+        <SectionTitle id="scope">1. Scope</SectionTitle>
+        <p className="mt-3 leading-7 text-slate-700">
+          This Privacy Policy explains how Survivor Pool collects, uses, discloses, and protects information when you use the Service.
+          It applies to our website, app pages, account features, pool dashboards, payment activation flows, and related services.
         </p>
-        <ul className="list-disc pl-5 text-gray-700 leading-7 space-y-1 mt-2">
-          <li><span className="font-medium">Account information:</span> your email address and authentication identifiers.</li>
-          <li><span className="font-medium">Profile information:</span> a display name/username you choose.</li>
-          <li><span className="font-medium">Pool data:</span> pools you create or join, membership, settings, and results.</li>
-          <li><span className="font-medium">Pick activity:</span> picks and status needed to operate standings and history.</li>
-          <li><span className="font-medium">Technical data:</span> device/browser information and basic logs for security and reliability.</li>
+
+        <SectionTitle id="info-we-collect">2. Information we collect</SectionTitle>
+        <ul className="mt-3 list-disc space-y-1 pl-5 leading-7 text-slate-700">
+          <li><span className="font-medium">Account information:</span> email address, authentication identifiers, login provider, and account timestamps.</li>
+          <li><span className="font-medium">Profile information:</span> display name, username, first name, last name, and profile settings you provide.</li>
+          <li><span className="font-medium">Pool information:</span> pools you create or join, pool names, visibility, settings, member lists, admin roles, invite data, and archived history.</li>
+          <li><span className="font-medium">Pick and standings data:</span> weekly picks, draft picks, final picks, pick locks, used teams, wins, losses, pushes, strikes, eliminations, and related admin actions.</li>
+          <li><span className="font-medium">Payment information:</span> payment status, Stripe checkout session identifiers, payment intent identifiers, amount, currency, and related payment logs. We do not store full card numbers.</li>
+          <li><span className="font-medium">Communications:</span> messages you send for support or account requests.</li>
+          <li><span className="font-medium">Technical information:</span> IP address, device and browser information, logs, security events, page requests, and similar data used for reliability and security.</li>
         </ul>
 
-        <SectionTitle id="how-we-use">2. How We Use Information</SectionTitle>
-        <ul className="list-disc pl-5 text-gray-700 leading-7 space-y-1">
-          <li>Provide core functionality (accounts, pool creation, picks, locks, standings, and history).</li>
-          <li>Maintain safety and prevent abuse (security monitoring, rate limiting, fraud prevention).</li>
-          <li>Support and troubleshooting (responding to issues and improving reliability).</li>
+        <SectionTitle id="how-we-use">3. How we use information</SectionTitle>
+        <ul className="mt-3 list-disc space-y-1 pl-5 leading-7 text-slate-700">
+          <li>Provide accounts, sign-in, pool creation, joining, picks, locks, standings, history, and admin features.</li>
+          <li>Process pool activation payments and confirm paid/active status.</li>
+          <li>Maintain security, prevent abuse, troubleshoot issues, and protect the Service.</li>
+          <li>Respond to support, account, privacy, and payment questions.</li>
+          <li>Improve usability, content, performance, and reliability.</li>
+          <li>Comply with legal obligations and enforce our Terms.</li>
         </ul>
 
-        <SectionTitle id="sharing">3. How We Share Information</SectionTitle>
-        <p className="text-gray-700 leading-7">
-          We do not sell your personal information. We may share information:
+        <SectionTitle id="visible">4. What other users can see</SectionTitle>
+        <p className="mt-3 leading-7 text-slate-700">
+          Pool functionality requires some information to be visible to other pool participants and admins.
         </p>
-        <ul className="list-disc pl-5 text-gray-700 leading-7 space-y-1 mt-2">
-          <li><span className="font-medium">With service providers</span> that help us run the Service (hosting, databases, email delivery for auth).</li>
-          <li><span className="font-medium">For legal reasons</span> if required to comply with applicable law or valid legal process.</li>
-          <li><span className="font-medium">To protect rights and safety</span> where appropriate (e.g., preventing abuse or attacks).</li>
+        <ul className="mt-2 list-disc space-y-1 pl-5 leading-7 text-slate-700">
+          <li>Your display name or username may appear in member lists, standings, and history.</li>
+          <li>Your pool participation, alive/eliminated status, record, strikes, and picks may be visible within pools you join, depending on pool rules and timing.</li>
+          <li>Pool creators and admins may see information needed to manage the pool, including member status and pick controls.</li>
+          <li>Your email address is not intentionally shown to other pool members.</li>
         </ul>
 
-        <SectionTitle id="public-private">4. What’s Visible to Others</SectionTitle>
-        <p className="text-gray-700 leading-7">
-          Pool functionality requires some information to be visible to other pool participants.
-        </p>
-        <ul className="list-disc pl-5 text-gray-700 leading-7 space-y-1 mt-2">
-          <li>Your <span className="font-medium">display name/username</span> may appear in standings and pool member lists.</li>
-          <li>Your <span className="font-medium">pool participation</span> and <span className="font-medium">status</span> (e.g., alive/eliminated) may be visible within pools you join.</li>
-          <li>Your <span className="font-medium">email address is not shown</span> to other users.</li>
+        <SectionTitle id="sharing">5. How we share information</SectionTitle>
+        <p className="mt-3 leading-7 text-slate-700">We do not sell personal information. We may share information:</p>
+        <ul className="mt-2 list-disc space-y-1 pl-5 leading-7 text-slate-700">
+          <li><span className="font-medium">With service providers</span> that help operate the Service, such as Supabase, Vercel, Stripe, Google, email/auth providers, analytics, ads, security, and support tools.</li>
+          <li><span className="font-medium">Within pools</span> as necessary to show members, standings, picks, and history.</li>
+          <li><span className="font-medium">For legal, safety, or compliance reasons</span> if required by law, legal process, fraud prevention, security, or enforcement of our Terms.</li>
+          <li><span className="font-medium">In a business transfer</span> such as a merger, acquisition, financing, or sale of assets, subject to appropriate safeguards.</li>
         </ul>
 
-        <SectionTitle id="cookies">5. Cookies & Similar Technologies</SectionTitle>
-        <p className="text-gray-700 leading-7">
-          We use cookies or similar technologies to keep you signed in and to enable core site functionality. These are
-          generally required for the Service to work.
+        <SectionTitle id="payments">6. Payments</SectionTitle>
+        <p className="mt-3 leading-7 text-slate-700">
+          Payments are processed by Stripe or another third-party payment provider. We receive limited payment-related information,
+          such as whether a checkout session was paid, transaction identifiers, amount, and currency. Your use of the payment flow is
+          also subject to the payment provider&apos;s privacy policy and terms.
         </p>
 
-        <SectionTitle id="analytics">6. Analytics (If Enabled in the Future)</SectionTitle>
-        <p className="text-gray-700 leading-7">
-          We currently do not use third-party analytics tools. If we enable analytics in the future, we may collect usage
-          information (such as page views, feature usage, and performance metrics) to improve the Service. When enabled,
-          we will update this policy and (where required) provide choices regarding analytics cookies.
+        <SectionTitle id="ads">7. Ads, analytics, and cookies</SectionTitle>
+        <p className="mt-3 leading-7 text-slate-700">
+          We use cookies and similar technologies for authentication and core functionality. We may also use analytics or advertising
+          services, including Google AdSense or similar ad networks. These services may use cookies, web beacons, IP addresses, device
+          identifiers, and similar technologies to provide ads, measure performance, prevent fraud, limit ad frequency, and generate
+          aggregated reports.
+        </p>
+        <p className="mt-3 leading-7 text-slate-700">
+          See our <Link className="underline" href="/cookies">Cookie Policy</Link> for more information. You can also review Google&apos;s
+          information about ad cookies and choices through Google&apos;s privacy and advertising settings.
         </p>
 
-        <SectionTitle id="retention">7. Data Retention</SectionTitle>
-        <p className="text-gray-700 leading-7">
-          We retain information for as long as needed to operate the Service, comply with legal obligations, resolve
-          disputes, and enforce our agreements. Pool history may be retained to provide season-to-season records and “run
-          it back” functionality.
+        <SectionTitle id="retention">8. Data retention</SectionTitle>
+        <p className="mt-3 leading-7 text-slate-700">
+          We retain information for as long as needed to operate the Service, maintain pool history, provide &quot;run it back&quot; features,
+          comply with legal and tax obligations, resolve disputes, prevent abuse, and enforce agreements. Some archived pool and pick
+          history may be retained so users can view past results.
         </p>
 
-        <SectionTitle id="your-rights">8. Your Choices & Rights</SectionTitle>
-        <p className="text-gray-700 leading-7">
-          Depending on your jurisdiction, you may have rights to access, correct, or delete your personal information.
-          You can typically update your display name and account settings in your profile. If you want to request account
-          deletion or data export, contact: <span className="font-medium">[add contact email]</span>.
+        <SectionTitle id="choices">9. Your choices and rights</SectionTitle>
+        <p className="mt-3 leading-7 text-slate-700">
+          You can update certain account and profile information from your profile page. Depending on your location, you may have rights
+          to request access, correction, deletion, portability, restriction, or objection regarding personal information. You may also
+          have rights to opt out of certain data sharing or targeted advertising where applicable.
+        </p>
+        <p className="mt-3 leading-7 text-slate-700">
+          To make a privacy request, contact: <span className="font-medium">[add contact email]</span>. We may need to verify your
+          identity before completing certain requests.
         </p>
 
-        <SectionTitle id="security">9. Security</SectionTitle>
-        <p className="text-gray-700 leading-7">
-          We take reasonable measures to protect your information. No system is 100% secure, so we cannot guarantee
-          absolute security.
+        <SectionTitle id="security">10. Security</SectionTitle>
+        <p className="mt-3 leading-7 text-slate-700">
+          We use reasonable administrative, technical, and organizational safeguards to protect information. No system is completely
+          secure, and we cannot guarantee absolute security.
         </p>
 
-        <SectionTitle id="children">10. Children’s Privacy</SectionTitle>
-        <p className="text-gray-700 leading-7">
-          The Service is not intended for children. If you believe a child has provided personal information, contact:
-          <span className="font-medium"> [add contact email]</span>.
+        <SectionTitle id="children">11. Children&apos;s privacy</SectionTitle>
+        <p className="mt-3 leading-7 text-slate-700">
+          The Service is not intended for children under 13, and we do not knowingly collect personal information from children under
+          13. If you believe a child has provided personal information, contact us so we can review and delete it where appropriate.
         </p>
 
-        <SectionTitle id="changes">11. Changes to this Policy</SectionTitle>
-        <p className="text-gray-700 leading-7">
-          We may update this Privacy Policy from time to time. We will revise the “Last updated” date and may provide
-          additional notice for material changes.
+        <SectionTitle id="changes">12. Changes</SectionTitle>
+        <p className="mt-3 leading-7 text-slate-700">
+          We may update this Privacy Policy from time to time. We will update the &quot;Last updated&quot; date and may provide additional
+          notice for material changes.
         </p>
 
-        <SectionTitle id="contact">12. Contact</SectionTitle>
-        <p className="text-gray-700 leading-7">
-          Questions about this policy can be sent to: <span className="font-medium">[add contact email]</span>
+        <SectionTitle id="contact">13. Contact</SectionTitle>
+        <p className="mt-3 leading-7 text-slate-700">
+          Questions about this Privacy Policy can be sent to: <span className="font-medium">[add contact email]</span>
         </p>
 
-        <div className="mt-10 text-xs text-gray-500">
-          This document is a general template and not legal advice.
+        <div className="mt-10 rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
+          This document is a general template and not legal advice. Have an attorney review it before relying on it for a public launch.
         </div>
       </div>
     </main>
