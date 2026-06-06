@@ -1097,6 +1097,10 @@ export type Database = {
         Args: { p_pool_id: string; p_weeks: number[] }
         Returns: undefined
       }
+      admin_update_pool_member_limit: {
+        Args: { p_max_members: number; p_pool_id: string }
+        Returns: undefined
+      }
       admin_upsert_user_draft: {
         Args: {
           p_pool_id: string

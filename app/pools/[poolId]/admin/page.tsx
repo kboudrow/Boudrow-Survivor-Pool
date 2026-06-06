@@ -95,9 +95,11 @@ export default function PoolAdminPage() {
 
   const [selectedWeek, setSelectedWeek] = useState(1)
   const [doubleWeeksText, setDoubleWeeksText] = useState('')
+  const [maxMembersText, setMaxMembersText] = useState('')
   const [archiving, setArchiving] = useState(false)
   const [activating, setActivating] = useState(false)
   const [savingDouble, setSavingDouble] = useState(false)
+  const [savingLimit, setSavingLimit] = useState(false)
   const [confirmingCheckout, setConfirmingCheckout] = useState(false)
   const [runningAction, setRunningAction] = useState<string | null>(null)
   const [draftTeams, setDraftTeams] = useState<Record<string, string>>({})
@@ -111,7 +113,15 @@ export default function PoolAdminPage() {
   }, [rows])
   const isPoolActive = pool?.activation_status === 'active'
   const leagueHasStarted = !!poolStartAt && Date.now() >= Date.parse(poolStartAt)
-  const archiveBlocked = !!pool && !pool.archived && leagueHasStarted
+  const settingsLocked = leagueHasStarted
+  const selectedDoubleWeeks = useMemo(() => {
+    return new Set(
+      doubleWeeksText
+        .split(',')
+        .map((s) => parseInt(s.trim(), 10))
+        .filter((n) => Number.isFinite(n) && n >= 1 && n <= 18),
+    )
+  }, [doubleWeeksText])
 
   const loadOverview = async (week = selectedWeek) => {
     if (!poolId) return
@@ -133,6 +143,7 @@ export default function PoolAdminPage() {
       setPool(p)
       setIsOwner(!!user?.id && user.id === p.created_by)
       setDoubleWeeksText((p.double_pick_weeks || []).join(','))
+      setMaxMembersText(String(p.max_members ?? 25))
       setRows((overview || []) as AdminRow[])
 
       const { data: firstStartGame } = await supabase
@@ -245,6 +256,10 @@ export default function PoolAdminPage() {
 
   const saveDoubleWeeks = async () => {
     if (!pool) return
+    if (settingsLocked) {
+      setError('League settings cannot be changed after the league has started.')
+      return
+    }
     setSavingDouble(true)
     setError(null)
     setNotice(null)
@@ -268,10 +283,56 @@ export default function PoolAdminPage() {
     }
   }
 
+  const toggleDoubleWeek = (week: number) => {
+    if (settingsLocked) return
+    const weeks = new Set(selectedDoubleWeeks)
+    if (weeks.has(week)) {
+      weeks.delete(week)
+    } else {
+      weeks.add(week)
+    }
+    setDoubleWeeksText(Array.from(weeks).sort((a, b) => a - b).join(','))
+  }
+
+  const saveMemberLimit = async () => {
+    if (!pool) return
+    if (settingsLocked) {
+      setError('League settings cannot be changed after the league has started.')
+      return
+    }
+
+    const nextLimit = parseInt(maxMembersText.trim(), 10)
+    if (!Number.isFinite(nextLimit) || nextLimit < 2 || nextLimit > 500) {
+      setError('Member limit must be between 2 and 500.')
+      return
+    }
+    if (nextLimit < memberCount) {
+      setError(`Member limit cannot be lower than the current member count (${memberCount}).`)
+      return
+    }
+
+    setSavingLimit(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const { error } = await supabase.rpc('admin_update_pool_member_limit', {
+        p_pool_id: pool.id,
+        p_max_members: nextLimit,
+      })
+      if (error) throw error
+      setPool({ ...pool, max_members: nextLimit })
+      setNotice('Member limit saved.')
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to save member limit.'))
+    } finally {
+      setSavingLimit(false)
+    }
+  }
+
   const toggleArchive = async () => {
     if (!pool) return
-    if (archiveBlocked) {
-      setError('This league has already started, so it cannot be archived.')
+    if (settingsLocked) {
+      setError('League settings cannot be changed after the league has started.')
       return
     }
     setArchiving(true)
@@ -497,33 +558,76 @@ export default function PoolAdminPage() {
                   </button>
                   <button
                     onClick={toggleArchive}
-                    disabled={archiving || archiveBlocked}
-                    title={archiveBlocked ? 'This league has already started and cannot be archived.' : undefined}
+                    disabled={archiving || settingsLocked}
+                    title={settingsLocked ? 'League settings are locked after the league starts.' : undefined}
                     className="rounded-md bg-amber-600 px-3 py-2 text-sm text-white hover:bg-amber-700 disabled:opacity-50"
                   >
                     {archiving ? 'Updating...' : pool.archived ? 'Unarchive pool' : 'Archive pool'}
                   </button>
                 </div>
               </div>
-              {archiveBlocked && (
+              {settingsLocked && (
                 <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                  Archive is locked because this league has already started. Use season history after the season is complete.
+                  League settings are locked because this pool has reached its configured start week. Admins can still manage player picks and results.
                 </p>
               )}
 
-              <div className="grid gap-3 md:grid-cols-[1fr_auto]">
-                <div>
-                  <label className="mb-1 block text-sm font-medium">Double-pick weeks</label>
+              <div className="grid gap-4 lg:grid-cols-[minmax(220px,320px)_1fr]">
+                <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                  <label className="mb-1 block text-sm font-medium">Member limit</label>
+                  <div className="flex gap-2">
+                    <input
+                      value={maxMembersText}
+                      onChange={(e) => setMaxMembersText(e.target.value)}
+                      disabled={settingsLocked}
+                      inputMode="numeric"
+                      className="w-full rounded-md border px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-500"
+                      placeholder="25"
+                    />
+                    <button onClick={saveMemberLimit} disabled={savingLimit || settingsLocked} className="rounded-md bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50">
+                      {savingLimit ? 'Saving...' : 'Save'}
+                    </button>
+                  </div>
+                  <p className="mt-2 text-xs text-gray-600">Current members: {memberCount}. Limit must be 2-500 and cannot be below the current member count.</p>
+                </div>
+
+                <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <label className="block text-sm font-medium">Double-pick weeks</label>
+                      <p className="text-xs text-gray-600">Click weeks or type a comma-separated list like 3,6,10.</p>
+                    </div>
+                    <button onClick={saveDoubleWeeks} disabled={savingDouble || settingsLocked} className="rounded-md bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50">
+                      {savingDouble ? 'Saving...' : 'Save weeks'}
+                    </button>
+                  </div>
+                  <div className="mb-3 grid grid-cols-6 gap-2 sm:grid-cols-9 lg:grid-cols-[repeat(18,minmax(0,1fr))]">
+                    {ALL_WEEKS.map((week) => {
+                      const selected = selectedDoubleWeeks.has(week)
+                      return (
+                        <button
+                          key={week}
+                          type="button"
+                          onClick={() => toggleDoubleWeek(week)}
+                          disabled={settingsLocked}
+                          className={`rounded-md border px-2 py-1.5 text-sm font-semibold disabled:opacity-50 ${
+                            selected ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-100'
+                          }`}
+                          aria-pressed={selected}
+                        >
+                          {week}
+                        </button>
+                      )
+                    })}
+                  </div>
                   <input
                     value={doubleWeeksText}
                     onChange={(e) => setDoubleWeeksText(e.target.value)}
-                    className="w-full rounded-md border px-3 py-2 text-sm"
+                    disabled={settingsLocked}
+                    className="w-full rounded-md border px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-500"
                     placeholder="e.g. 5,8,12"
                   />
                 </div>
-                <button onClick={saveDoubleWeeks} disabled={savingDouble} className="self-end rounded-md bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50">
-                  {savingDouble ? 'Saving...' : 'Save weeks'}
-                </button>
               </div>
             </section>
 
