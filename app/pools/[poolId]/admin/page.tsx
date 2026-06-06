@@ -13,6 +13,7 @@ type Pool = {
   double_pick_weeks: number[] | null
   archived: boolean
   season: number | null
+  start_week: number
   activation_status?: 'draft' | 'active' | 'cancelled' | string | null
   max_members?: number | null
   payment_status?: 'unpaid' | 'paid' | 'not_required' | 'waived' | 'refunded' | string | null
@@ -89,6 +90,7 @@ export default function PoolAdminPage() {
   const [notice, setNotice] = useState<string | null>(null)
   const [isOwner, setIsOwner] = useState(false)
   const [pool, setPool] = useState<Pool | null>(null)
+  const [poolStartAt, setPoolStartAt] = useState<string | null>(null)
   const [rows, setRows] = useState<AdminRow[]>([])
 
   const [selectedWeek, setSelectedWeek] = useState(1)
@@ -108,6 +110,8 @@ export default function PoolAdminPage() {
     return { alive, eliminated: uniqueMembers.length - alive }
   }, [rows])
   const isPoolActive = pool?.activation_status === 'active'
+  const leagueHasStarted = !!poolStartAt && Date.now() >= Date.parse(poolStartAt)
+  const archiveBlocked = !!pool && !pool.archived && leagueHasStarted
 
   const loadOverview = async (week = selectedWeek) => {
     if (!poolId) return
@@ -115,7 +119,7 @@ export default function PoolAdminPage() {
     setError(null)
     try {
       const [{ data: p, error: pErr }, { data: overview, error: overviewErr }] = await Promise.all([
-        supabase.from('pools').select('id,name,created_by,double_pick_weeks,archived,season,activation_status,max_members,payment_status').eq('id', poolId).maybeSingle<Pool>(),
+        supabase.from('pools').select('id,name,created_by,double_pick_weeks,archived,season,start_week,activation_status,max_members,payment_status').eq('id', poolId).maybeSingle<Pool>(),
         supabase.rpc('admin_pool_week_overview', { p_pool_id: poolId, p_week: week }),
       ])
       if (pErr) throw pErr
@@ -130,6 +134,16 @@ export default function PoolAdminPage() {
       setIsOwner(!!user?.id && user.id === p.created_by)
       setDoubleWeeksText((p.double_pick_weeks || []).join(','))
       setRows((overview || []) as AdminRow[])
+
+      const { data: firstStartGame } = await supabase
+        .from('nfl_games')
+        .select('game_time,kickoff_at_utc')
+        .eq('season', p.season ?? new Date().getFullYear())
+        .eq('week', p.start_week)
+        .order('game_time', { ascending: true })
+        .limit(1)
+        .maybeSingle<{ game_time: string; kickoff_at_utc: string | null }>()
+      setPoolStartAt(firstStartGame?.kickoff_at_utc || firstStartGame?.game_time || null)
 
       const nextDrafts: Record<string, string> = {}
       const nextFinals: Record<string, string> = {}
@@ -256,6 +270,10 @@ export default function PoolAdminPage() {
 
   const toggleArchive = async () => {
     if (!pool) return
+    if (archiveBlocked) {
+      setError('This league has already started, so it cannot be archived.')
+      return
+    }
     setArchiving(true)
     setError(null)
     setNotice(null)
@@ -477,11 +495,21 @@ export default function PoolAdminPage() {
                   <button onClick={adjudicate} disabled={!!runningAction} className="rounded-md bg-emerald-600 px-3 py-2 text-sm text-white hover:bg-emerald-700 disabled:opacity-50">
                     Adjudicate results
                   </button>
-                  <button onClick={toggleArchive} disabled={archiving} className="rounded-md bg-amber-600 px-3 py-2 text-sm text-white hover:bg-amber-700 disabled:opacity-50">
+                  <button
+                    onClick={toggleArchive}
+                    disabled={archiving || archiveBlocked}
+                    title={archiveBlocked ? 'This league has already started and cannot be archived.' : undefined}
+                    className="rounded-md bg-amber-600 px-3 py-2 text-sm text-white hover:bg-amber-700 disabled:opacity-50"
+                  >
                     {archiving ? 'Updating...' : pool.archived ? 'Unarchive pool' : 'Archive pool'}
                   </button>
                 </div>
               </div>
+              {archiveBlocked && (
+                <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                  Archive is locked because this league has already started. Use season history after the season is complete.
+                </p>
+              )}
 
               <div className="grid gap-3 md:grid-cols-[1fr_auto]">
                 <div>
