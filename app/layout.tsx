@@ -3,8 +3,11 @@ import "./globals.css";
 import { AppHeader } from "@/components/AppHeader";
 
 export const metadata: Metadata = {
-  title: "Survivor Pool",
-  description: "NFL Survivor Pool",
+  title: {
+    default: "Survivor Pool",
+    template: "%s | Survivor Pool",
+  },
+  description: "Create, join, and manage NFL survivor pools with automatic pick locks, standings, and commissioner tools.",
 };
 
 export default function RootLayout({

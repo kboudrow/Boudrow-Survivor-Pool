@@ -46,7 +46,7 @@ function computeBestFinish(rows: HistoryRow[]) {
   if (maxElimWeek > 0) return 'Eliminated Week ' + String(maxElimWeek)
 
   if (rows.length > 0) return 'In progress'
-  return '—'
+  return '-'
 }
 
 function StatTile({ label, value }: { label: string; value: string }) {
@@ -228,7 +228,7 @@ export default function ProfilePage() {
     try {
       const cleaned = newEmail.trim()
       if (!cleaned) throw new Error('Please enter an email address.')
-      if (cleaned === currentEmail) throw new Error('That’s already your current email.')
+      if (cleaned === currentEmail) throw new Error("That's already your current email.")
 
       const { error } = await supabase.auth.updateUser({ email: cleaned })
       if (error) throw error
@@ -295,16 +295,13 @@ export default function ProfilePage() {
             <Link href="/pools" className="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200">
               My Pools
             </Link>
-            <Link href="/archives" className="px-3 py-2 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100">
-              History
-            </Link>
             <button onClick={signOut} className="px-3 py-2 rounded-md bg-gray-700 text-white hover:bg-gray-800">
               Sign out
             </button>
           </div>
         </div>
 
-        {loading && <p>Loading…</p>}
+        {loading && <p>Loading...</p>}
         {!loading && err && <div className="mb-3 text-red-600">{err}</div>}
 
         {!loading && (
@@ -321,7 +318,7 @@ export default function ProfilePage() {
                   className="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200 text-sm"
                   disabled={historyLoading}
                 >
-                  {historyLoading ? 'Refreshing…' : 'Refresh'}
+                  {historyLoading ? 'Refreshing...' : 'Refresh'}
                 </button>
               </div>
 
@@ -332,7 +329,7 @@ export default function ProfilePage() {
                 <StatTile label="Best finish" value={stats.bestFinish} />
                 <StatTile label="Career record" value={stats.recordLabel} />
                 <StatTile label="Total strikes" value={String(stats.totalStrikes)} />
-                <StatTile label="Last season played" value={stats.lastSeasonPlayed !== null ? String(stats.lastSeasonPlayed) : '—'} />
+                <StatTile label="Last season played" value={stats.lastSeasonPlayed !== null ? String(stats.lastSeasonPlayed) : '-'} />
               </div>
             </section>
 
@@ -341,7 +338,7 @@ export default function ProfilePage() {
               <h2 className="text-lg font-semibold mb-2">Account</h2>
               <div className="text-sm text-gray-700">
                 <div>
-                  <span className="text-gray-500">Current email:</span> <span className="font-medium">{currentEmail || '—'}</span>
+                  <span className="text-gray-500">Current email:</span> <span className="font-medium">{currentEmail || '-'}</span>
                 </div>
               </div>
 
@@ -363,7 +360,7 @@ export default function ProfilePage() {
                     disabled={savingEmail}
                     className="w-full px-4 py-2 rounded-md bg-black text-white hover:bg-gray-900 disabled:opacity-50"
                   >
-                    {savingEmail ? 'Saving…' : 'Update email'}
+                    {savingEmail ? 'Saving...' : 'Update email'}
                   </button>
                 </div>
               </div>
@@ -374,7 +371,7 @@ export default function ProfilePage() {
                   disabled={resetSending}
                   className="text-sm underline text-blue-700 disabled:opacity-50"
                 >
-                  {resetSending ? 'Sending reset email…' : 'Send me a password reset email'}
+                  {resetSending ? 'Sending reset email...' : 'Send me a password reset email'}
                 </button>
                 {resetMsg && <div className="text-sm text-emerald-700 mt-2">{resetMsg}</div>}
               </div>
@@ -401,7 +398,7 @@ export default function ProfilePage() {
                     disabled={savingUsername}
                     className="w-full px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
                   >
-                    {savingUsername ? 'Saving…' : 'Save username'}
+                    {savingUsername ? 'Saving...' : 'Save username'}
                   </button>
                 </div>
               </div>
@@ -449,22 +446,30 @@ export default function ProfilePage() {
                   disabled={savingPw || !allPwOk}
                   className="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
                 >
-                  {savingPw ? 'Updating…' : 'Update password'}
+                  {savingPw ? 'Updating...' : 'Update password'}
                 </button>
               </div>
             </section>
 
             {/* History */}
             <section className="border rounded-lg p-4 bg-white">
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="text-lg font-semibold">History</h2>
-                <button
-                  onClick={loadHistory}
-                  className="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200 text-sm"
-                  disabled={historyLoading}
-                >
-                  {historyLoading ? 'Refreshing…' : 'Refresh'}
-                </button>
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <div>
+                  <h2 className="text-lg font-semibold">History</h2>
+                  <p className="text-xs text-gray-500">Your completed and archived pool results live here.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Link href="/archives" className="px-3 py-2 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 text-sm">
+                    Run it back
+                  </Link>
+                  <button
+                    onClick={loadHistory}
+                    className="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200 text-sm"
+                    disabled={historyLoading}
+                  >
+                    {historyLoading ? 'Refreshing...' : 'Refresh'}
+                  </button>
+                </div>
               </div>
 
               {history.length === 0 ? (
@@ -488,10 +493,10 @@ export default function ProfilePage() {
                             <Link href={`/pools/${r.pool_id}`} className="font-medium underline">
                               {r.pool_name}
                             </Link>
-                            <div className="text-xs text-gray-500">{r.pool_id.slice(0, 8)}…</div>
+                            <div className="text-xs text-gray-500">{r.pool_id.slice(0, 8)}...</div>
                           </td>
-                          <td className="p-2 border">{r.season ?? '—'}</td>
-                          <td className="p-2 border">{r.status ?? '—'}</td>
+                          <td className="p-2 border">{r.season ?? '-'}</td>
+                          <td className="p-2 border">{r.status ?? '-'}</td>
                           <td className="p-2 border">
                             {n0(r.wins)}-{n0(r.losses)}
                             {n0(r.pushes) ? `-${n0(r.pushes)}` : ''}

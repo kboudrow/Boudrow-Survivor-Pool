@@ -400,6 +400,7 @@ export default function Home() {
             <ul className="space-y-1">
               <li><Link href="/how-it-works" className="underline">How it works</Link></li>
               <li><Link href="/faq" className="underline">FAQ</Link></li>
+              <li><Link href="/blog" className="underline">Blog</Link></li>
             </ul>
           </div>
           <div>

@@ -54,17 +54,25 @@ export function AuthNav() {
 
   if (!loaded || !isAuthed) {
     return (
-      <Link
-        href="/?auth=signin"
-        className="shrink-0 rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
-      >
-        Sign in
-      </Link>
+      <div className="flex shrink-0 items-center gap-1">
+        <Link href="/blog" className="rounded-md px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-950">
+          Blog
+        </Link>
+        <Link
+          href="/?auth=signin"
+          className="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+        >
+          Sign in
+        </Link>
+      </div>
     )
   }
 
   return (
     <div className="flex shrink-0 items-center gap-1">
+      <Link href="/blog" className="rounded-md px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-950">
+        Blog
+      </Link>
       <Link href="/pools" className="rounded-md px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-950">
         My Pools
       </Link>
