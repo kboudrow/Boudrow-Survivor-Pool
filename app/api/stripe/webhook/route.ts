@@ -2,9 +2,10 @@ import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { stripe } from '@/lib/stripe'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { cleanEnvValue } from '@/lib/env'
 
 export async function POST(request: Request) {
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.replace(/^\uFEFF/, '').trim()
+  const webhookSecret = cleanEnvValue(process.env.STRIPE_WEBHOOK_SECRET)
   if (!webhookSecret || webhookSecret === 'whsec_replace_me') {
     return NextResponse.json({ error: 'Stripe webhook secret is not configured.' }, { status: 500 })
   }
