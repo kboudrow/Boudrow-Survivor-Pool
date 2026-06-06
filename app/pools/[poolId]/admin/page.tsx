@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { getErrorMessage } from '@/lib/errorMessage'
 import { supabase } from '@/lib/supabaseClient'
@@ -81,6 +81,7 @@ const rowKey = (row: AdminRow) => `${row.user_id}:${row.slot}`
 
 export default function PoolAdminPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { poolId } = useParams<{ poolId: string }>()
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -95,6 +96,7 @@ export default function PoolAdminPage() {
   const [archiving, setArchiving] = useState(false)
   const [activating, setActivating] = useState(false)
   const [savingDouble, setSavingDouble] = useState(false)
+  const [confirmingCheckout, setConfirmingCheckout] = useState(false)
   const [runningAction, setRunningAction] = useState<string | null>(null)
   const [draftTeams, setDraftTeams] = useState<Record<string, string>>({})
   const [finalTeams, setFinalTeams] = useState<Record<string, string>>({})
@@ -105,6 +107,7 @@ export default function PoolAdminPage() {
     const alive = uniqueMembers.filter((row) => !row.eliminated).length
     return { alive, eliminated: uniqueMembers.length - alive }
   }, [rows])
+  const isPoolActive = pool?.activation_status === 'active'
 
   const loadOverview = async (week = selectedWeek) => {
     if (!poolId) return
@@ -157,6 +160,53 @@ export default function PoolAdminPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [poolId])
+
+  useEffect(() => {
+    if (!pool || !isOwner || pool.activation_status === 'active') return
+    const activated = searchParams.get('activated')
+    const sessionId = searchParams.get('session_id')
+    if (activated !== 'success' || !sessionId || confirmingCheckout) return
+
+    const confirmCheckout = async () => {
+      setConfirmingCheckout(true)
+      setError(null)
+      setNotice(null)
+      try {
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession()
+
+        if (sessionError) throw sessionError
+        if (!session?.access_token) throw new Error('Please sign in again to confirm payment.')
+
+        const response = await fetch('/api/stripe/confirm-checkout-session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ poolId: pool.id, sessionId }),
+        })
+
+        const payload = (await response.json()) as { activated?: boolean; error?: string }
+        if (!response.ok || !payload.activated) {
+          throw new Error(payload.error || 'Payment confirmation failed.')
+        }
+
+        setNotice('Payment confirmed. Pool is active.')
+        await loadOverview(selectedWeek)
+        router.replace(`/pools/${pool.id}/admin`)
+      } catch (e: unknown) {
+        setError(getErrorMessage(e, 'Payment confirmation failed.'))
+      } finally {
+        setConfirmingCheckout(false)
+      }
+    }
+
+    confirmCheckout()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pool, isOwner, searchParams, confirmingCheckout, router])
 
   useEffect(() => {
     if (!loading && !error && pool && !isOwner) {
@@ -343,7 +393,14 @@ export default function PoolAdminPage() {
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold">Admin Panel</h1>
-            <p className="text-sm text-gray-600">{pool ? `${pool.name} · ${pool.season ?? 'Season not set'}` : 'Pool controls'}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm text-gray-600">{pool ? `${pool.name} - ${pool.season ?? 'Season not set'}` : 'Pool controls'}</p>
+              {isPoolActive && (
+                <span className="rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
+                  Active Pool
+                </span>
+              )}
+            </div>
           </div>
           <div className="flex gap-2">
             <Link href={`/pools?pool=${poolId}`} className="rounded-md bg-gray-100 px-3 py-1.5 text-sm hover:bg-gray-200">
@@ -380,6 +437,7 @@ export default function PoolAdminPage() {
               </div>
             </section>
 
+            {!isPoolActive && (
             <section className="rounded-lg border bg-white p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -392,21 +450,19 @@ export default function PoolAdminPage() {
                   <span className="rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-sm font-medium text-slate-700">
                     {pool.activation_status === 'active' ? 'Active' : 'Draft'}
                   </span>
-                  <span className="rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-sm font-medium text-slate-700">
-                    Payment: {pool.payment_status ?? 'unpaid'}
-                  </span>
                   {pool.activation_status !== 'active' && (
                     <button
                       onClick={startActivationCheckout}
-                      disabled={activating}
+                      disabled={activating || confirmingCheckout}
                       className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                     >
-                      {activating ? 'Opening Stripe...' : 'Activate for $50'}
+                      {confirmingCheckout ? 'Confirming payment...' : activating ? 'Opening Stripe...' : 'Activate for $50'}
                     </button>
                   )}
                 </div>
               </div>
             </section>
+            )}
 
             <section className="rounded-lg border bg-white p-4">
               <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -488,7 +544,7 @@ export default function PoolAdminPage() {
                       <tr key={rowKey(row)} className="align-top hover:bg-gray-50">
                         <td className="border p-2">
                           <div className="font-medium">{row.display_name}</div>
-                          <div className="text-xs text-gray-500">{row.role} · joined {fmt(row.joined_at)}</div>
+                          <div className="text-xs text-gray-500">{row.role} - joined {fmt(row.joined_at)}</div>
                         </td>
                         <td className="border p-2">Pick {row.slot}</td>
                         <td className="border p-2">
