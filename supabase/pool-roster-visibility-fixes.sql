@@ -42,15 +42,15 @@ begin
   select
     pm.profile_id,
     coalesce(
-      nullif(pr.display_name, ''),
-      nullif(pr.username, ''),
+      nullif(pr.display_name::text, ''),
+      nullif(pr.username::text, ''),
       nullif(trim(concat_ws(' ', pr.first_name, pr.last_name)), ''),
       'Player ' || left(pm.profile_id::text, 8)
-    ) as display_name,
-    pr.username,
-    pr.first_name,
-    pr.last_name,
-    pr.avatar_url,
+    )::text as display_name,
+    pr.username::text,
+    pr.first_name::text,
+    pr.last_name::text,
+    pr.avatar_url::text,
     pm.role::text as role,
     pm.status::text as status,
     pm.joined_at

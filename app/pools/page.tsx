@@ -483,6 +483,7 @@ function MyPoolsContent() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [pool, setPool] = useState<Pool | null>(null)
   const [detailsLoading, setDetailsLoading] = useState(false)
+  const [detailError, setDetailError] = useState<string | null>(null)
   const openedPoolParamRef = useRef<string | null>(null)
 
   // members
@@ -877,6 +878,7 @@ function MyPoolsContent() {
     setIsOpen(true)
     setActiveTab('standings')
     setDetailsLoading(true)
+    setDetailError(null)
 
     // reset per-open state
     setPool(null)
@@ -897,15 +899,14 @@ function MyPoolsContent() {
     setElimCount(0)
 
     try {
-      const [{ data: poolRow, error: poolErr }, { data: rosterRows, error: rosterErr }] = await Promise.all([
-        supabase.from('pools').select('*').eq('id', id).maybeSingle<Pool>(),
-        supabase.rpc('pool_member_roster', { p_pool_id: id }),
-      ])
+      const { data: poolRow, error: poolErr } = await supabase.from('pools').select('*').eq('id', id).maybeSingle<Pool>()
       if (poolErr) throw poolErr
-      if (rosterErr) throw rosterErr
       if (!poolRow) throw new Error('Pool not found')
 
       setPool(poolRow)
+      const { data: rosterRows, error: rosterErr } = await supabase.rpc('pool_member_roster', { p_pool_id: id })
+      if (rosterErr) throw rosterErr
+
       const roster = ((rosterRows || []) as PoolMemberRosterRow[]).map((m) => ({
         id: m.profile_id,
         first_name: m.first_name,
@@ -925,8 +926,8 @@ function MyPoolsContent() {
       await loadMyPicks(id)
 
       await loadStandings(1, id, poolRow.season)
-    } catch {
-      // surfaced below
+    } catch (e: unknown) {
+      setDetailError(getErrorMessage(e, 'Failed to load pool details.'))
     } finally {
       setDetailsLoading(false)
     }
@@ -936,6 +937,7 @@ function MyPoolsContent() {
     setIsOpen(false)
     setSelectedId(null)
     setPool(null)
+    setDetailError(null)
   }
 
   useEffect(() => {
@@ -1043,6 +1045,9 @@ function MyPoolsContent() {
             <div className="p-4">
               {detailsLoading && <p>Loading pool...</p>}
               {!detailsLoading && !pool && <p className="text-red-600">Failed to load pool.</p>}
+              {!detailsLoading && pool && detailError && (
+                <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">{detailError}</p>
+              )}
 
               {/* ----------- Make Picks ----------- */}
               {!detailsLoading && pool && activeTab === 'picks' && (
