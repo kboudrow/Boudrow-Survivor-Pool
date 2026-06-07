@@ -207,6 +207,16 @@ function msToCountdown(ms: number) {
   return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
 }
 
+function fmtDateTime(value?: string | null) {
+  if (!value) return '-'
+  return new Date(value).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
 /** ---------------- Donut (Alive vs Eliminated) ---------------- */
 function Donut({ alive, eliminated }: { alive: number; eliminated: number }) {
   const total = Math.max(alive + eliminated, 1)
@@ -308,7 +318,7 @@ function PickSavedToast({ notice, onClose }: { notice: PickNotice; onClose: () =
             Week {notice.week}
             {notice.slot > 1 ? `, Pick ${notice.slot}` : ''}: {isCleared ? 'No team selected' : `${notice.team.name} (${notice.team.abbr})`}
           </div>
-          <div className="mt-1 text-xs text-slate-500">Draft picks stay editable until the pick locks.</div>
+          <div className="mt-1 text-xs text-slate-500">Draft picks are editable until they become official locked picks.</div>
         </div>
         <button type="button" onClick={onClose} className="rounded px-2 py-1 text-sm text-slate-500 hover:bg-slate-100 hover:text-slate-900" aria-label="Close pick confirmation">
           x
@@ -844,7 +854,7 @@ function MyPoolsContent() {
         const draftPick = myDraftPicks[key]
         const finalTeam = finalPick ? teamByAbbr(finalPick.team_abbr) || { abbr: finalPick.team_abbr, name: finalPick.team_abbr } : null
         const team = finalTeam || draftPick
-        rows.push([String(w), String(slot), team?.name ?? '', team?.abbr ?? '', finalPick ? 'Locked' : draftPick ? 'Draft' : ''])
+        rows.push([String(w), String(slot), team?.name ?? '', team?.abbr ?? '', finalPick ? 'Official locked' : draftPick ? 'Editable draft' : ''])
       }
     })
     const csv = rows.map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n')
@@ -863,6 +873,22 @@ function MyPoolsContent() {
     const finalTeams = Object.values(myFinalPicks).map((p) => p.team_abbr)
     return Array.from(new Set([...draftTeams, ...finalTeams]))
   }, [myDraftPicks, myFinalPicks])
+  const pickStatusSummary = (() => {
+    let official = 0
+    let draft = 0
+    let empty = 0
+
+    weeks.forEach((week) => {
+      for (let slot = 1; slot <= picksAllowedForWeek(week); slot += 1) {
+        const key = pickKey(week, slot)
+        if (myFinalPicks[key]) official += 1
+        else if (myDraftPicks[key]) draft += 1
+        else empty += 1
+      }
+    })
+
+    return { official, draft, empty }
+  })()
   const filteredTeams = useMemo(() => {
     const q = teamSearch.trim().toLowerCase()
     if (!q) return NFL_TEAMS
@@ -1103,96 +1129,125 @@ function MyPoolsContent() {
                     <div className="flex items-center justify-between mb-2">
                       <div>
                         <h3 className="font-semibold">Your Picks</h3>
-                        <p className="text-xs text-gray-500">Selections save as editable drafts until they lock. Locked picks cannot be changed.</p>
+                        <p className="text-xs text-gray-500">Drafts are editable. Official locked picks count in standings.</p>
                       </div>
-                      <div className="text-xs text-gray-500">{draftSavedAt ? `Draft saved * ${new Date(draftSavedAt).toLocaleString()}` : 'No drafts yet'}</div>
+                      <div className="text-xs text-gray-500">{draftSavedAt ? `Last saved ${fmtDateTime(draftSavedAt)}` : 'No drafts yet'}</div>
                     </div>
 
-                    <div className="overflow-x-auto">
-                      <table className="min-w-[900px] w-full border border-gray-200 rounded-lg text-sm">
-                        <tbody>
-                          <tr className="bg-gray-50">
-                            {weeks.map((w) => {
-                              return (
-                                <td key={`pick-${w}`} className="border border-gray-200 p-2 text-center">
-                                  <div className="flex flex-col items-center justify-center gap-2">
-                                    {Array.from({ length: picksAllowedForWeek(w) }, (_, i) => i + 1).map((slot) => {
-                                      const key = pickKey(w, slot)
-                                      const finalPick = myFinalPicks[key]
-                                      const draftPick = myDraftPicks[key]
-                                      const finalTeam = finalPick ? teamByAbbr(finalPick.team_abbr) || { abbr: finalPick.team_abbr, name: finalPick.team_abbr } : null
-                                      const savingPick = !!savingPickKeys[key]
+                    <div className="mb-4 grid gap-2 sm:grid-cols-3">
+                      <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2">
+                        <div className="text-xs uppercase tracking-wide text-emerald-700">Editable drafts</div>
+                        <div className="text-lg font-semibold text-emerald-950">{pickStatusSummary.draft}</div>
+                      </div>
+                      <div className="rounded-md border border-slate-300 bg-slate-50 px-3 py-2">
+                        <div className="text-xs uppercase tracking-wide text-slate-600">Official locked</div>
+                        <div className="text-lg font-semibold text-slate-950">{pickStatusSummary.official}</div>
+                      </div>
+                      <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+                        <div className="text-xs uppercase tracking-wide text-amber-700">Still empty</div>
+                        <div className="text-lg font-semibold text-amber-950">{pickStatusSummary.empty}</div>
+                      </div>
+                    </div>
 
-                                      return (
-                                        <div key={key} className="flex min-h-20 flex-col items-center justify-center gap-2">
-                                          {picksAllowedForWeek(w) > 1 && <span className="text-xs text-gray-500">P{slot}</span>}
-                                          {finalPick ? (
-                                            <div className="flex w-full max-w-36 flex-col items-center rounded-lg border border-slate-300 bg-slate-100 px-2 py-2 text-xs text-slate-700">
-                                              <TeamLogo team={finalTeam as Team} size={30} />
-                                              <span className="mt-1 font-semibold">{finalPick.team_abbr}</span>
-                                              <span className="text-[11px]">Locked</span>
-                                            </div>
-                                          ) : (
-                                            <div className="flex w-full max-w-40 flex-col items-center rounded-lg border border-blue-100 bg-white px-2 py-2 shadow-sm">
-                                              {draftPick ? (
-                                                <>
-                                                  <TeamLogo team={draftPick} size={32} />
-                                                  <div className="mt-1 text-xs font-semibold text-slate-950">{draftPick.abbr}</div>
-                                                  <div className="max-w-32 truncate text-[11px] text-slate-500" title={draftPick.name}>
-                                                    {draftPick.name}
-                                                  </div>
-                                                  <div className="mt-1 text-[11px] font-medium text-emerald-700">{savingPick ? 'Saving...' : 'Draft saved'}</div>
-                                                </>
-                                              ) : (
-                                                <div className="flex h-16 flex-col items-center justify-center text-xs text-slate-500">
-                                                  <span>No pick</span>
-                                                </div>
-                                              )}
-                                              <div className="mt-2 flex items-center gap-2">
-                                                <button
-                                                  type="button"
-                                                  className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                                                  onClick={() => setTeamPickerTarget({ week: w, slot })}
-                                                  disabled={savingPick}
-                                                >
-                                                  {draftPick ? 'Edit' : 'Pick'}
-                                                </button>
-                                                {draftPick && (
-                                                  <button
-                                                    type="button"
-                                                    className="rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-200 disabled:opacity-50"
-                                                    title="Clear this pick"
-                                                    onClick={() => clearPick(w, slot)}
-                                                    disabled={savingPick}
-                                                  >
-                                                    Clear
-                                                  </button>
-                                                )}
-                                              </div>
-                                            </div>
-                                          )}
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      {weeks.map((w) => {
+                        const slots = Array.from({ length: picksAllowedForWeek(w) }, (_, i) => i + 1)
+                        return (
+                          <section key={`week-card-${w}`} className="rounded-lg border border-gray-200 bg-white p-3">
+                            <div className="mb-3 flex items-center justify-between gap-2">
+                              <h4 className="text-sm font-semibold">Week {w}</h4>
+                              {slots.length > 1 && <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">Double pick</span>}
+                            </div>
+
+                            <div className="space-y-3">
+                              {slots.map((slot) => {
+                                const key = pickKey(w, slot)
+                                const finalPick = myFinalPicks[key]
+                                const draftPick = myDraftPicks[key]
+                                const finalTeam = finalPick ? teamByAbbr(finalPick.team_abbr) || { abbr: finalPick.team_abbr, name: finalPick.team_abbr } : null
+                                const savingPick = !!savingPickKeys[key]
+
+                                if (finalPick && finalTeam) {
+                                  return (
+                                    <div key={key} className="rounded-md border border-slate-300 bg-slate-50 p-3">
+                                      <div className="mb-2 flex items-center justify-between gap-2">
+                                        <span className="text-xs font-medium text-slate-600">{slots.length > 1 ? `Pick ${slot}` : 'Pick'}</span>
+                                        <span className="rounded-full bg-slate-900 px-2 py-0.5 text-xs font-medium text-white">Official locked</span>
+                                      </div>
+                                      <div className="flex items-center gap-3">
+                                        <TeamLogo team={finalTeam} size={38} />
+                                        <div className="min-w-0">
+                                          <div className="font-semibold text-slate-950">{finalTeam.abbr}</div>
+                                          <div className="truncate text-sm text-slate-600" title={finalTeam.name}>
+                                            {finalTeam.name}
+                                          </div>
+                                          <div className="mt-1 text-xs text-slate-500">Locked {fmtDateTime(finalPick.locked_at)}</div>
                                         </div>
-                                      )
-                                    })}
+                                      </div>
+                                    </div>
+                                  )
+                                }
+
+                                return (
+                                  <div key={key} className="rounded-md border border-blue-100 bg-white p-3 shadow-sm">
+                                    <div className="mb-2 flex items-center justify-between gap-2">
+                                      <span className="text-xs font-medium text-slate-600">{slots.length > 1 ? `Pick ${slot}` : 'Pick'}</span>
+                                      <span
+                                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                                          draftPick ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
+                                        }`}
+                                      >
+                                        {savingPick ? 'Saving' : draftPick ? 'Editable draft' : 'No pick'}
+                                      </span>
+                                    </div>
+
+                                    {draftPick ? (
+                                      <div className="flex items-center gap-3">
+                                        <TeamLogo team={draftPick} size={38} />
+                                        <div className="min-w-0">
+                                          <div className="font-semibold text-slate-950">{draftPick.abbr}</div>
+                                          <div className="truncate text-sm text-slate-600" title={draftPick.name}>
+                                            {draftPick.name}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="flex min-h-12 items-center text-sm text-slate-500">Choose a team for Week {w}.</div>
+                                    )}
+
+                                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                                      <button
+                                        type="button"
+                                        className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                                        onClick={() => setTeamPickerTarget({ week: w, slot })}
+                                        disabled={savingPick}
+                                      >
+                                        {draftPick ? 'Change draft' : 'Choose team'}
+                                      </button>
+                                      {draftPick && (
+                                        <button
+                                          type="button"
+                                          className="rounded bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-200 disabled:opacity-50"
+                                          title="Clear this draft pick"
+                                          onClick={() => clearPick(w, slot)}
+                                          disabled={savingPick}
+                                        >
+                                          Clear draft
+                                        </button>
+                                      )}
+                                    </div>
                                   </div>
-                                </td>
-                              )
-                            })}
-                          </tr>
-                          <tr>
-                            {weeks.map((w) => (
-                              <td key={`week-${w}`} className="border border-gray-200 p-2 text-center font-medium">
-                                Week {w}
-                              </td>
-                            ))}
-                          </tr>
-                        </tbody>
-                      </table>
+                                )
+                              })}
+                            </div>
+                          </section>
+                        )
+                      })}
                     </div>
 
                     <div className="mt-3 flex items-center gap-2">
                       <button onClick={clearAllPicks} className="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200">
-                        Clear All
+                        Clear All Drafts
                       </button>
                       <span className="text-xs text-gray-500">
                         Picks finalize automatically at kickoff (rolling) or at the earlier of kickoff / fixed time (hybrid).
