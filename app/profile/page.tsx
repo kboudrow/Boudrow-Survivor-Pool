@@ -59,6 +59,14 @@ function StatTile({ label, value }: { label: string; value: string }) {
   )
 }
 
+function StatusBadge({ complete }: { complete: boolean }) {
+  return (
+    <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${complete ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-amber-300 bg-amber-50 text-amber-700'}`}>
+      {complete ? 'Profile complete' : 'Profile incomplete'}
+    </span>
+  )
+}
+
 export default function ProfilePage() {
   const router = useRouter()
 
@@ -311,12 +319,22 @@ export default function ProfilePage() {
 
         {!loading && (
           <div className="grid gap-4">
-            {!profileComplete && (
-              <section className="border border-amber-200 rounded-lg p-4 bg-amber-50 text-amber-900">
-                <h2 className="text-sm font-semibold">Profile incomplete</h2>
-                <p className="mt-1 text-sm">Add a display name so other players can identify you in member lists and standings.</p>
-              </section>
-            )}
+            <section className={`rounded-lg border p-4 ${profileComplete ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="mb-1 flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg font-semibold">Player Identity</h2>
+                    <StatusBadge complete={profileComplete} />
+                  </div>
+                  <p className={`text-sm ${profileComplete ? 'text-emerald-800' : 'text-amber-900'}`}>
+                    {profileComplete ? 'This is the name other players see in member lists and standings.' : 'Add a display name so other players can identify you in member lists and standings.'}
+                  </p>
+                </div>
+                <div className="rounded-md bg-white px-3 py-2 text-sm shadow-sm">
+                  <span className="text-gray-500">Display name:</span> <span className="font-semibold">{username.trim() || 'Not set'}</span>
+                </div>
+              </div>
+            </section>
 
             {/* Stats */}
             <section className="border rounded-lg p-4 bg-white">
@@ -345,19 +363,41 @@ export default function ProfilePage() {
               </div>
             </section>
 
-            {/* Account */}
+            {/* Display name */}
             <section className="border rounded-lg p-4 bg-white">
-              <h2 className="text-lg font-semibold mb-2">Account</h2>
-              <div className="text-sm text-gray-700">
-                <div>
-                  <span className="text-gray-500">Current email:</span> <span className="font-medium">{currentEmail || '-'}</span>
+              <h2 className="text-lg font-semibold mb-2">Display Name</h2>
+              <div className="grid sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium mb-1">Display name</label>
+                  <input
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="w-full border rounded-md px-3 py-2"
+                    placeholder="e.g. Kev, Boudrow, etc."
+                  />
+                  <p className="text-xs text-gray-500 mt-2">This is what others see in standings. (No emails are shown.)</p>
+                  {usernameMsg && <div className="text-sm text-emerald-700 mt-2">{usernameMsg}</div>}
                 </div>
-                <div>
-                  <span className="text-gray-500">Display name:</span> <span className="font-medium">{username.trim() || 'Not set'}</span>
+                <div className="flex items-end">
+                  <button
+                    onClick={saveUsername}
+                    disabled={savingUsername}
+                    className="w-full px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    {savingUsername ? 'Saving...' : 'Save display name'}
+                  </button>
                 </div>
               </div>
+            </section>
 
-              <div className="mt-4 grid sm:grid-cols-3 gap-3">
+            {/* Account security */}
+            <section className="border rounded-lg p-4 bg-white">
+              <h2 className="text-lg font-semibold mb-2">Account & Security</h2>
+              <div className="mb-4 rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
+                <span className="text-gray-500">Current email:</span> <span className="font-medium">{currentEmail || '-'}</span>
+              </div>
+
+              <div className="mb-5 grid sm:grid-cols-3 gap-3">
                 <div className="sm:col-span-2">
                   <label className="block text-sm font-medium mb-1">Change email</label>
                   <input
@@ -380,48 +420,7 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              <div className="mt-4">
-                <button
-                  onClick={sendResetEmail}
-                  disabled={resetSending}
-                  className="text-sm underline text-blue-700 disabled:opacity-50"
-                >
-                  {resetSending ? 'Sending reset email...' : 'Send me a password reset email'}
-                </button>
-                {resetMsg && <div className="text-sm text-emerald-700 mt-2">{resetMsg}</div>}
-              </div>
-            </section>
-
-            {/* Username */}
-            <section className="border rounded-lg p-4 bg-white">
-              <h2 className="text-lg font-semibold mb-2">Username</h2>
-              <div className="grid sm:grid-cols-3 gap-3">
-                <div className="sm:col-span-2">
-                  <label className="block text-sm font-medium mb-1">Display name</label>
-                  <input
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="w-full border rounded-md px-3 py-2"
-                    placeholder="e.g. Kev, Boudrow, etc."
-                  />
-                  <p className="text-xs text-gray-500 mt-2">This is what others see in standings. (No emails are shown.)</p>
-                  {usernameMsg && <div className="text-sm text-emerald-700 mt-2">{usernameMsg}</div>}
-                </div>
-                <div className="flex items-end">
-                  <button
-                    onClick={saveUsername}
-                    disabled={savingUsername}
-                    className="w-full px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
-                  >
-                    {savingUsername ? 'Saving...' : 'Save username'}
-                  </button>
-                </div>
-              </div>
-            </section>
-
-            {/* Password */}
-            <section className="border rounded-lg p-4 bg-white">
-              <h2 className="text-lg font-semibold mb-2">Password</h2>
+              <h3 className="mb-2 text-sm font-semibold">Change password</h3>
               <div className="grid sm:grid-cols-2 gap-3">
                 <label className="block">
                   <div className="text-sm font-medium mb-1">New password</div>
@@ -463,6 +462,17 @@ export default function ProfilePage() {
                 >
                   {savingPw ? 'Updating...' : 'Update password'}
                 </button>
+              </div>
+
+              <div className="mt-5 border-t pt-4">
+                <button
+                  onClick={sendResetEmail}
+                  disabled={resetSending}
+                  className="text-sm underline text-blue-700 disabled:opacity-50"
+                >
+                  {resetSending ? 'Sending reset email...' : 'Send me a password reset email'}
+                </button>
+                {resetMsg && <div className="text-sm text-emerald-700 mt-2">{resetMsg}</div>}
               </div>
             </section>
 

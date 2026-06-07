@@ -82,6 +82,15 @@ function fmt(value?: string | null) {
 }
 const rowKey = (row: AdminRow) => `${row.user_id}:${row.slot}`
 const hasFinalPick = (row: AdminRow) => !!row.final_team_abbr || !!row.locked_at
+const fmtShort = (value?: string | null) =>
+  value
+    ? new Date(value).toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      })
+    : '-'
 
 export default function PoolAdminPage() {
   const router = useRouter()
@@ -120,14 +129,16 @@ export default function PoolAdminPage() {
   const isPoolActive = pool?.activation_status === 'active'
   const leagueHasStarted = !!poolStartAt && Date.now() >= Date.parse(poolStartAt)
   const settingsLocked = leagueHasStarted
+  const visibilityChanged = !!pool && isPublicDraft !== pool.is_public
   const selectedDoubleWeeks = useMemo(() => {
     return new Set(
       doubleWeeksText
         .split(',')
         .map((s) => parseInt(s.trim(), 10))
         .filter((n) => Number.isFinite(n) && n >= 1 && n <= 18),
-    )
+      )
   }, [doubleWeeksText])
+  const doubleWeekCount = selectedDoubleWeeks.size
 
   const loadOverview = async (week = selectedWeek) => {
     if (!poolId) return
@@ -567,20 +578,38 @@ export default function PoolAdminPage() {
               </div>
             </section>
 
-            {!isPoolActive && (
-            <section className="rounded-lg border bg-white p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="font-semibold">Pool Activation</h2>
-                  <p className="text-sm text-gray-600">
-                    Draft pools are not joinable until the creator completes the $50 activation payment.
-                  </p>
+            <section className="grid gap-3 md:grid-cols-4">
+              <div className="rounded-lg border bg-white p-4">
+                <div className="text-xs uppercase text-gray-500">Activation</div>
+                <div className={`text-sm font-semibold ${isPoolActive ? 'text-emerald-700' : 'text-amber-700'}`}>
+                  {isPoolActive ? 'Active and joinable' : 'Draft, payment required'}
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-sm font-medium text-slate-700">
-                    {pool.activation_status === 'active' ? 'Active' : 'Draft'}
-                  </span>
-                  {pool.activation_status !== 'active' && (
+              </div>
+              <div className="rounded-lg border bg-white p-4">
+                <div className="text-xs uppercase text-gray-500">Visibility</div>
+                <div className="text-sm font-semibold">{pool.is_public ? 'Public search' : 'Private password'}</div>
+              </div>
+              <div className="rounded-lg border bg-white p-4">
+                <div className="text-xs uppercase text-gray-500">Settings lock</div>
+                <div className={`text-sm font-semibold ${settingsLocked ? 'text-amber-700' : 'text-emerald-700'}`}>
+                  {settingsLocked ? 'Locked' : `Open until ${fmtShort(poolStartAt)}`}
+                </div>
+              </div>
+              <div className="rounded-lg border bg-white p-4">
+                <div className="text-xs uppercase text-gray-500">Double-pick weeks</div>
+                <div className="text-sm font-semibold">{doubleWeekCount ? `${doubleWeekCount} selected` : 'None'}</div>
+              </div>
+            </section>
+
+            {!isPoolActive && (
+              <section className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="font-semibold text-blue-950">Pool Activation</h2>
+                    <p className="text-sm text-blue-800">Players cannot join until the creator completes the $50 activation payment.</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-blue-300 bg-white px-3 py-1 text-sm font-medium text-blue-800">Draft</span>
                     <button
                       onClick={startActivationCheckout}
                       disabled={activating || confirmingCheckout}
@@ -588,17 +617,16 @@ export default function PoolAdminPage() {
                     >
                       {confirmingCheckout ? 'Confirming payment...' : activating ? 'Opening Stripe...' : 'Activate for $50'}
                     </button>
-                  )}
+                  </div>
                 </div>
-              </div>
-            </section>
+              </section>
             )}
 
             <section className="rounded-lg border bg-white p-4">
               <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <h2 className="font-semibold">League Controls</h2>
-                  <p className="text-sm text-gray-600">Use these after schedule/result changes or when testing pool state.</p>
+                  <h2 className="font-semibold">League Settings</h2>
+                  <p className="text-sm text-gray-600">These rules stay editable until the pool reaches its configured start week.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button onClick={finalizeLocked} disabled={!!runningAction} className="rounded-md bg-indigo-600 px-3 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">
@@ -620,6 +648,11 @@ export default function PoolAdminPage() {
               {settingsLocked && (
                 <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                   League settings are locked because this pool has reached its configured start week. Admins can still manage player picks and results.
+                </p>
+              )}
+              {!settingsLocked && poolStartAt && (
+                <p className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                  Settings can still be changed. They lock when this pool starts: {fmt(poolStartAt)}.
                 </p>
               )}
 
@@ -654,18 +687,23 @@ export default function PoolAdminPage() {
                     <option value="private">Private</option>
                   </select>
                   {!isPublicDraft && (
-                    <input
-                      value={visibilityPassword}
-                      onChange={(e) => setVisibilityPassword(e.target.value)}
-                      disabled={settingsLocked}
-                      className="mt-2 w-full rounded-md border px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-500"
-                      placeholder="Private pool password"
-                      type="password"
-                    />
+                    <>
+                      <input
+                        value={visibilityPassword}
+                        onChange={(e) => setVisibilityPassword(e.target.value)}
+                        disabled={settingsLocked}
+                        className="mt-2 w-full rounded-md border px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-500"
+                        placeholder={pool.is_public ? 'Set private pool password' : 'Enter new private password'}
+                        type="password"
+                      />
+                      <p className="mt-1 text-xs text-gray-600">
+                        {pool.is_public ? 'A password is required when switching from public to private.' : 'Enter a password only if you want to replace the current private password.'}
+                      </p>
+                    </>
                   )}
                   <button
                     onClick={saveVisibility}
-                    disabled={savingVisibility || settingsLocked}
+                    disabled={savingVisibility || settingsLocked || (!visibilityChanged && (isPublicDraft || !visibilityPassword.trim()))}
                     className="mt-2 w-full rounded-md bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50"
                   >
                     {savingVisibility ? 'Saving...' : 'Save visibility'}
@@ -677,7 +715,7 @@ export default function PoolAdminPage() {
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <label className="block text-sm font-medium">Double-pick weeks</label>
-                      <p className="text-xs text-gray-600">Click weeks or type a comma-separated list like 3,6,10.</p>
+                      <p className="text-xs text-gray-600">Click weeks or type a comma-separated list like 3,6,10. Players must make two picks in these weeks.</p>
                     </div>
                     <button onClick={saveDoubleWeeks} disabled={savingDouble || settingsLocked} className="rounded-md bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50">
                       {savingDouble ? 'Saving...' : 'Save weeks'}

@@ -54,9 +54,11 @@ export default function JoinSearchPage() {
 
   const [selected, setSelected] = useState<Pool | null>(null)
   const [memberCount, setMemberCount] = useState<number | null>(null)
+  const [memberCountLoading, setMemberCountLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [password, setPassword] = useState('')
   const [joining, setJoining] = useState(false)
+  const [modalError, setModalError] = useState<string | null>(null)
 
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmMsg, setConfirmMsg] = useState('')
@@ -186,14 +188,17 @@ export default function JoinSearchPage() {
     setShowPassword(false)
     setPassword('')
     setMemberCount(null)
-    setError(null)
+    setModalError(null)
 
     try {
+      setMemberCountLoading(true)
       const { data: count, error } = await supabase.rpc('count_pool_members', { p_pool_id: pool.id })
       if (error) throw error
       setMemberCount((count as number) ?? 0)
     } catch {
       setMemberCount(null)
+    } finally {
+      setMemberCountLoading(false)
     }
   }
 
@@ -201,7 +206,7 @@ export default function JoinSearchPage() {
     setSelected(null)
     setShowPassword(false)
     setPassword('')
-    setError(null)
+    setModalError(null)
   }
 
   const requireAuth = async (): Promise<boolean> => {
@@ -210,7 +215,7 @@ export default function JoinSearchPage() {
     } = await supabase.auth.getUser()
 
     if (user) return true
-    router.push('/')
+    router.push('/?auth=signin')
     return false
   }
 
@@ -233,7 +238,7 @@ export default function JoinSearchPage() {
     if (!(await requireAuth())) return
 
     setJoining(true)
-    setError(null)
+    setModalError(null)
 
     try {
       const { error } = await supabase.rpc('join_pool', {
@@ -245,7 +250,7 @@ export default function JoinSearchPage() {
       setJoinedPoolIds((prev) => new Set(prev).add(selected.id))
       router.push(`/pools?pool=${selected.id}`)
     } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Join failed.'))
+      setModalError(getErrorMessage(e, 'Join failed.'))
     } finally {
       setJoining(false)
     }
@@ -274,6 +279,14 @@ export default function JoinSearchPage() {
           placeholder="Search public and discoverable private pools"
           className="w-full border rounded-md px-3 py-2 mb-3"
         />
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-gray-500">Public pools can be joined directly. Private pools require the password from the commissioner.</p>
+          {query.trim() && (
+            <button onClick={() => setQuery('')} className="rounded-md bg-gray-100 px-3 py-1 text-xs hover:bg-gray-200">
+              Clear search
+            </button>
+          )}
+        </div>
 
         {query.trim() ? (
           searching ? (
@@ -302,6 +315,7 @@ export default function JoinSearchPage() {
                   {joinedPoolIds.has(pool.id) && (
                     <span className="rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-xs text-blue-700">Joined</span>
                   )}
+                  {pool.max_members && <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-600">Limit {pool.max_members}</span>}
                   <span
                     className={`rounded-full border px-2 py-0.5 text-xs ${
                       pool.is_public ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : 'bg-gray-100 border-gray-300 text-gray-700'
@@ -334,7 +348,7 @@ export default function JoinSearchPage() {
 
             <div className="mb-3 grid gap-3 sm:grid-cols-3">
               <Info label="Visibility" value={selected.is_public ? 'Public' : 'Private'} />
-              <Info label="Members" value={memberCount !== null ? `${memberCount}/${selected.max_members ?? '-'}` : '-'} />
+              <Info label="Members" value={memberCountLoading ? 'Loading...' : memberCount !== null ? `${memberCount}/${selected.max_members ?? '-'}` : '-'} />
               <Info label="Strikes Allowed" value={String(selected.strikes_allowed ?? '-')} />
               <Info label="Tie Counts As" value={selected.tie_rule ?? '-'} />
               <Info label="Start Week" value={`Week ${selected.start_week}`} />
@@ -362,6 +376,10 @@ export default function JoinSearchPage() {
               >
                 {joining ? 'Joining...' : 'Join Pool'}
               </button>
+            ) : !authed ? (
+              <button onClick={() => router.push('/?auth=signin')} className="rounded-md bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700">
+                Sign in to Join Private Pool
+              </button>
             ) : !showPassword ? (
               <button onClick={() => setShowPassword(true)} className="rounded-md bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700">
                 Join (Enter Password)
@@ -372,7 +390,10 @@ export default function JoinSearchPage() {
                   <div className="mb-1 text-sm font-medium">Password (case-sensitive)</div>
                   <input
                     value={password}
-                    onChange={(event) => setPassword(event.target.value)}
+                    onChange={(event) => {
+                      setPassword(event.target.value)
+                      setModalError(null)
+                    }}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' && password.trim()) {
                         askConfirm(`Are you sure you want to join "${selected.name}"?`, joinSelectedPool)
@@ -404,7 +425,7 @@ export default function JoinSearchPage() {
               </div>
             )}
 
-            {error && <div className="mt-3 text-sm text-red-600">{error}</div>}
+            {modalError && <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{modalError}</div>}
           </div>
         </div>
       )}
