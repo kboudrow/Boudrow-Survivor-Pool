@@ -10,6 +10,8 @@ type Pool = {
   id: string
   name: string
   created_by: string
+  is_public: boolean
+  visibility?: 'public' | 'private' | string | null
   double_pick_weeks: number[] | null
   archived: boolean
   season: number | null
@@ -101,6 +103,9 @@ export default function PoolAdminPage() {
   const [activating, setActivating] = useState(false)
   const [savingDouble, setSavingDouble] = useState(false)
   const [savingLimit, setSavingLimit] = useState(false)
+  const [savingVisibility, setSavingVisibility] = useState(false)
+  const [isPublicDraft, setIsPublicDraft] = useState(true)
+  const [visibilityPassword, setVisibilityPassword] = useState('')
   const [confirmingCheckout, setConfirmingCheckout] = useState(false)
   const [runningAction, setRunningAction] = useState<string | null>(null)
   const [draftTeams, setDraftTeams] = useState<Record<string, string>>({})
@@ -130,7 +135,7 @@ export default function PoolAdminPage() {
     setError(null)
     try {
       const [{ data: p, error: pErr }, { data: overview, error: overviewErr }] = await Promise.all([
-        supabase.from('pools').select('id,name,created_by,double_pick_weeks,archived,season,start_week,activation_status,max_members,payment_status').eq('id', poolId).maybeSingle<Pool>(),
+        supabase.from('pools').select('id,name,created_by,is_public,visibility,double_pick_weeks,archived,season,start_week,activation_status,max_members,payment_status').eq('id', poolId).maybeSingle<Pool>(),
         supabase.rpc('admin_pool_week_overview', { p_pool_id: poolId, p_week: week }),
       ])
       if (pErr) throw pErr
@@ -145,6 +150,8 @@ export default function PoolAdminPage() {
       setIsOwner(!!user?.id && user.id === p.created_by)
       setDoubleWeeksText((p.double_pick_weeks || []).join(','))
       setMaxMembersText(String(p.max_members ?? 25))
+      setIsPublicDraft(!!p.is_public)
+      setVisibilityPassword('')
       setRows((overview || []) as AdminRow[])
 
       const { data: firstStartGame } = await supabase
@@ -152,6 +159,7 @@ export default function PoolAdminPage() {
         .select('game_time,kickoff_at_utc')
         .eq('season', p.season ?? new Date().getFullYear())
         .eq('week', p.start_week)
+        .order('kickoff_at_utc', { ascending: true, nullsFirst: false })
         .order('game_time', { ascending: true })
         .limit(1)
         .maybeSingle<{ game_time: string; kickoff_at_utc: string | null }>()
@@ -327,6 +335,38 @@ export default function PoolAdminPage() {
       setError(getErrorMessage(e, 'Failed to save member limit.'))
     } finally {
       setSavingLimit(false)
+    }
+  }
+
+  const saveVisibility = async () => {
+    if (!pool) return
+    if (settingsLocked) {
+      setError('League settings cannot be changed after the league has started.')
+      return
+    }
+    if (!isPublicDraft && !visibilityPassword.trim()) {
+      setError('Enter a pool password before switching this pool to private.')
+      return
+    }
+
+    setSavingVisibility(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const { error } = await supabase.rpc('admin_update_pool_visibility', {
+        p_pool_id: pool.id,
+        p_is_public: isPublicDraft,
+        p_password: isPublicDraft ? null : visibilityPassword,
+      })
+      if (error) throw error
+
+      setPool({ ...pool, is_public: isPublicDraft, visibility: isPublicDraft ? 'public' : 'private' })
+      setVisibilityPassword('')
+      setNotice(isPublicDraft ? 'Pool is now public.' : 'Pool is now private.')
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to save pool visibility.'))
+    } finally {
+      setSavingVisibility(false)
     }
   }
 
@@ -583,7 +623,7 @@ export default function PoolAdminPage() {
                 </p>
               )}
 
-              <div className="grid gap-4 lg:grid-cols-[minmax(220px,320px)_1fr]">
+              <div className="grid gap-4 lg:grid-cols-[minmax(220px,320px)_minmax(260px,360px)_1fr]">
                 <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
                   <label className="mb-1 block text-sm font-medium">Member limit</label>
                   <div className="flex gap-2">
@@ -600,6 +640,37 @@ export default function PoolAdminPage() {
                     </button>
                   </div>
                   <p className="mt-2 text-xs text-gray-600">Current members: {memberCount}. Limit must be 2-500 and cannot be below the current member count.</p>
+                </div>
+
+                <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                  <label className="mb-1 block text-sm font-medium">Pool visibility</label>
+                  <select
+                    value={isPublicDraft ? 'public' : 'private'}
+                    onChange={(e) => setIsPublicDraft(e.target.value === 'public')}
+                    disabled={settingsLocked}
+                    className="w-full rounded-md border px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-500"
+                  >
+                    <option value="public">Public</option>
+                    <option value="private">Private</option>
+                  </select>
+                  {!isPublicDraft && (
+                    <input
+                      value={visibilityPassword}
+                      onChange={(e) => setVisibilityPassword(e.target.value)}
+                      disabled={settingsLocked}
+                      className="mt-2 w-full rounded-md border px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-500"
+                      placeholder="Private pool password"
+                      type="password"
+                    />
+                  )}
+                  <button
+                    onClick={saveVisibility}
+                    disabled={savingVisibility || settingsLocked}
+                    className="mt-2 w-full rounded-md bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50"
+                  >
+                    {savingVisibility ? 'Saving...' : 'Save visibility'}
+                  </button>
+                  <p className="mt-2 text-xs text-gray-600">Public pools can be found in search. Private pools require a password to join.</p>
                 </div>
 
                 <div className="rounded-md border border-gray-200 bg-gray-50 p-3">

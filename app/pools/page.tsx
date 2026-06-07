@@ -26,13 +26,17 @@ type Pool = {
   max_members?: number | null
 }
 
-type MemberRow = { profile_id: string }
 type Profile = {
   id: string
   first_name?: string | null
   last_name?: string | null
+  display_name?: string | null
+  username?: string | null
   avatar_url?: string | null
   email?: string | null
+  role?: string | null
+  status?: string | null
+  joined_at?: string | null
 }
 
 type Team = { abbr: string; name: string; logo?: string }
@@ -42,6 +46,7 @@ type Game = {
   season: number
   week: number
   game_time: string
+  kickoff_at_utc?: string | null
   home_team: string
   away_team: string
   status: 'scheduled' | 'in_progress' | 'final' | string
@@ -65,6 +70,18 @@ type MemberStats = {
   pushes: number
   strikes_used: number
   eliminated: boolean
+}
+
+type PoolMemberRosterRow = {
+  profile_id: string
+  display_name: string | null
+  username: string | null
+  first_name: string | null
+  last_name: string | null
+  avatar_url: string | null
+  role: string | null
+  status: string | null
+  joined_at: string | null
 }
 
 /** ---------------- Teams + Logos ---------------- */
@@ -123,6 +140,13 @@ const fmtLocal = (iso: string) =>
     hour: 'numeric',
     minute: '2-digit',
   })
+
+const displayNameForMember = (m: Profile) =>
+  m.display_name ||
+  m.username ||
+  `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim() ||
+  m.email ||
+  `${m.id.slice(0, 8)}...`
 
 function normalizeTimeTo24h(s?: string | null): string | null {
   if (!s) return null
@@ -375,7 +399,7 @@ function TeamPickerModal(props: {
                 {weekGames.map((g) => {
                   const homeAbbr = toAbbr(g.home_team)
                   const awayAbbr = toAbbr(g.away_team)
-                  const kickoffIso = g.game_time
+                  const kickoffIso = g.kickoff_at_utc || g.game_time
                   const kickoffMs = Date.parse(kickoffIso)
 
                   // hybrid lock = earlier of kickoff OR global fixed lock (if in fixed mode)
@@ -620,9 +644,10 @@ function MyPoolsContent() {
       setGamesLoading(true)
       const { data, error } = await supabase
         .from('nfl_games')
-        .select('id, season, week, game_time, home_team, away_team, status, winner, home_score, away_score')
+        .select('id, season, week, game_time, kickoff_at_utc, home_team, away_team, status, winner, home_score, away_score')
         .eq('season', pool?.season ?? new Date().getFullYear())
         .eq('week', week)
+        .order('kickoff_at_utc', { ascending: true, nullsFirst: false })
         .order('game_time', { ascending: true })
 
       if (!error) setWeekGames((data || []) as Game[])
@@ -731,7 +756,7 @@ function MyPoolsContent() {
     if (teamPickerTarget?.week === week) {
       const game = weekGames.find((g) => toAbbr(g.home_team) === team.abbr || toAbbr(g.away_team) === team.abbr)
       if (game) {
-        const kickoffMs = Date.parse(game.game_time)
+        const kickoffMs = Date.parse(game.kickoff_at_utc || game.game_time)
         const fixedMs = pool?.deadline_mode === 'fixed' && fixedLockUtc ? Date.parse(fixedLockUtc) : Infinity
         const lockMs = Math.min(kickoffMs, fixedMs)
         if (Date.now() >= lockMs) {
@@ -872,22 +897,28 @@ function MyPoolsContent() {
     setElimCount(0)
 
     try {
-      const [{ data: poolRow, error: poolErr }, { data: memberRows, error: memErr, count }] = await Promise.all([
+      const [{ data: poolRow, error: poolErr }, { data: rosterRows, error: rosterErr }] = await Promise.all([
         supabase.from('pools').select('*').eq('id', id).maybeSingle<Pool>(),
-        supabase.from('pool_members').select('profile_id', { count: 'exact' }).eq('pool_id', id),
+        supabase.rpc('pool_member_roster', { p_pool_id: id }),
       ])
       if (poolErr) throw poolErr
-      if (memErr) throw memErr
+      if (rosterErr) throw rosterErr
       if (!poolRow) throw new Error('Pool not found')
 
       setPool(poolRow)
-      setMemberCount(count ?? (memberRows?.length || 0))
-
-      const memberIds = (memberRows || []).map((m: MemberRow) => m.profile_id)
-      if (memberIds.length > 0) {
-        const { data: profiles } = await supabase.from('profiles').select('id, first_name, last_name, avatar_url, email').in('id', memberIds)
-        setMembers((profiles || []) as Profile[])
-      }
+      const roster = ((rosterRows || []) as PoolMemberRosterRow[]).map((m) => ({
+        id: m.profile_id,
+        first_name: m.first_name,
+        last_name: m.last_name,
+        display_name: m.display_name,
+        username: m.username,
+        avatar_url: m.avatar_url,
+        role: m.role,
+        status: m.status,
+        joined_at: m.joined_at,
+      }))
+      setMembers(roster)
+      setMemberCount(roster.length)
 
       await finalizeLockedPicks(id)
 
@@ -1239,7 +1270,7 @@ function MyPoolsContent() {
                       </thead>
                       <tbody>
                         {members.map((m) => {
-                          const name = `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim() || m.email || m.id.slice(0, 8) + '...'
+                          const name = displayNameForMember(m)
                           const s =
                             statsByUser[m.id] ||
                             ({
@@ -1261,7 +1292,7 @@ function MyPoolsContent() {
                                       // eslint-disable-next-line @next/next/no-img-element
                                       <img src={m.avatar_url} alt="" className="w-full h-full object-cover" />
                                     ) : (
-                                      <span className="text-[11px] text-gray-600">{(m.first_name?.[0] || '?') + (m.last_name?.[0] || '')}</span>
+                                      <span className="text-[11px] text-gray-600">{(name[0] || '?').toUpperCase()}</span>
                                     )}
                                   </div>
                                   <span className="font-medium">{name}</span>
@@ -1353,11 +1384,12 @@ function MyPoolsContent() {
                               // eslint-disable-next-line @next/next/no-img-element
                               <img src={m.avatar_url} alt="" className="w-full h-full object-cover" />
                             ) : (
-                              <span className="text-xs text-gray-600">{(m.first_name?.[0] || '?') + (m.last_name?.[0] || '')}</span>
+                              <span className="text-xs text-gray-600">{(displayNameForMember(m)[0] || '?').toUpperCase()}</span>
                             )}
                           </div>
                           <div className="flex-1">
-                            <div className="text-sm font-medium">{`${m.first_name ?? ''} ${m.last_name ?? ''}`.trim() || m.email || m.id}</div>
+                            <div className="text-sm font-medium">{displayNameForMember(m)}</div>
+                            {m.role && <div className="text-xs text-gray-500 capitalize">{m.role}</div>}
                           </div>
                         </li>
                       ))}

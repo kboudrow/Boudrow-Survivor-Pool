@@ -64,7 +64,7 @@ export default function CreatePoolPage() {
   const [startWeek, setStartWeek] = useState('Week 1')
   const [pickDeadline, setPickDeadline] = useState('Before 1PM Games')
   const [mulligans, setMulligans] = useState(0)
-  const [tiebreaker, setTiebreaker] = useState<'Win' | 'Loss' | 'Push'>('Win')
+  const [tiebreaker, setTiebreaker] = useState<'Win' | 'Loss' | 'Push'>('Loss')
   const [seasonLength, setSeasonLength] = useState('Regular Season')
   const [notes, setNotes] = useState('')
 

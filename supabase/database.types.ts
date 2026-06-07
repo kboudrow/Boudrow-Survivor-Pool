@@ -1101,6 +1101,10 @@ export type Database = {
         Args: { p_max_members: number; p_pool_id: string }
         Returns: undefined
       }
+      admin_update_pool_visibility: {
+        Args: { p_is_public: boolean; p_password?: string; p_pool_id: string }
+        Returns: undefined
+      }
       admin_upsert_user_draft: {
         Args: {
           p_pool_id: string
@@ -1177,6 +1181,20 @@ export type Database = {
         Args: { p_pool_id: string }
         Returns: {
           profile_id: string
+        }[]
+      }
+      pool_member_roster: {
+        Args: { p_pool_id: string }
+        Returns: {
+          avatar_url: string | null
+          display_name: string | null
+          first_name: string | null
+          joined_at: string | null
+          last_name: string | null
+          profile_id: string
+          role: string | null
+          status: string | null
+          username: string | null
         }[]
       }
       picks_allowed: {

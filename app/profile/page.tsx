@@ -21,6 +21,7 @@ type HistoryRow = {
 
 type ProfileUsernameRow = {
   username: string | null
+  display_name: string | null
 }
 
 function isWon(status?: string | null) {
@@ -104,6 +105,7 @@ export default function ProfilePage() {
   }, [newPassword, newPassword2])
 
   const allPwOk = pwChecks.len && pwChecks.upper && pwChecks.lower && pwChecks.num && pwChecks.special && pwChecks.match
+  const profileComplete = username.trim().length >= 3
 
   const loadHistory = async () => {
     setHistoryLoading(true)
@@ -177,10 +179,11 @@ export default function ProfilePage() {
         setNewEmail(user.email || '')
 
         // load username
-        const { data: prof, error: profErr } = await supabase.from('profiles').select('username').eq('id', user.id).maybeSingle()
+        const { data: prof, error: profErr } = await supabase.from('profiles').select('username, display_name').eq('id', user.id).maybeSingle()
         if (profErr) throw profErr
         if (!alive) return
-        setUsername((prof as ProfileUsernameRow | null)?.username || '')
+        const profileRow = prof as ProfileUsernameRow | null
+        setUsername(profileRow?.display_name || profileRow?.username || '')
 
         await loadHistory()
       } catch (e: unknown) {
@@ -209,7 +212,7 @@ export default function ProfilePage() {
       if (cleaned.length < 3) throw new Error('Username must be at least 3 characters.')
       if (cleaned.length > 30) throw new Error('Username must be 30 characters or fewer.')
 
-      const { error } = await supabase.from('profiles').update({ username: cleaned }).eq('id', userId)
+      const { error } = await supabase.from('profiles').update({ username: cleaned, display_name: cleaned }).eq('id', userId)
       if (error) throw error
 
       setUsername(cleaned)
@@ -246,6 +249,8 @@ export default function ProfilePage() {
     setPwMsg(null)
     setErr(null)
     try {
+      if (!newPassword || !newPassword2) throw new Error('Enter and re-enter your new password.')
+      if (newPassword !== newPassword2) throw new Error('Passwords do not match. Please try again.')
       if (!allPwOk) throw new Error('Please meet all password requirements.')
 
       const { error } = await supabase.auth.updateUser({ password: newPassword })
@@ -306,6 +311,13 @@ export default function ProfilePage() {
 
         {!loading && (
           <div className="grid gap-4">
+            {!profileComplete && (
+              <section className="border border-amber-200 rounded-lg p-4 bg-amber-50 text-amber-900">
+                <h2 className="text-sm font-semibold">Profile incomplete</h2>
+                <p className="mt-1 text-sm">Add a display name so other players can identify you in member lists and standings.</p>
+              </section>
+            )}
+
             {/* Stats */}
             <section className="border rounded-lg p-4 bg-white">
               <div className="flex items-center justify-between gap-3 mb-3">
@@ -339,6 +351,9 @@ export default function ProfilePage() {
               <div className="text-sm text-gray-700">
                 <div>
                   <span className="text-gray-500">Current email:</span> <span className="font-medium">{currentEmail || '-'}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500">Display name:</span> <span className="font-medium">{username.trim() || 'Not set'}</span>
                 </div>
               </div>
 
@@ -443,7 +458,7 @@ export default function ProfilePage() {
               <div className="mt-3">
                 <button
                   onClick={savePassword}
-                  disabled={savingPw || !allPwOk}
+                  disabled={savingPw}
                   className="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
                 >
                   {savingPw ? 'Updating...' : 'Update password'}

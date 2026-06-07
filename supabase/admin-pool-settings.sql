@@ -34,7 +34,8 @@ begin
   into v_first_start
   from public.nfl_games g
   where g.season = v_pool.season
-    and g.week = v_pool.start_week;
+    and g.week = v_pool.start_week
+    and coalesce(g.kickoff_at_utc, g.game_time) >= make_timestamptz(v_pool.season, 1, 1, 0, 0, 0, 'UTC');
 
   if v_first_start is not null and now() >= v_first_start then
     raise exception 'League settings cannot be changed after the league has started.';
@@ -93,7 +94,8 @@ begin
   into v_first_start
   from public.nfl_games g
   where g.season = v_pool.season
-    and g.week = v_pool.start_week;
+    and g.week = v_pool.start_week
+    and coalesce(g.kickoff_at_utc, g.game_time) >= make_timestamptz(v_pool.season, 1, 1, 0, 0, 0, 'UTC');
 
   if v_first_start is not null and now() >= v_first_start then
     raise exception 'League settings cannot be changed after the league has started.';
@@ -143,7 +145,8 @@ begin
   into v_first_start
   from public.nfl_games g
   where g.season = v_pool.season
-    and g.week = v_pool.start_week;
+    and g.week = v_pool.start_week
+    and coalesce(g.kickoff_at_utc, g.game_time) >= make_timestamptz(v_pool.season, 1, 1, 0, 0, 0, 'UTC');
 
   if v_first_start is not null and now() >= v_first_start then
     raise exception 'League settings cannot be changed after the league has started.';
