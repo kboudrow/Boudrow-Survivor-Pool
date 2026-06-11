@@ -1,14 +1,12 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { supabase } from '@/lib/supabaseClient'
 import { ensureProfile } from '@/lib/ensureProfile'
+import { supabase } from '@/lib/supabaseClient'
 
 export default function CheckPage() {
   const [status, setStatus] = useState<string>('Not signed in')
   const [error, setError] = useState<string | null>(null)
-
-  // avoid double-running ensureProfile for the same user id
   const ensuredUserIdRef = useRef<string | null>(null)
 
   const runEnsureProfileOnce = async (uid: string | null) => {
@@ -19,14 +17,21 @@ export default function CheckPage() {
     if (ensuredUserIdRef.current === uid) return
     ensuredUserIdRef.current = uid
 
-    setStatus('Signed in, ensuring profile…')
+    setStatus('Signed in, ensuring profile...')
     const res = await ensureProfile()
     setStatus(res.ok ? 'Profile ready' : `Profile error: ${res.error}`)
   }
 
   const signInWithGoogle = async () => {
     setError(null)
-    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google' })
+    const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo,
+        queryParams: { prompt: 'select_account' },
+      },
+    })
     if (error) setError(error.message)
   }
 
@@ -39,7 +44,10 @@ export default function CheckPage() {
 
   useEffect(() => {
     const init = async () => {
-      const { data: { user }, error } = await supabase.auth.getUser()
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser()
       if (error) {
         setStatus('Not signed in')
         setError(error.message)
@@ -59,7 +67,9 @@ export default function CheckPage() {
       setStatus(uid ? 'Signed in' : 'Not signed in')
       runEnsureProfileOnce(uid)
     })
-    return () => { sub.subscription.unsubscribe() }
+    return () => {
+      sub.subscription.unsubscribe()
+    }
   }, [])
 
   return (

@@ -50,7 +50,7 @@ begin
     pr.username::text,
     pr.first_name::text,
     pr.last_name::text,
-    null::text as avatar_url,
+    pr.avatar_url::text as avatar_url,
     pm.role::text as role,
     pm.status::text as status,
     pm.joined_at

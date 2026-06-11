@@ -109,7 +109,8 @@ export default function JoinPoolPage() {
       options: {
         redirectTo: typeof window !== 'undefined'
           ? `${window.location.origin}/join/${poolId}`
-          : undefined
+          : undefined,
+        queryParams: { prompt: 'select_account' },
       }
     })
     if (error) setError(error.message)

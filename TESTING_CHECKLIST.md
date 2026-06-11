@@ -147,13 +147,13 @@ Recommended setup:
 - [ ] Selection shows a clear saved confirmation with the team/logo.
   - Notes:
 
-- [ ] Pick card shows Editable draft after saving.
+- [ ] Pick card shows Pick made after saving.
   - Notes:
 
-- [ ] Editable draft can be changed before lock.
+- [ ] Pick can be changed before lock.
   - Notes:
 
-- [ ] Editable draft can be cleared before lock.
+- [ ] Pick can be cleared before lock.
   - Notes:
 
 - [ ] Pick remains saved after refresh.
@@ -162,7 +162,7 @@ Recommended setup:
 - [ ] Pick remains saved after leaving and returning to the pool.
   - Notes:
 
-- [ ] Official locked picks show as Official locked and cannot be changed.
+- [ ] Picks show as Locked after deadline only after the actual deadline passes.
   - Notes:
 
 - [ ] Player cannot pick the same team twice in later weeks.
@@ -270,10 +270,19 @@ Recommended setup:
 
 ## 8. Results Maintenance
 
-- [ ] Admin Finalize locked picks button works when there are lockable picks.
+- [ ] Admin Finalize due picks button asks for confirmation.
   - Notes:
 
-- [ ] Finalized player pick moves from Editable draft to Official locked.
+- [ ] Admin Finalize due picks button works when there are lockable picks.
+  - Notes:
+
+- [ ] Finalized player pick moves from Pick made to Locked after deadline.
+  - Notes:
+
+- [ ] Future picks do not become final when the admin finalizes due picks.
+  - Notes:
+
+- [ ] Admin Adjudicate results button asks for confirmation.
   - Notes:
 
 - [ ] Admin Adjudicate results button works after game results exist.
@@ -297,6 +306,12 @@ Recommended setup:
   - Notes:
 
 - [ ] Saving display name updates the profile.
+  - Notes:
+
+- [ ] Uploading a profile picture works.
+  - Notes:
+
+- [ ] Profile picture appears in member lists/standings.
   - Notes:
 
 - [ ] Display name appears in member lists/standings.

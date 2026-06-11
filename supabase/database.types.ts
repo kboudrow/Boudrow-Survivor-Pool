@@ -847,6 +847,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_url: string | null
           created_at: string | null
           display_name: string | null
           first_name: string | null
@@ -857,6 +858,7 @@ export type Database = {
           username: string | null
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string | null
           display_name?: string | null
           first_name?: string | null
@@ -867,6 +869,7 @@ export type Database = {
           username?: string | null
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string | null
           display_name?: string | null
           first_name?: string | null
@@ -1137,6 +1140,10 @@ export type Database = {
       }
       finalize_week_picks: {
         Args: { p_pool: string; p_week: number }
+        Returns: number
+      }
+      restore_unlocked_picks_for_pool: {
+        Args: { p_pool_id: string }
         Returns: number
       }
       get_my_account: {

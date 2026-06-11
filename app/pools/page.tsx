@@ -335,7 +335,7 @@ function PickSavedToast({ notice, onClose }: { notice: PickNotice; onClose: () =
             Week {notice.week}
             {notice.slot > 1 ? `, Pick ${notice.slot}` : ''}: {isCleared ? 'No team selected' : `${notice.team.name} (${notice.team.abbr})`}
           </div>
-          <div className="mt-1 text-xs text-slate-500">Draft picks are editable until they become official locked picks.</div>
+          <div className="mt-1 text-xs text-slate-500">You can change this pick until its deadline.</div>
         </div>
         <button type="button" onClick={onClose} className="rounded px-2 py-1 text-sm text-slate-500 hover:bg-slate-100 hover:text-slate-900" aria-label="Close pick confirmation">
           x
@@ -556,6 +556,11 @@ function MyPoolsContent() {
     if (error) throw error
   }
 
+  const restoreUnlockedPicks = async (poolId: string) => {
+    const { error } = await supabase.rpc('restore_unlocked_picks_for_pool', { p_pool_id: poolId })
+    if (error) throw error
+  }
+
   const adjudicateCompletedWeeks = async (season?: number | null) => {
     const { error } = await supabase.rpc('adjudicate_completed_weeks', { p_season: season ?? new Date().getFullYear() })
     if (error) throw error
@@ -702,7 +707,7 @@ function MyPoolsContent() {
 
     const targetWeek = teamPickerTarget?.week ?? (activeTab === 'picks' ? selectedPickWeek : null)
     if (pool && targetWeek) loadWeekGames(targetWeek)
-  }, [teamPickerTarget, activeTab, selectedPickWeek, pool, pool?.deadline_mode, pool?.deadline_fixed, pool?.season])
+  }, [teamPickerTarget, activeTab, selectedPickWeek, pool])
 
   /** ---------- Standings loader ---------- */
   const loadStandings = async (week: number, poolId?: string, poolSeason?: number | null) => {
@@ -710,6 +715,7 @@ function MyPoolsContent() {
     if (!pid) return
     setStandingsLoading(true)
     try {
+      await restoreUnlockedPicks(pid)
       await finalizeLockedPicks(pid)
       await adjudicateCompletedWeeks(poolSeason ?? pool?.season)
       await loadMyPicks(pid)
@@ -874,7 +880,7 @@ function MyPoolsContent() {
         const draftPick = myDraftPicks[key]
         const finalTeam = finalPick ? teamByAbbr(finalPick.team_abbr) || { abbr: finalPick.team_abbr, name: finalPick.team_abbr } : null
         const team = finalTeam || draftPick
-        rows.push([String(w), String(slot), team?.name ?? '', team?.abbr ?? '', finalPick ? 'Official locked' : draftPick ? 'Editable draft' : ''])
+        rows.push([String(w), String(slot), team?.name ?? '', team?.abbr ?? '', finalPick ? 'Locked after deadline' : draftPick ? 'Pick made' : ''])
       }
     })
     const csv = rows.map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n')
@@ -979,6 +985,7 @@ function MyPoolsContent() {
       setMembers(roster)
       setMemberCount(roster.length)
 
+      await restoreUnlockedPicks(id)
       await finalizeLockedPicks(id)
 
       await loadMyPicks(id)
@@ -1161,18 +1168,18 @@ function MyPoolsContent() {
                     <div className="flex items-center justify-between mb-2">
                       <div>
                         <h3 className="font-semibold">Your Picks</h3>
-                        <p className="text-xs text-gray-500">Drafts are editable. Official locked picks count in standings.</p>
+                        <p className="text-xs text-gray-500">Picks stay editable until their deadline. Locked picks count in standings.</p>
                       </div>
                       <div className="text-xs text-gray-500">{draftSavedAt ? `Last saved ${fmtDateTime(draftSavedAt)}` : 'No drafts yet'}</div>
                     </div>
 
                     <div className="mb-4 grid gap-2 sm:grid-cols-3">
                       <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2">
-                        <div className="text-xs uppercase tracking-wide text-emerald-700">Editable drafts</div>
+                        <div className="text-xs uppercase tracking-wide text-emerald-700">Picks made</div>
                         <div className="text-lg font-semibold text-emerald-950">{pickStatusSummary.draft}</div>
                       </div>
                       <div className="rounded-md border border-slate-300 bg-slate-50 px-3 py-2">
-                        <div className="text-xs uppercase tracking-wide text-slate-600">Official locked</div>
+                        <div className="text-xs uppercase tracking-wide text-slate-600">Locked</div>
                         <div className="text-lg font-semibold text-slate-950">{pickStatusSummary.official}</div>
                       </div>
                       <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
@@ -1260,7 +1267,7 @@ function MyPoolsContent() {
                               <div key={key} className="rounded-md border border-slate-300 bg-slate-50 p-3">
                                 <div className="mb-2 flex items-center justify-between gap-2">
                                   <span className="text-xs font-medium text-slate-600">{picksAllowedForWeek(selectedPickWeek) > 1 ? `Pick ${slot}` : 'Pick'}</span>
-                                  <span className="rounded-full bg-slate-900 px-2 py-0.5 text-xs font-medium text-white">Official locked</span>
+                                  <span className="rounded-full bg-slate-900 px-2 py-0.5 text-xs font-medium text-white">Locked after deadline</span>
                                 </div>
                                 <div className="flex items-center gap-3">
                                   <TeamLogo team={finalTeam} size={42} />
@@ -1285,7 +1292,7 @@ function MyPoolsContent() {
                                     draftPick ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
                                   }`}
                                 >
-                                  {savingPick ? 'Saving' : draftPick ? 'Editable draft' : 'No pick'}
+                                  {savingPick ? 'Saving' : draftPick ? 'Pick made' : 'No pick'}
                                 </span>
                               </div>
 
@@ -1310,17 +1317,17 @@ function MyPoolsContent() {
                                   onClick={() => setTeamPickerTarget({ week: selectedPickWeek, slot })}
                                   disabled={savingPick}
                                 >
-                                  {draftPick ? 'Change draft' : 'Choose team'}
+                                  {draftPick ? 'Change pick' : 'Choose team'}
                                 </button>
                                 {draftPick && (
                                   <button
                                     type="button"
                                     className="rounded bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-200 disabled:opacity-50"
-                                    title="Clear this draft pick"
+                                    title="Clear this pick"
                                     onClick={() => clearPick(selectedPickWeek, slot)}
                                     disabled={savingPick}
                                   >
-                                    Clear draft
+                                    Clear pick
                                   </button>
                                 )}
                               </div>
@@ -1350,7 +1357,7 @@ function MyPoolsContent() {
 
                     <div className="mt-3 flex items-center gap-2">
                       <button onClick={clearAllPicks} className="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200">
-                        Clear All Drafts
+                        Clear All Picks
                       </button>
                       <span className="text-xs text-gray-500">
                         Picks finalize automatically at kickoff (rolling) or at the earlier of kickoff / fixed time (hybrid).

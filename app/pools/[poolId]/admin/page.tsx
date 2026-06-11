@@ -441,21 +441,27 @@ export default function PoolAdminPage() {
     }
   }
 
-  const finalizeLocked = () =>
-    runAction('Finalize locked picks', async () => {
+  const finalizeLocked = () => {
+    const confirmed = window.confirm('Finalize only picks whose deadlines have passed? Future picks will stay editable.')
+    if (!confirmed) return
+    runAction('Finalize due picks', async () => {
       if (!pool) return
       const { data, error } = await supabase.rpc('finalize_locked_picks_for_pool', { p_pool_id: pool.id })
       if (error) throw error
       return `Finalized ${data ?? 0} pick(s).`
     })
+  }
 
-  const adjudicate = () =>
+  const adjudicate = () => {
+    const confirmed = window.confirm('Adjudicate completed games for this season and update player results?')
+    if (!confirmed) return
     runAction('Adjudicate results', async () => {
       if (!pool) return
       const { data, error } = await supabase.rpc('adjudicate_completed_weeks', { p_season: pool.season ?? new Date().getFullYear() })
       if (error) throw error
       return `Adjudicated ${data ?? 0} pick result(s).`
     })
+  }
 
   const saveDraft = (row: AdminRow) =>
     runAction('Save draft pick', async () => {
@@ -630,7 +636,7 @@ export default function PoolAdminPage() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button onClick={finalizeLocked} disabled={!!runningAction} className="rounded-md bg-indigo-600 px-3 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">
-                    Finalize locked picks
+                    Finalize due picks
                   </button>
                   <button onClick={adjudicate} disabled={!!runningAction} className="rounded-md bg-emerald-600 px-3 py-2 text-sm text-white hover:bg-emerald-700 disabled:opacity-50">
                     Adjudicate results

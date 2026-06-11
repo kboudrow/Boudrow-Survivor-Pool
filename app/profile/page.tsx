@@ -1,5 +1,6 @@
 'use client'
 
+import type { ChangeEvent } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -22,6 +23,7 @@ type HistoryRow = {
 type ProfileUsernameRow = {
   username: string | null
   display_name: string | null
+  avatar_url: string | null
 }
 
 function isWon(status?: string | null) {
@@ -78,6 +80,9 @@ export default function ProfilePage() {
 
   // username
   const [username, setUsername] = useState('')
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const [avatarMsg, setAvatarMsg] = useState<string | null>(null)
   const [savingUsername, setSavingUsername] = useState(false)
   const [usernameMsg, setUsernameMsg] = useState<string | null>(null)
 
@@ -187,11 +192,12 @@ export default function ProfilePage() {
         setNewEmail(user.email || '')
 
         // load username
-        const { data: prof, error: profErr } = await supabase.from('profiles').select('username, display_name').eq('id', user.id).maybeSingle()
+        const { data: prof, error: profErr } = await supabase.from('profiles').select('username, display_name, avatar_url').eq('id', user.id).maybeSingle()
         if (profErr) throw profErr
         if (!alive) return
         const profileRow = prof as ProfileUsernameRow | null
         setUsername(profileRow?.display_name || profileRow?.username || '')
+        setAvatarUrl(profileRow?.avatar_url || null)
 
         await loadHistory()
       } catch (e: unknown) {
@@ -229,6 +235,41 @@ export default function ProfilePage() {
       setErr(getErrorMessage(e, 'Failed to save username.'))
     } finally {
       setSavingUsername(false)
+    }
+  }
+
+  const uploadAvatar = async (event: ChangeEvent<HTMLInputElement>) => {
+    if (!userId) return
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+
+    setAvatarUploading(true)
+    setAvatarMsg(null)
+    setErr(null)
+    try {
+      if (!file.type.startsWith('image/')) throw new Error('Choose an image file.')
+      if (file.size > 5 * 1024 * 1024) throw new Error('Profile picture must be 5 MB or smaller.')
+
+      const ext = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
+      const path = `${userId}/${Date.now()}.${ext}`
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, {
+        cacheControl: '3600',
+        upsert: true,
+      })
+      if (uploadError) throw uploadError
+
+      const { data } = supabase.storage.from('avatars').getPublicUrl(path)
+      const publicUrl = data.publicUrl
+      const { error: profileError } = await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', userId)
+      if (profileError) throw profileError
+
+      setAvatarUrl(publicUrl)
+      setAvatarMsg('Profile picture saved.')
+    } catch (e: unknown) {
+      setErr(getErrorMessage(e, 'Failed to upload profile picture.'))
+    } finally {
+      setAvatarUploading(false)
     }
   }
 
@@ -321,14 +362,24 @@ export default function ProfilePage() {
           <div className="grid gap-4">
             <section className={`rounded-lg border p-4 ${profileComplete ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="mb-1 flex flex-wrap items-center gap-2">
-                    <h2 className="text-lg font-semibold">Player Identity</h2>
-                    <StatusBadge complete={profileComplete} />
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white bg-white text-lg font-bold text-slate-700 shadow-sm">
+                    {avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <span>{(username.trim() || currentEmail || '?').slice(0, 1).toUpperCase()}</span>
+                    )}
                   </div>
-                  <p className={`text-sm ${profileComplete ? 'text-emerald-800' : 'text-amber-900'}`}>
-                    {profileComplete ? 'This is the name other players see in member lists and standings.' : 'Add a display name so other players can identify you in member lists and standings.'}
-                  </p>
+                  <div>
+                    <div className="mb-1 flex flex-wrap items-center gap-2">
+                      <h2 className="text-lg font-semibold">Player Identity</h2>
+                      <StatusBadge complete={profileComplete} />
+                    </div>
+                    <p className={`text-sm ${profileComplete ? 'text-emerald-800' : 'text-amber-900'}`}>
+                      {profileComplete ? 'This is the name other players see in member lists and standings.' : 'Add a display name so other players can identify you in member lists and standings.'}
+                    </p>
+                  </div>
                 </div>
                 <div className="rounded-md bg-white px-3 py-2 text-sm shadow-sm">
                   <span className="text-gray-500">Display name:</span> <span className="font-semibold">{username.trim() || 'Not set'}</span>
@@ -386,6 +437,28 @@ export default function ProfilePage() {
                   >
                     {savingUsername ? 'Saving...' : 'Save display name'}
                   </button>
+                </div>
+              </div>
+              <div className="mt-5 grid gap-3 border-t pt-4 sm:grid-cols-[auto,1fr] sm:items-center">
+                <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border bg-gray-50 text-xl font-bold text-slate-600">
+                  {avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <span>{(username.trim() || currentEmail || '?').slice(0, 1).toUpperCase()}</span>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Profile picture</label>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    onChange={uploadAvatar}
+                    disabled={avatarUploading}
+                    className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white disabled:opacity-50"
+                  />
+                  <p className="mt-2 text-xs text-gray-500">Shown in pool member lists and standings. Max 5 MB.</p>
+                  {avatarMsg && <div className="mt-2 text-sm text-emerald-700">{avatarMsg}</div>}
                 </div>
               </div>
             </section>

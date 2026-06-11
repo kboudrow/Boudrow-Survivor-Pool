@@ -107,7 +107,8 @@ export default function PoolDetailPage() {
       options: {
         redirectTo: typeof window !== 'undefined'
           ? `${window.location.origin}/pools/${poolId}`
-          : undefined
+          : undefined,
+        queryParams: { prompt: 'select_account' },
       }
     })
     if (error) setError(error.message)
