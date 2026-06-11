@@ -6,23 +6,27 @@ Recommended setup:
 - Use one admin/creator account.
 - Use one standard player account.
 - Create one fresh test pool.
-- Keep notes under any item that fails or feels confusing.
+- Use Stripe sandbox/test mode only.
+- Keep notes under any item that fails, feels confusing, or looks ugly.
 
 ## 1. Sign In And Navigation
 
 - [ ] Logged-out homepage loads without errors.
   - Notes:
 
-- [ ] Top-right button says sign in when logged out.
+- [ ] Top-right button says Sign in when logged out.
   - Notes:
 
-- [ ] Sign in opens the sign-in options page, not automatic Google login.
+- [ ] Sign in opens the sign-in options, not automatic Google login.
   - Notes:
 
 - [ ] Google sign-in works.
   - Notes:
 
 - [ ] Email/password sign-in or account creation works if tested.
+  - Notes:
+
+- [ ] Logged-out Create Pool / Join Pool paths send user to sign in or clearly explain sign-in is required.
   - Notes:
 
 - [ ] Top navigation buttons work after signing in.
@@ -34,25 +38,25 @@ Recommended setup:
 - [ ] Sign out works from the top bar.
   - Notes:
 
-## 2. Create Pool And Payment
+## 2. Create Pool And Stripe Activation
 
 - [ ] Admin can open Create Pool while signed in.
   - Notes:
 
-- [ ] Create Pool requires sign-in if logged out.
+- [ ] New pool defaults Tie Counts As to Loss.
   - Notes:
 
 - [ ] Admin can create a new pool with a clear name.
   - Test pool name:
   - Notes:
 
-- [ ] After creation, admin lands on the pool/admin area.
+- [ ] After creation, admin lands on the admin/pool area.
   - Notes:
 
-- [ ] New pool shows draft/unpaid activation state before payment.
+- [ ] New pool shows draft/payment-required activation state before payment.
   - Notes:
 
-- [ ] Activate/payment button opens Stripe checkout.
+- [ ] Activate for $50 opens Stripe checkout.
   - Notes:
 
 - [ ] Stripe test payment succeeds with the test card.
@@ -64,24 +68,33 @@ Recommended setup:
 - [ ] Activation bar disappears after successful payment.
   - Notes:
 
-- [ ] Pool shows as active/paid.
+- [ ] Pool shows as active/paid and joinable.
   - Notes:
 
-## 3. Join Pool Flow
+## 3. Join/Search Flow
 
 - [ ] Standard player can open Join Pool while signed in.
-  - Notes:
-
-- [ ] Join Pool requires sign-in if logged out.
   - Notes:
 
 - [ ] Search finds the test pool by name.
   - Notes:
 
-- [ ] Search results are understandable.
+- [ ] Search results show useful labels: public/private, joined, your pool, member limit.
   - Notes:
 
-- [ ] Standard player can join the pool.
+- [ ] Public pool can be joined without a password.
+  - Notes:
+
+- [ ] Private pool asks for a password.
+  - Notes:
+
+- [ ] Wrong private password shows a clear error inside the join modal.
+  - Notes:
+
+- [ ] Correct private password allows join.
+  - Notes:
+
+- [ ] Full pool cannot be joined and shows a clear message.
   - Notes:
 
 - [ ] After joining, player is taken directly to that pool.
@@ -90,19 +103,57 @@ Recommended setup:
 - [ ] Joined pool appears under My Pools.
   - Notes:
 
-- [ ] If player tries joining again, message makes sense and still offers a way into the pool.
+- [ ] If player tries joining again, message makes sense and offers Open Pool.
   - Notes:
 
-## 4. Standard Player Picks
+## 4. Pool Members And Standings
+
+- [ ] My Pools opens a selected pool without Failed to load pool errors.
+  - Notes:
+
+- [ ] Pool Members tab shows the admin/creator.
+  - Notes:
+
+- [ ] Pool Members tab shows the standard player after joining.
+  - Notes:
+
+- [ ] Member count matches the actual member list.
+  - Notes:
+
+- [ ] Standings tab lists all pool members.
+  - Notes:
+
+- [ ] Alive vs eliminated count makes sense.
+  - Notes:
+
+- [ ] Wins/losses/pushes display clearly.
+  - Notes:
+
+- [ ] Strikes display clearly.
+  - Notes:
+
+## 5. Standard Player Picks
 
 - [ ] Player can view Week 1 matchups.
   - Notes:
 
-- [ ] Player can select a team.
+- [ ] Week 1 teams are not incorrectly locked before the 2026 season.
+  - Notes:
+
+- [ ] Player can select a Week 1 team.
   - Selected team:
   - Notes:
 
-- [ ] Selection shows clear feedback with the team/logo.
+- [ ] Selection shows a clear saved confirmation with the team/logo.
+  - Notes:
+
+- [ ] Pick card shows Editable draft after saving.
+  - Notes:
+
+- [ ] Editable draft can be changed before lock.
+  - Notes:
+
+- [ ] Editable draft can be cleared before lock.
   - Notes:
 
 - [ ] Pick remains saved after refresh.
@@ -111,10 +162,13 @@ Recommended setup:
 - [ ] Pick remains saved after leaving and returning to the pool.
   - Notes:
 
+- [ ] Official locked picks show as Official locked and cannot be changed.
+  - Notes:
+
 - [ ] Player cannot pick the same team twice in later weeks.
   - Notes:
 
-- [ ] Pick deadline message makes sense.
+- [ ] Pick deadline/lock message makes sense.
   - Notes:
 
 - [ ] If a week has two picks enabled, player can make both picks.
@@ -126,7 +180,7 @@ Recommended setup:
 - [ ] Player cannot use the same team for both picks in a double-pick week.
   - Notes:
 
-## 5. Admin League Settings
+## 6. Admin League Settings
 
 - [ ] Admin panel loads for the pool creator.
   - Notes:
@@ -137,11 +191,23 @@ Recommended setup:
 - [ ] Admin Panel button is not visible to a normal player.
   - Notes:
 
+- [ ] Admin setup summary shows activation, visibility, settings lock, and double-pick count.
+  - Notes:
+
 - [ ] Member limit can be changed before the league starts.
   - New limit:
   - Notes:
 
 - [ ] Member limit cannot be set below the current member count.
+  - Notes:
+
+- [ ] Public pool can be changed to private before league start.
+  - Notes:
+
+- [ ] Switching to private requires a password.
+  - Notes:
+
+- [ ] Private pool can be changed back to public before league start.
   - Notes:
 
 - [ ] Double-pick weeks can be selected with the week buttons.
@@ -157,13 +223,16 @@ Recommended setup:
 - [ ] Archive/unarchive works before the league starts.
   - Notes:
 
+- [ ] New 2026 pools do not incorrectly show league settings as locked.
+  - Notes:
+
 - [ ] Once the league reaches its configured start week, league settings are locked.
   - Notes:
 
 - [ ] After start, admin can still manage player picks/results.
   - Notes:
 
-## 6. Admin Pick Controls
+## 7. Admin Pick Controls
 
 - [ ] Admin can select a week in Members & Picks.
   - Notes:
@@ -179,6 +248,9 @@ Recommended setup:
   - Team:
   - Notes:
 
+- [ ] Once a pick is final, draft changes are locked for that slot.
+  - Notes:
+
 - [ ] Admin can override a final pick before kickoff.
   - Player:
   - Team:
@@ -187,10 +259,7 @@ Recommended setup:
 - [ ] Overriding an existing final pick asks for confirmation.
   - Notes:
 
-- [ ] Once a pick is final, draft changes are locked for that slot.
-  - Notes:
-
-- [ ] If a result already exists, admin sees the warning that override will clear it.
+- [ ] If a result already exists, admin sees warning that override will clear it.
   - Notes:
 
 - [ ] Remove member works before league start.
@@ -199,35 +268,47 @@ Recommended setup:
 - [ ] Remove member is disabled after league start.
   - Notes:
 
-## 7. Standings And Results
-
-- [ ] Standings page/section loads.
-  - Notes:
-
-- [ ] Alive players show correctly.
-  - Notes:
-
-- [ ] Eliminated players show correctly.
-  - Notes:
-
-- [ ] Wins/losses/pushes display clearly.
-  - Notes:
-
-- [ ] Strikes display clearly.
-  - Notes:
+## 8. Results Maintenance
 
 - [ ] Admin Finalize locked picks button works when there are lockable picks.
+  - Notes:
+
+- [ ] Finalized player pick moves from Editable draft to Official locked.
   - Notes:
 
 - [ ] Admin Adjudicate results button works after game results exist.
   - Notes:
 
-## 8. Profile And History
+- [ ] Tie counts as loss pools score ties as losses.
+  - Notes:
+
+- [ ] Tie counts as win/push pools score ties correctly if tested.
+  - Notes:
+
+## 9. Profile And History
 
 - [ ] Profile page loads.
   - Notes:
 
-- [ ] Active pools are easy to find.
+- [ ] Player Identity section shows complete/incomplete status.
+  - Notes:
+
+- [ ] Missing display name shows Profile incomplete.
+  - Notes:
+
+- [ ] Saving display name updates the profile.
+  - Notes:
+
+- [ ] Display name appears in member lists/standings.
+  - Notes:
+
+- [ ] Mismatched password update shows a clear error.
+  - Notes:
+
+- [ ] Valid password update succeeds if tested.
+  - Notes:
+
+- [ ] Email update flow shows useful messaging if tested.
   - Notes:
 
 - [ ] History is reachable from profile.
@@ -236,21 +317,27 @@ Recommended setup:
 - [ ] History does not clutter the main navigation.
   - Notes:
 
-## 9. Mobile / Small Screen Quick Check
+## 10. Mobile / Small Screen Quick Check
 
 - [ ] Homepage is usable on a phone-sized screen.
+  - Notes:
+
+- [ ] Join/search page is usable on a phone-sized screen.
   - Notes:
 
 - [ ] Pool page is usable on a phone-sized screen.
   - Notes:
 
-- [ ] Pick selection is usable on a phone-sized screen.
+- [ ] Pick cards are usable on a phone-sized screen.
   - Notes:
 
 - [ ] Admin page is usable enough on a phone-sized screen.
   - Notes:
 
-## 10. Issues To Bring Back To Codex
+- [ ] Profile page is usable on a phone-sized screen.
+  - Notes:
+
+## 11. Issues To Bring Back To Codex
 
 Use this section for anything that fails, feels confusing, or looks ugly.
 

@@ -198,6 +198,23 @@ function etLocalToUtcISO(ymd: string, hhmm: string): string {
   if (off2 !== off1) utcMs = guess - off2 * 60_000
   return new Date(utcMs).toISOString()
 }
+function addDaysYmd(ymd: string, days: number): string {
+  const [y, m, d] = ymd.split('-').map(Number)
+  const date = new Date(Date.UTC(y, m - 1, d + days, 12, 0, 0))
+  return date.toISOString().slice(0, 10)
+}
+function currentPickWeek(rows: SeasonWeek[], now = new Date()): number {
+  if (rows.length === 0) return 1
+  const sorted = [...rows].sort((a, b) => a.week - b.week)
+  let current = sorted[0]?.week ?? 1
+
+  for (const row of sorted) {
+    const opensAt = Date.parse(etLocalToUtcISO(addDaysYmd(row.week_sunday_date, -5), '06:00'))
+    if (now.getTime() >= opensAt) current = row.week
+  }
+
+  return Math.min(Math.max(current, 1), 18)
+}
 function msToCountdown(ms: number) {
   if (ms <= 0) return '00:00:00'
   const s = Math.floor(ms / 1000)
@@ -502,6 +519,8 @@ function MyPoolsContent() {
 
   // picks (mine)
   const weeks = useMemo(() => Array.from({ length: 18 }, (_, i) => i + 1), [])
+  const [selectedPickWeek, setSelectedPickWeek] = useState(1)
+  const [seasonWeeks, setSeasonWeeks] = useState<SeasonWeek[]>([])
   const [myDraftPicks, setMyDraftPicks] = useState<Record<string, Team | null>>({})
   const [myFinalPicks, setMyFinalPicks] = useState<Record<string, FinalPickRow>>({})
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null)
@@ -649,7 +668,7 @@ function MyPoolsContent() {
     }
   }, [])
 
-  /** ---------- Team picker: load games + compute weekly fixed lock ---------- */
+  /** ---------- Selected week games + fixed lock ---------- */
   useEffect(() => {
     const loadWeekGames = async (week: number) => {
       setGamesLoading(true)
@@ -681,8 +700,9 @@ function MyPoolsContent() {
       }
     }
 
-    if (teamPickerTarget) loadWeekGames(teamPickerTarget.week)
-  }, [teamPickerTarget, pool?.deadline_mode, pool?.deadline_fixed, pool?.season])
+    const targetWeek = teamPickerTarget?.week ?? (activeTab === 'picks' ? selectedPickWeek : null)
+    if (pool && targetWeek) loadWeekGames(targetWeek)
+  }, [teamPickerTarget, activeTab, selectedPickWeek, pool, pool?.deadline_mode, pool?.deadline_fixed, pool?.season])
 
   /** ---------- Standings loader ---------- */
   const loadStandings = async (week: number, poolId?: string, poolSeason?: number | null) => {
@@ -902,7 +922,7 @@ function MyPoolsContent() {
   const openPool = async (id: string) => {
     setSelectedId(id)
     setIsOpen(true)
-    setActiveTab('standings')
+    setActiveTab('picks')
     setDetailsLoading(true)
     setDetailError(null)
 
@@ -916,6 +936,8 @@ function MyPoolsContent() {
     setTeamPickerTarget(null)
     setTeamSearch('')
     setWeekGames([])
+    setSeasonWeeks([])
+    setSelectedPickWeek(1)
     setGamesLoading(false)
     setFixedLockUtc(null)
     setStandingsWeek(1)
@@ -930,6 +952,16 @@ function MyPoolsContent() {
       if (!poolRow) throw new Error('Pool not found')
 
       setPool(poolRow)
+      const { data: weekRows } = await supabase
+        .from('season_weeks')
+        .select('season, week, week_sunday_date')
+        .eq('season', poolRow.season ?? new Date().getFullYear())
+        .order('week', { ascending: true })
+
+      const nextSeasonWeeks = ((weekRows || []) as SeasonWeek[]).filter((row) => row.week >= 1 && row.week <= 18)
+      setSeasonWeeks(nextSeasonWeeks)
+      setSelectedPickWeek(currentPickWeek(nextSeasonWeeks))
+
       const { data: rosterRows, error: rosterErr } = await supabase.rpc('pool_member_roster', { p_pool_id: id })
       if (rosterErr) throw rosterErr
 
@@ -1149,101 +1181,172 @@ function MyPoolsContent() {
                       </div>
                     </div>
 
-                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                      {weeks.map((w) => {
-                        const slots = Array.from({ length: picksAllowedForWeek(w) }, (_, i) => i + 1)
-                        return (
-                          <section key={`week-card-${w}`} className="rounded-lg border border-gray-200 bg-white p-3">
-                            <div className="mb-3 flex items-center justify-between gap-2">
-                              <h4 className="text-sm font-semibold">Week {w}</h4>
-                              {slots.length > 1 && <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">Double pick</span>}
-                            </div>
+                    <div className="mb-4 overflow-x-auto">
+                      <div className="flex min-w-max gap-2 pb-1">
+                        {weeks.map((w) => {
+                          const selected = selectedPickWeek === w
+                          const required = picksAllowedForWeek(w)
+                          const hasDraft = Array.from({ length: required }, (_, i) => myDraftPicks[pickKey(w, i + 1)]).some(Boolean)
+                          const hasFinal = Array.from({ length: required }, (_, i) => myFinalPicks[pickKey(w, i + 1)]).some(Boolean)
+                          return (
+                            <button
+                              key={`week-button-${w}`}
+                              type="button"
+                              onClick={() => {
+                                setSelectedPickWeek(w)
+                                setTeamPickerTarget(null)
+                                setTeamSearch('')
+                              }}
+                              className={`rounded-md border px-3 py-2 text-sm font-semibold ${
+                                selected
+                                  ? 'border-blue-600 bg-blue-600 text-white'
+                                  : hasFinal
+                                    ? 'border-slate-300 bg-slate-100 text-slate-700'
+                                    : hasDraft
+                                      ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                                      : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                              }`}
+                            >
+                              W{w}
+                              {required > 1 && <span className="ml-1 text-[10px]">x2</span>}
+                            </button>
+                          )
+                        })}
+                        {pool.include_playoffs && (
+                          <button
+                            type="button"
+                            disabled
+                            title="Playoff picks will be enabled after playoff schedule support is added."
+                            className="rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm font-semibold text-gray-400"
+                          >
+                            Playoffs
+                          </button>
+                        )}
+                      </div>
+                    </div>
 
-                            <div className="space-y-3">
-                              {slots.map((slot) => {
-                                const key = pickKey(w, slot)
-                                const finalPick = myFinalPicks[key]
-                                const draftPick = myDraftPicks[key]
-                                const finalTeam = finalPick ? teamByAbbr(finalPick.team_abbr) || { abbr: finalPick.team_abbr, name: finalPick.team_abbr } : null
-                                const savingPick = !!savingPickKeys[key]
+                    <section className="rounded-lg border border-gray-200 bg-white p-4">
+                      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="text-lg font-semibold">Week {selectedPickWeek}</h4>
+                            {picksAllowedForWeek(selectedPickWeek) > 1 && (
+                              <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+                                Double-pick week
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-1 text-sm text-gray-600">
+                            Make {picksAllowedForWeek(selectedPickWeek)} {picksAllowedForWeek(selectedPickWeek) === 1 ? 'pick' : 'picks'} for this week.
+                          </p>
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {seasonWeeks.find((row) => row.week === selectedPickWeek)?.week_sunday_date
+                            ? `Week opens Tuesday at 6:00 AM ET before ${seasonWeeks.find((row) => row.week === selectedPickWeek)?.week_sunday_date}`
+                            : 'Week timing unavailable'}
+                        </div>
+                      </div>
 
-                                if (finalPick && finalTeam) {
-                                  return (
-                                    <div key={key} className="rounded-md border border-slate-300 bg-slate-50 p-3">
-                                      <div className="mb-2 flex items-center justify-between gap-2">
-                                        <span className="text-xs font-medium text-slate-600">{slots.length > 1 ? `Pick ${slot}` : 'Pick'}</span>
-                                        <span className="rounded-full bg-slate-900 px-2 py-0.5 text-xs font-medium text-white">Official locked</span>
-                                      </div>
-                                      <div className="flex items-center gap-3">
-                                        <TeamLogo team={finalTeam} size={38} />
-                                        <div className="min-w-0">
-                                          <div className="font-semibold text-slate-950">{finalTeam.abbr}</div>
-                                          <div className="truncate text-sm text-slate-600" title={finalTeam.name}>
-                                            {finalTeam.name}
-                                          </div>
-                                          <div className="mt-1 text-xs text-slate-500">Locked {fmtDateTime(finalPick.locked_at)}</div>
-                                        </div>
-                                      </div>
+                      <div className={`grid gap-3 ${picksAllowedForWeek(selectedPickWeek) > 1 ? 'md:grid-cols-2' : ''}`}>
+                        {Array.from({ length: picksAllowedForWeek(selectedPickWeek) }, (_, i) => i + 1).map((slot) => {
+                          const key = pickKey(selectedPickWeek, slot)
+                          const finalPick = myFinalPicks[key]
+                          const draftPick = myDraftPicks[key]
+                          const finalTeam = finalPick ? teamByAbbr(finalPick.team_abbr) || { abbr: finalPick.team_abbr, name: finalPick.team_abbr } : null
+                          const savingPick = !!savingPickKeys[key]
+
+                          if (finalPick && finalTeam) {
+                            return (
+                              <div key={key} className="rounded-md border border-slate-300 bg-slate-50 p-3">
+                                <div className="mb-2 flex items-center justify-between gap-2">
+                                  <span className="text-xs font-medium text-slate-600">{picksAllowedForWeek(selectedPickWeek) > 1 ? `Pick ${slot}` : 'Pick'}</span>
+                                  <span className="rounded-full bg-slate-900 px-2 py-0.5 text-xs font-medium text-white">Official locked</span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <TeamLogo team={finalTeam} size={42} />
+                                  <div className="min-w-0">
+                                    <div className="font-semibold text-slate-950">{finalTeam.abbr}</div>
+                                    <div className="truncate text-sm text-slate-600" title={finalTeam.name}>
+                                      {finalTeam.name}
                                     </div>
-                                  )
-                                }
+                                    <div className="mt-1 text-xs text-slate-500">Locked {fmtDateTime(finalPick.locked_at)}</div>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          }
 
-                                return (
-                                  <div key={key} className="rounded-md border border-blue-100 bg-white p-3 shadow-sm">
-                                    <div className="mb-2 flex items-center justify-between gap-2">
-                                      <span className="text-xs font-medium text-slate-600">{slots.length > 1 ? `Pick ${slot}` : 'Pick'}</span>
-                                      <span
-                                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                                          draftPick ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
-                                        }`}
-                                      >
-                                        {savingPick ? 'Saving' : draftPick ? 'Editable draft' : 'No pick'}
-                                      </span>
-                                    </div>
+                          return (
+                            <div key={key} className="rounded-md border border-blue-100 bg-white p-3 shadow-sm">
+                              <div className="mb-2 flex items-center justify-between gap-2">
+                                <span className="text-xs font-medium text-slate-600">{picksAllowedForWeek(selectedPickWeek) > 1 ? `Pick ${slot}` : 'Pick'}</span>
+                                <span
+                                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                                    draftPick ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
+                                  }`}
+                                >
+                                  {savingPick ? 'Saving' : draftPick ? 'Editable draft' : 'No pick'}
+                                </span>
+                              </div>
 
-                                    {draftPick ? (
-                                      <div className="flex items-center gap-3">
-                                        <TeamLogo team={draftPick} size={38} />
-                                        <div className="min-w-0">
-                                          <div className="font-semibold text-slate-950">{draftPick.abbr}</div>
-                                          <div className="truncate text-sm text-slate-600" title={draftPick.name}>
-                                            {draftPick.name}
-                                          </div>
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <div className="flex min-h-12 items-center text-sm text-slate-500">Choose a team for Week {w}.</div>
-                                    )}
-
-                                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                                      <button
-                                        type="button"
-                                        className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                                        onClick={() => setTeamPickerTarget({ week: w, slot })}
-                                        disabled={savingPick}
-                                      >
-                                        {draftPick ? 'Change draft' : 'Choose team'}
-                                      </button>
-                                      {draftPick && (
-                                        <button
-                                          type="button"
-                                          className="rounded bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-200 disabled:opacity-50"
-                                          title="Clear this draft pick"
-                                          onClick={() => clearPick(w, slot)}
-                                          disabled={savingPick}
-                                        >
-                                          Clear draft
-                                        </button>
-                                      )}
+                              {draftPick ? (
+                                <div className="flex items-center gap-3">
+                                  <TeamLogo team={draftPick} size={42} />
+                                  <div className="min-w-0">
+                                    <div className="font-semibold text-slate-950">{draftPick.abbr}</div>
+                                    <div className="truncate text-sm text-slate-600" title={draftPick.name}>
+                                      {draftPick.name}
                                     </div>
                                   </div>
-                                )
-                              })}
+                                </div>
+                              ) : (
+                                <div className="flex min-h-14 items-center text-sm text-slate-500">Choose a team for Week {selectedPickWeek}.</div>
+                              )}
+
+                              <div className="mt-3 flex flex-wrap items-center gap-2">
+                                <button
+                                  type="button"
+                                  className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                                  onClick={() => setTeamPickerTarget({ week: selectedPickWeek, slot })}
+                                  disabled={savingPick}
+                                >
+                                  {draftPick ? 'Change draft' : 'Choose team'}
+                                </button>
+                                {draftPick && (
+                                  <button
+                                    type="button"
+                                    className="rounded bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-200 disabled:opacity-50"
+                                    title="Clear this draft pick"
+                                    onClick={() => clearPick(selectedPickWeek, slot)}
+                                    disabled={savingPick}
+                                  >
+                                    Clear draft
+                                  </button>
+                                )}
+                              </div>
                             </div>
-                          </section>
-                        )
-                      })}
-                    </div>
+                          )
+                        })}
+                      </div>
+
+                      <div className="mt-5">
+                        <h5 className="mb-2 text-sm font-semibold">Week {selectedPickWeek} Games</h5>
+                        {gamesLoading && <p className="text-sm text-gray-600">Loading games...</p>}
+                        {!gamesLoading && weekGames.length === 0 && <p className="text-sm text-gray-600">No games found for this week.</p>}
+                        {!gamesLoading && weekGames.length > 0 && (
+                          <div className="grid gap-2 md:grid-cols-2">
+                            {weekGames.map((game) => (
+                              <div key={game.id} className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                                <div className="text-xs text-gray-500">{fmtDateTime(game.kickoff_at_utc || game.game_time)}</div>
+                                <div className="mt-1 font-medium">
+                                  {toAbbr(game.away_team)} @ {toAbbr(game.home_team)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </section>
 
                     <div className="mt-3 flex items-center gap-2">
                       <button onClick={clearAllPicks} className="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200">
