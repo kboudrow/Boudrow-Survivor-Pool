@@ -6,6 +6,7 @@ type AdSlotProps = {
   slot?: string
   label?: string
   format?: 'auto' | 'fluid'
+  layout?: 'in-article'
   className?: string
   minHeight?: string
 }
@@ -19,8 +20,11 @@ declare global {
 const adsenseClient = process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT || process.env.NEXT_PUBLIC_ADSENSE_CLIENT
 const showPreview = process.env.NODE_ENV !== 'production'
 
-export function AdSlot({ slot, label = 'Advertisement', format = 'auto', className = '', minHeight = '90px' }: AdSlotProps) {
+export function AdSlot({ slot, label = 'Advertisement', format = 'auto', layout, className = '', minHeight = '90px' }: AdSlotProps) {
   const enabled = Boolean(adsenseClient && slot)
+  const adAttributes = layout
+    ? { 'data-ad-layout': layout }
+    : {}
 
   useEffect(() => {
     if (!enabled) return
@@ -55,6 +59,7 @@ export function AdSlot({ slot, label = 'Advertisement', format = 'auto', classNa
         data-ad-slot={slot}
         data-ad-format={format}
         data-full-width-responsive="true"
+        {...adAttributes}
       />
     </aside>
   )

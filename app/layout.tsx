@@ -9,6 +9,9 @@ export const metadata: Metadata = {
     template: "%s | Survivor Pool",
   },
   description: "Create, join, and manage NFL survivor pools with automatic pick locks, standings, and commissioner tools.",
+  other: {
+    "google-adsense-account": "ca-pub-7635962482487315",
+  },
 };
 
 const adsenseClient = process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT || process.env.NEXT_PUBLIC_ADSENSE_CLIENT;

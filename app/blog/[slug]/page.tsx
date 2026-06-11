@@ -65,6 +65,8 @@ export default async function BlogPostPage({ params }: Props) {
                 <AdSlot
                   slot={process.env.NEXT_PUBLIC_AD_SLOT_ARTICLE_INLINE}
                   label="Article in-content advertisement"
+                  format="fluid"
+                  layout="in-article"
                   className="my-2"
                   minHeight="250px"
                 />
