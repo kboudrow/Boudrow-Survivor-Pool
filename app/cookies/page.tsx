@@ -77,7 +77,7 @@ export default function CookiesPage() {
 
         <SectionTitle id="contact">7. Contact</SectionTitle>
         <p className="mt-3 leading-7 text-slate-700">
-          Questions about this Cookie Policy can be sent to: <span className="font-medium">[add contact email]</span>
+          Questions about this Cookie Policy can be sent to: <span className="font-medium">boudrowkevin@gmail.com</span>
         </p>
 
         <div className="mt-10 rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">

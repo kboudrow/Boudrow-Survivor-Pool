@@ -60,9 +60,15 @@ export function AuthNav() {
         </Link>
         <Link
           href="/?auth=signin"
-          className="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+          onClick={(event) => {
+            if (typeof window !== 'undefined' && window.location.pathname === '/') {
+              event.preventDefault()
+              window.location.href = '/?auth=signin'
+            }
+          }}
+          className="rounded-md bg-blue-600 px-3.5 py-2 text-sm font-extrabold uppercase tracking-wide text-white shadow-sm transition hover:bg-blue-700"
         >
-          Sign in
+          Sign In
         </Link>
       </div>
     )

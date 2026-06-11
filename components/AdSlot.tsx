@@ -18,7 +18,7 @@ declare global {
 }
 
 const cleanAdValue = (value?: string) => (value || '').replace(/\uFEFF/g, '').trim()
-const adsenseClient = cleanAdValue(process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT || process.env.NEXT_PUBLIC_ADSENSE_CLIENT)
+const adsenseClient = cleanAdValue(process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT || process.env.NEXT_PUBLIC_ADSENSE_CLIENT || 'ca-pub-7635962482487315')
 const showPreview = process.env.NODE_ENV !== 'production'
 
 export function AdSlot({ slot, label = 'Advertisement', format = 'auto', layout, className = '', minHeight = '90px' }: AdSlotProps) {

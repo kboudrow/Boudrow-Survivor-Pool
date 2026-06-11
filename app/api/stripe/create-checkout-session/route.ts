@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { cleanEnvValue } from '@/lib/env'
 import { stripe } from '@/lib/stripe'
 
 type CheckoutRequestBody = {
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'This pool is already active.' }, { status: 400 })
     }
 
-    const priceId = process.env.STRIPE_POOL_ACTIVATION_PRICE_ID
+    const priceId = cleanEnvValue(process.env.STRIPE_POOL_ACTIVATION_PRICE_ID)
     if (!priceId) {
       return NextResponse.json({ error: 'Stripe price is not configured.' }, { status: 500 })
     }

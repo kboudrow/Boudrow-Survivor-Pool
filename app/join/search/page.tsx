@@ -31,9 +31,9 @@ function formatPoolMeta(pool: Pool) {
 
 function Info({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border rounded-md p-3">
-      <div className="text-xs uppercase text-gray-500">{label}</div>
-      <div className="text-sm font-medium">{value}</div>
+    <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+      <div className="text-xs font-semibold uppercase text-slate-500">{label}</div>
+      <div className="mt-1 text-sm font-medium text-slate-950">{value}</div>
     </div>
   )
 }
@@ -345,55 +345,68 @@ export default function JoinSearchPage() {
 
       {selected && (
         <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/50" onClick={closePoolModal} />
-          <div className="absolute left-1/2 top-1/2 w-[min(720px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-4 shadow-xl">
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-lg font-semibold">{selected.name}</h3>
-              <button onClick={closePoolModal} className="rounded-md bg-gray-100 px-3 py-1 hover:bg-gray-200">
+          <div className="absolute inset-0 bg-slate-950/50" onClick={closePoolModal} />
+          <div className="absolute left-1/2 top-1/2 max-h-[88vh] w-[min(760px,92vw)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg bg-white shadow-xl">
+            <div className="border-b border-slate-200 p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="mb-2 flex flex-wrap gap-2">
+                    <span className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${selected.is_public ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-300 bg-slate-100 text-slate-700'}`}>
+                      {selected.is_public ? 'Open pool' : 'Private pool'}
+                    </span>
+                    {selectedAlreadyJoined && <span className="rounded-full border border-blue-300 bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">Joined</span>}
+                    {selectedOwnedByMe && <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">Your pool</span>}
+                  </div>
+                  <h3 className="text-2xl font-bold text-slate-950">{selected.name}</h3>
+                  <p className="mt-1 text-sm text-slate-600">{formatPoolMeta(selected)}</p>
+                </div>
+              <button onClick={closePoolModal} className="rounded-md bg-slate-100 px-3 py-1.5 text-sm hover:bg-slate-200">
                 Close
               </button>
+              </div>
             </div>
 
-            <div className="mb-3 grid gap-3 sm:grid-cols-3">
-              <Info label="Visibility" value={selected.is_public ? 'Public' : 'Private'} />
-              <Info label="Members" value={memberCountLoading ? 'Loading...' : memberCount !== null ? `${memberCount}/${selected.max_members ?? '-'}` : '-'} />
-              <Info label="Strikes Allowed" value={String(selected.strikes_allowed ?? '-')} />
-              <Info label="Tie Counts As" value={selected.tie_rule ?? '-'} />
-              <Info label="Start Week" value={`Week ${selected.start_week}`} />
-              <Info label="Deadline" value={selected.deadline_mode === 'rolling' ? 'Rolling (kickoff)' : selected.deadline_fixed || 'Sun 1:00 PM ET'} />
-            </div>
+            <div className="p-5">
+              <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <Info label="Visibility" value={selected.is_public ? 'Public' : 'Private'} />
+                <Info label="Members" value={memberCountLoading ? 'Loading...' : memberCount !== null ? `${memberCount}/${selected.max_members ?? '-'}` : '-'} />
+                <Info label="Strikes Allowed" value={String(selected.strikes_allowed ?? '-')} />
+                <Info label="Tie Counts As" value={selected.tie_rule ?? '-'} />
+                <Info label="Start Week" value={`Week ${selected.start_week}`} />
+                <Info label="Deadline" value={selected.deadline_mode === 'rolling' ? 'Rolling (kickoff)' : selected.deadline_fixed || 'Sun 1:00 PM ET'} />
+              </div>
 
-            {selected.notes && <p className="mb-3 text-sm text-gray-700">{selected.notes}</p>}
+              {selected.notes && <p className="mb-4 rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-700">{selected.notes}</p>}
 
-            {selectedAlreadyJoined || selectedOwnedByMe ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm text-emerald-700">{selectedOwnedByMe ? 'You created this pool.' : 'You are already a member of this pool.'}</span>
-                <button onClick={() => router.push(`/pools?pool=${selected.id}`)} className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
-                  Open Pool
+              {selectedAlreadyJoined || selectedOwnedByMe ? (
+                <div className="flex flex-wrap items-center gap-3 rounded-md border border-emerald-200 bg-emerald-50 p-3">
+                  <span className="text-sm text-emerald-800">{selectedOwnedByMe ? 'You created this pool.' : 'You are already a member of this pool.'}</span>
+                  <button onClick={() => router.push(`/pools?pool=${selected.id}`)} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                    Open Pool
+                  </button>
+                </div>
+              ) : selectedIsFull ? (
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                  This pool is full.
+                </div>
+              ) : selected.is_public ? (
+                <button
+                  onClick={() => askConfirm(`Are you sure you want to join "${selected.name}"?`, joinSelectedPool)}
+                  disabled={joining}
+                  className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                >
+                  {joining ? 'Joining...' : 'Join Pool'}
                 </button>
-              </div>
-            ) : selectedIsFull ? (
-              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                This pool is full.
-              </div>
-            ) : selected.is_public ? (
-              <button
-                onClick={() => askConfirm(`Are you sure you want to join "${selected.name}"?`, joinSelectedPool)}
-                disabled={joining}
-                className="rounded-md bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:opacity-50"
-              >
-                {joining ? 'Joining...' : 'Join Pool'}
-              </button>
-            ) : !authed ? (
-              <button onClick={() => router.push('/?auth=signin')} className="rounded-md bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700">
-                Sign in to Join Private Pool
-              </button>
-            ) : !showPassword ? (
-              <button onClick={() => setShowPassword(true)} className="rounded-md bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700">
-                Join (Enter Password)
-              </button>
-            ) : (
-              <div className="mt-3 rounded-md border bg-gray-50 p-3">
+              ) : !authed ? (
+                <button onClick={() => router.push('/?auth=signin')} className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+                  Sign in to join private pool
+                </button>
+              ) : !showPassword ? (
+                <button onClick={() => setShowPassword(true)} className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+                  Enter password
+                </button>
+              ) : (
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
                 <label className="block">
                   <div className="mb-1 text-sm font-medium">Password (case-sensitive)</div>
                   <input
@@ -407,7 +420,7 @@ export default function JoinSearchPage() {
                         askConfirm(`Are you sure you want to join "${selected.name}"?`, joinSelectedPool)
                       }
                     }}
-                    className="w-full rounded-md border px-3 py-2"
+                    className="w-full rounded-md border border-slate-300 px-3 py-2"
                     placeholder="Enter password"
                     type="password"
                   />
@@ -416,7 +429,7 @@ export default function JoinSearchPage() {
                   <button
                     onClick={() => askConfirm(`Are you sure you want to join "${selected.name}"?`, joinSelectedPool)}
                     disabled={joining || !password.trim()}
-                    className="rounded-md bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:opacity-50"
+                    className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
                   >
                     {joining ? 'Joining...' : 'Submit & Join'}
                   </button>
@@ -425,15 +438,16 @@ export default function JoinSearchPage() {
                       setShowPassword(false)
                       setPassword('')
                     }}
-                    className="rounded-md bg-gray-200 px-3 py-2 hover:bg-gray-300"
+                    className="rounded-md bg-slate-200 px-3 py-2 text-sm hover:bg-slate-300"
                   >
                     Cancel
                   </button>
                 </div>
               </div>
-            )}
+              )}
 
-            {modalError && <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{modalError}</div>}
+              {modalError && <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{modalError}</div>}
+            </div>
           </div>
         </div>
       )}

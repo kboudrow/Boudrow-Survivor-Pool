@@ -20,6 +20,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `${post.title} | Survivor Pool`,
     description: post.description,
+    alternates: {
+      canonical: `/blog/${post.slug}`,
+    },
+    openGraph: {
+      title: post.title,
+      description: post.description,
+      type: 'article',
+      publishedTime: post.updatedAt,
+    },
   }
 }
 
@@ -27,9 +36,20 @@ export default async function BlogPostPage({ params }: Props) {
   const { slug } = await params
   const post = getBlogPost(slug)
   if (!post) notFound()
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://survivorpool.app').replace(/\/$/, '')
+  const articleJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: post.title,
+    description: post.description,
+    datePublished: post.updatedAt,
+    dateModified: post.updatedAt,
+    mainEntityOfPage: `${siteUrl}/blog/${post.slug}`,
+  }
 
   return (
     <main className="min-h-[70vh] bg-white px-4 py-10">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }} />
       <article className="mx-auto max-w-3xl">
         <Link href="/blog" className="text-sm font-semibold text-blue-700 hover:text-blue-900">
           Back to blog
@@ -37,7 +57,7 @@ export default async function BlogPostPage({ params }: Props) {
 
         <header className="mt-5 border-b border-slate-200 pb-6">
           <div className="text-sm font-medium text-slate-500">
-            {post.publishedAt} / {post.readTime}
+            {post.category} / {post.publishedAt} / {post.readTime}
           </div>
           <h1 className="mt-3 text-4xl font-extrabold tracking-normal text-slate-950">{post.title}</h1>
           <p className="mt-4 text-lg text-slate-600">{post.description}</p>

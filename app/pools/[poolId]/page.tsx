@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import NextImage from 'next/image'
+import { InviteModal } from '@/components/InviteModal'
 import { getErrorMessage } from '@/lib/errorMessage'
 import { supabase } from '@/lib/supabaseClient'
 
@@ -19,6 +20,7 @@ type Pool = {
   deadline_fixed: string | null
   notes: string | null
   created_by: string
+  season?: number | null
   plan?: 'free' | 'pro'
   activation_status?: 'draft' | 'active' | 'cancelled' | string | null
   max_members?: number | null
@@ -40,9 +42,15 @@ export default function PoolDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [joining, setJoining] = useState(false)
   const [password, setPassword] = useState('')
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [poolStartAt, setPoolStartAt] = useState<string | null>(null)
 
   const isActive = pool?.activation_status === 'active'
   const isFull = !!(pool?.max_members && memberCount >= pool.max_members)
+  const poolStartMs = poolStartAt ? Date.parse(poolStartAt) : null
+  const poolStartKnown = poolStartMs !== null && Number.isFinite(poolStartMs)
+  const leagueHasStarted = poolStartKnown && Date.now() >= poolStartMs
+  const canInvite = !!pool && isActive && poolStartKnown && !leagueHasStarted
 
   useEffect(() => {
     let alive = true
@@ -68,6 +76,27 @@ export default function PoolDetailPage() {
         if (!p) throw new Error('Pool not found.')
         if (!alive) return
         setPool(p)
+
+        const { data: firstStartGame } = await supabase
+          .from('nfl_games')
+          .select('game_time,kickoff_at_utc')
+          .eq('season', p.season ?? new Date().getFullYear())
+          .eq('week', p.start_week)
+          .order('kickoff_at_utc', { ascending: true, nullsFirst: false })
+          .order('game_time', { ascending: true })
+          .limit(1)
+          .maybeSingle<{ game_time: string; kickoff_at_utc: string | null }>()
+        let fallbackStartAt: string | null = null
+        if (!firstStartGame?.kickoff_at_utc && !firstStartGame?.game_time) {
+          const { data: startWeek } = await supabase
+            .from('season_weeks')
+            .select('week_sunday_date')
+            .eq('season', p.season ?? new Date().getFullYear())
+            .eq('week', p.start_week)
+            .maybeSingle<{ week_sunday_date: string }>()
+          fallbackStartAt = startWeek?.week_sunday_date ? `${startWeek.week_sunday_date}T00:00:00` : null
+        }
+        if (alive) setPoolStartAt(firstStartGame?.kickoff_at_utc || firstStartGame?.game_time || fallbackStartAt)
 
         // owner?
         setIsOwner(!!user?.id && user.id === p.created_by)
@@ -146,13 +175,6 @@ export default function PoolDetailPage() {
     return `${pool.deadline_fixed.toUpperCase()} ET`
   }, [pool])
 
-  const onCopyInvite = async () => {
-    if (!pool) return
-    const url = `${window.location.origin}/join/${pool.id}` // invite URL (works with /join/[poolId] page)
-    await navigator.clipboard.writeText(url)
-    alert('Invite link copied!')
-  }
-
   const onExportCsv = async () => {
     if (!pool) return
     const { data, error } = await supabase
@@ -181,9 +203,11 @@ export default function PoolDetailPage() {
             <h1 className="text-2xl font-bold">Pool</h1>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={onCopyInvite} className="px-3 py-1.5 rounded-md bg-gray-100 hover:bg-gray-200 text-sm">
-              Copy Invite
-            </button>
+            {canInvite && (
+              <button onClick={() => setInviteOpen(true)} className="px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 text-sm">
+                Invite
+              </button>
+            )}
             <button onClick={onExportCsv} className="px-3 py-1.5 rounded-md bg-gray-100 hover:bg-gray-200 text-sm">
               Export CSV
             </button>
@@ -293,6 +317,15 @@ export default function PoolDetailPage() {
           </>
         )}
       </div>
+      {pool && (
+        <InviteModal
+          open={inviteOpen}
+          poolId={pool.id}
+          poolName={pool.name}
+          isPrivate={!pool.is_public}
+          onClose={() => setInviteOpen(false)}
+        />
+      )}
     </main>
   )
 }

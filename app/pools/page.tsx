@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { AdSlot } from '@/components/AdSlot'
+import { InviteModal } from '@/components/InviteModal'
 import { getErrorMessage } from '@/lib/errorMessage'
 import { supabase } from '@/lib/supabaseClient'
 
@@ -513,6 +514,8 @@ function MyPoolsContent() {
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [detailError, setDetailError] = useState<string | null>(null)
   const openedPoolParamRef = useRef<string | null>(null)
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [poolStartAt, setPoolStartAt] = useState<string | null>(null)
 
   // members
   const [members, setMembers] = useState<Profile[]>([])
@@ -545,6 +548,10 @@ function MyPoolsContent() {
   const [aliveCount, setAliveCount] = useState(0)
   const [elimCount, setElimCount] = useState(0)
   const picksAllowedForWeek = (week: number) => (pool?.double_pick_weeks?.includes(week) ? 2 : 1)
+  const poolStartMs = poolStartAt ? Date.parse(poolStartAt) : null
+  const poolStartKnown = poolStartMs !== null && Number.isFinite(poolStartMs)
+  const leagueHasStarted = poolStartKnown && Date.now() >= poolStartMs
+  const canInvite = !!pool && pool.activation_status === 'active' && poolStartKnown && !leagueHasStarted
 
   const showPickNotice = (notice: PickNotice) => {
     if (pickNoticeTimerRef.current) window.clearTimeout(pickNoticeTimerRef.current)
@@ -864,19 +871,7 @@ function MyPoolsContent() {
     }
   }
 
-  /** ---------- Copy / Export ---------- */
-  const copyInviteLink = async () => {
-    if (!pool) return
-    const origin = typeof window !== 'undefined' ? window.location.origin : ''
-    const link = `${origin}/join/${pool.id}`
-    try {
-      await navigator.clipboard.writeText(link)
-      alert('Invite link copied!')
-    } catch {
-      alert(link)
-    }
-  }
-
+  /** ---------- Export ---------- */
   const exportCsv = () => {
     if (!pool) return
     const rows = [['Week', 'Pick', 'Team', 'Abbr', 'Status']]
@@ -950,6 +945,7 @@ function MyPoolsContent() {
     setTeamSearch('')
     setWeekGames([])
     setSeasonWeeks([])
+    setPoolStartAt(null)
     setSelectedPickWeek(1)
     setGamesLoading(false)
     setFixedLockUtc(null)
@@ -974,6 +970,18 @@ function MyPoolsContent() {
       const nextSeasonWeeks = ((weekRows || []) as SeasonWeek[]).filter((row) => row.week >= 1 && row.week <= 18)
       setSeasonWeeks(nextSeasonWeeks)
       setSelectedPickWeek(currentPickWeek(nextSeasonWeeks))
+
+      const { data: firstStartGame } = await supabase
+        .from('nfl_games')
+        .select('game_time,kickoff_at_utc')
+        .eq('season', poolRow.season ?? new Date().getFullYear())
+        .eq('week', poolRow.start_week)
+        .order('kickoff_at_utc', { ascending: true, nullsFirst: false })
+        .order('game_time', { ascending: true })
+        .limit(1)
+        .maybeSingle<{ game_time: string; kickoff_at_utc: string | null }>()
+      const startWeekFallback = nextSeasonWeeks.find((row) => row.week === poolRow.start_week)?.week_sunday_date
+      setPoolStartAt(firstStartGame?.kickoff_at_utc || firstStartGame?.game_time || (startWeekFallback ? `${startWeekFallback}T00:00:00` : null))
 
       const { data: rosterRows, error: rosterErr } = await supabase.rpc('pool_member_roster', { p_pool_id: id })
       if (rosterErr) throw rosterErr
@@ -1009,6 +1017,8 @@ function MyPoolsContent() {
     setIsOpen(false)
     setSelectedId(null)
     setPool(null)
+    setInviteOpen(false)
+    setPoolStartAt(null)
     setDetailError(null)
   }
 
@@ -1025,7 +1035,7 @@ function MyPoolsContent() {
 
   /** ---------------- UI ---------------- */
   return (
-    <main className="min-h-[60vh] py-8">
+    <main className="min-h-[60vh] px-6 py-8 sm:px-8">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">My Pools</h1>
 
@@ -1096,9 +1106,11 @@ function MyPoolsContent() {
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={copyInviteLink} className="px-3 py-1 rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
-                  Copy Invite Link
-                </button>
+                {canInvite && (
+                  <button onClick={() => setInviteOpen(true)} className="px-3 py-1 rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
+                    Invite
+                  </button>
+                )}
                 <button onClick={exportCsv} className="px-3 py-1 rounded-md bg-gray-800 text-white hover:bg-black">
                   Export CSV
                 </button>
@@ -1554,9 +1566,11 @@ function MyPoolsContent() {
                 <>
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="font-semibold">Pool Members</h3>
-                    <button onClick={copyInviteLink} className="px-3 py-1 rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
-                      Invite
-                    </button>
+                    {canInvite && (
+                      <button onClick={() => setInviteOpen(true)} className="px-3 py-1 rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
+                        Invite
+                      </button>
+                    )}
                   </div>
                   {members.length === 0 ? (
                     <p className="text-sm text-gray-600">No members found.</p>
@@ -1585,6 +1599,15 @@ function MyPoolsContent() {
             </div>
           </div>
         </div>
+      )}
+      {pool && (
+        <InviteModal
+          open={inviteOpen}
+          poolId={pool.id}
+          poolName={pool.name}
+          isPrivate={!pool.is_public}
+          onClose={() => setInviteOpen(false)}
+        />
       )}
     </main>
   )

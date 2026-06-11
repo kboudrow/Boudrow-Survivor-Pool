@@ -6,9 +6,14 @@ import { blogPosts } from '@/lib/blogPosts'
 export const metadata: Metadata = {
   title: 'NFL Survivor Pool Blog | Survivor Pool',
   description: 'Survivor pool strategy, commissioner tips, rules explainers, and NFL pool guides.',
+  alternates: {
+    canonical: '/blog',
+  },
 }
 
 export default function BlogPage() {
+  const posts = [...blogPosts].sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)))
+
   return (
     <main className="min-h-[70vh] bg-slate-50 px-4 py-10">
       <div className="mx-auto max-w-5xl">
@@ -28,10 +33,10 @@ export default function BlogPage() {
         />
 
         <div className="grid gap-4 md:grid-cols-3">
-          {blogPosts.map((post) => (
-            <article key={post.slug} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          {posts.map((post) => (
+            <article key={post.slug} className={`rounded-lg border bg-white p-5 shadow-sm ${post.pinned ? 'border-blue-200 ring-1 ring-blue-100 md:col-span-3' : 'border-slate-200'}`}>
               <div className="mb-3 text-xs font-medium uppercase tracking-wide text-slate-500">
-                {post.publishedAt} / {post.readTime}
+                {post.pinned ? 'Pinned / ' : ''}{post.category} / {post.publishedAt} / {post.readTime}
               </div>
               <h2 className="text-xl font-bold text-slate-950">
                 <Link href={`/blog/${post.slug}`} className="hover:text-blue-700">

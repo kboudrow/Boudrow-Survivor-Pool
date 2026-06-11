@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { InviteModal } from '@/components/InviteModal'
 import { getErrorMessage } from '@/lib/errorMessage'
 import { supabase } from '@/lib/supabaseClient'
 
@@ -119,6 +120,7 @@ export default function PoolAdminPage() {
   const [runningAction, setRunningAction] = useState<string | null>(null)
   const [draftTeams, setDraftTeams] = useState<Record<string, string>>({})
   const [finalTeams, setFinalTeams] = useState<Record<string, string>>({})
+  const [inviteOpen, setInviteOpen] = useState(false)
 
   const memberCount = new Set(rows.map((row) => row.user_id)).size
   const stats = useMemo(() => {
@@ -127,8 +129,11 @@ export default function PoolAdminPage() {
     return { alive, eliminated: uniqueMembers.length - alive }
   }, [rows])
   const isPoolActive = pool?.activation_status === 'active'
-  const leagueHasStarted = !!poolStartAt && Date.now() >= Date.parse(poolStartAt)
+  const poolStartMs = poolStartAt ? Date.parse(poolStartAt) : null
+  const poolStartKnown = poolStartMs !== null && Number.isFinite(poolStartMs)
+  const leagueHasStarted = poolStartKnown && Date.now() >= poolStartMs
   const settingsLocked = leagueHasStarted
+  const canInvite = !!pool && isPoolActive && poolStartKnown && !leagueHasStarted
   const visibilityChanged = !!pool && isPublicDraft !== pool.is_public
   const selectedDoubleWeeks = useMemo(() => {
     return new Set(
@@ -174,7 +179,17 @@ export default function PoolAdminPage() {
         .order('game_time', { ascending: true })
         .limit(1)
         .maybeSingle<{ game_time: string; kickoff_at_utc: string | null }>()
-      setPoolStartAt(firstStartGame?.kickoff_at_utc || firstStartGame?.game_time || null)
+      let fallbackStartAt: string | null = null
+      if (!firstStartGame?.kickoff_at_utc && !firstStartGame?.game_time) {
+        const { data: startWeek } = await supabase
+          .from('season_weeks')
+          .select('week_sunday_date')
+          .eq('season', p.season ?? new Date().getFullYear())
+          .eq('week', p.start_week)
+          .maybeSingle<{ week_sunday_date: string }>()
+        fallbackStartAt = startWeek?.week_sunday_date ? `${startWeek.week_sunday_date}T00:00:00` : null
+      }
+      setPoolStartAt(firstStartGame?.kickoff_at_utc || firstStartGame?.game_time || fallbackStartAt)
 
       const nextDrafts: Record<string, string> = {}
       const nextFinals: Record<string, string> = {}
@@ -550,6 +565,11 @@ export default function PoolAdminPage() {
             </div>
           </div>
           <div className="flex gap-2">
+            {canInvite && (
+              <button onClick={() => setInviteOpen(true)} className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700">
+                Invite
+              </button>
+            )}
             <Link href={`/pools?pool=${poolId}`} className="rounded-md bg-gray-100 px-3 py-1.5 text-sm hover:bg-gray-200">
               Back to Pool
             </Link>
@@ -892,6 +912,15 @@ export default function PoolAdminPage() {
           </div>
         )}
       </div>
+      {pool && (
+        <InviteModal
+          open={inviteOpen}
+          poolId={pool.id}
+          poolName={pool.name}
+          isPrivate={!pool.is_public}
+          onClose={() => setInviteOpen(false)}
+        />
+      )}
     </main>
   )
 }
