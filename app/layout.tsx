@@ -14,7 +14,9 @@ export const metadata: Metadata = {
   },
 };
 
-const adsenseClient = process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT || process.env.NEXT_PUBLIC_ADSENSE_CLIENT;
+const adsenseClient = (process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT || process.env.NEXT_PUBLIC_ADSENSE_CLIENT || "")
+  .replace(/\uFEFF/g, "")
+  .trim();
 
 export default function RootLayout({
   children,

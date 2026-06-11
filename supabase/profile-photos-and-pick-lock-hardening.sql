@@ -73,7 +73,7 @@ begin
     raise exception 'Authentication required.';
   end if;
 
-  select public.admin_can_manage(p_pool_id, auth.uid()) into can_manage;
+  select public.admin_can_manage(p_pool_id) into can_manage;
 
   if not can_manage and not exists (
     select 1

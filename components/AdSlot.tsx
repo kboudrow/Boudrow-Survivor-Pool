@@ -17,11 +17,13 @@ declare global {
   }
 }
 
-const adsenseClient = process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT || process.env.NEXT_PUBLIC_ADSENSE_CLIENT
+const cleanAdValue = (value?: string) => (value || '').replace(/\uFEFF/g, '').trim()
+const adsenseClient = cleanAdValue(process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT || process.env.NEXT_PUBLIC_ADSENSE_CLIENT)
 const showPreview = process.env.NODE_ENV !== 'production'
 
 export function AdSlot({ slot, label = 'Advertisement', format = 'auto', layout, className = '', minHeight = '90px' }: AdSlotProps) {
-  const enabled = Boolean(adsenseClient && slot)
+  const cleanSlot = cleanAdValue(slot)
+  const enabled = Boolean(adsenseClient && cleanSlot)
   const adAttributes = layout
     ? { 'data-ad-layout': layout }
     : {}
@@ -56,7 +58,7 @@ export function AdSlot({ slot, label = 'Advertisement', format = 'auto', layout,
         className="adsbygoogle block"
         style={{ display: 'block', minHeight }}
         data-ad-client={adsenseClient}
-        data-ad-slot={slot}
+        data-ad-slot={cleanSlot}
         data-ad-format={format}
         data-full-width-responsive="true"
         {...adAttributes}

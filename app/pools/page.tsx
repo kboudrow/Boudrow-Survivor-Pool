@@ -778,7 +778,13 @@ function MyPoolsContent() {
       setDraftSavedAt(new Date().toISOString())
       return true
     } catch (e: unknown) {
-      alert(getErrorMessage(e, 'Failed to save draft'))
+      const message = getErrorMessage(e, 'Failed to save pick')
+      if (team && message.toLowerCase().includes('already selected for week')) {
+        await loadMyPicks(selectedId)
+        setDraftSavedAt(new Date().toISOString())
+        return true
+      }
+      alert(message)
       return false
     } finally {
       setSavingPickKeys((prev) => ({ ...prev, [key]: false }))
