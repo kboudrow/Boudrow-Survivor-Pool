@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import NextImage from 'next/image'
 import { useRouter } from 'next/navigation'
+import { AdSlot } from '@/components/AdSlot'
 import { supabase } from '@/lib/supabaseClient'
 import { ensureProfile } from '@/lib/ensureProfile'
 
@@ -236,6 +237,16 @@ export default function Home() {
             <Feature title="Strikes & elimination" desc="Set how many misses are allowed before you're out." />
             <Feature title="Standings that make sense" desc="Alive vs eliminated, weekly results, and current status in one view." />
             <Feature title="Run it back next season" desc="Archive finished pools and restart with the same settings - empty roster." />
+          </div>
+        </section>
+
+        <section className="bg-white px-6 pb-10">
+          <div className="mx-auto max-w-5xl">
+            <AdSlot
+              slot={process.env.NEXT_PUBLIC_AD_SLOT_SITE_INLINE}
+              label="Homepage advertisement"
+              minHeight="100px"
+            />
           </div>
         </section>
 

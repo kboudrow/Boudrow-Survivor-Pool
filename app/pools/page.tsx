@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
+import { AdSlot } from '@/components/AdSlot'
 import { getErrorMessage } from '@/lib/errorMessage'
 import { supabase } from '@/lib/supabaseClient'
 
@@ -1047,21 +1048,29 @@ function MyPoolsContent() {
       )}
 
       {!loading && !error && pools.length > 0 && (
-        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {pools.map((p) => (
-            <li key={p.id} className="border border-gray-200 rounded-lg p-4">
-              <h2 className="text-lg font-semibold">{p.name}</h2>
-              <p className="text-sm text-gray-600">
-                {p.is_public ? 'Public' : 'Private'} - Starts week {p.start_week} - Strikes {p.strikes_allowed} - Tie = {p.tie_rule}
-              </p>
-              <div className="mt-3 flex gap-2">
-                <button onClick={() => openPool(p.id)} className="px-3 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">
-                  Open
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {pools.map((p) => (
+              <li key={p.id} className="border border-gray-200 rounded-lg p-4">
+                <h2 className="text-lg font-semibold">{p.name}</h2>
+                <p className="text-sm text-gray-600">
+                  {p.is_public ? 'Public' : 'Private'} - Starts week {p.start_week} - Strikes {p.strikes_allowed} - Tie = {p.tie_rule}
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <button onClick={() => openPool(p.id)} className="px-3 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">
+                    Open
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <AdSlot
+            slot={process.env.NEXT_PUBLIC_AD_SLOT_SITE_INLINE}
+            label="My Pools advertisement"
+            className="mt-8"
+            minHeight="100px"
+          />
+        </>
       )}
 
       {/* ---------- Slide-out Modal ---------- */}

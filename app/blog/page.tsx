@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
+import { AdSlot } from '@/components/AdSlot'
 import { blogPosts } from '@/lib/blogPosts'
 
 export const metadata: Metadata = {
@@ -19,6 +20,13 @@ export default function BlogPage() {
           </p>
         </div>
 
+        <AdSlot
+          slot={process.env.NEXT_PUBLIC_AD_SLOT_BLOG_TOP}
+          label="Blog top advertisement"
+          className="mb-8"
+          minHeight="110px"
+        />
+
         <div className="grid gap-4 md:grid-cols-3">
           {blogPosts.map((post) => (
             <article key={post.slug} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
@@ -37,6 +45,13 @@ export default function BlogPage() {
             </article>
           ))}
         </div>
+
+        <AdSlot
+          slot={process.env.NEXT_PUBLIC_AD_SLOT_BLOG_BOTTOM}
+          label="Blog bottom advertisement"
+          className="mt-8"
+          minHeight="120px"
+        />
       </div>
     </main>
   )

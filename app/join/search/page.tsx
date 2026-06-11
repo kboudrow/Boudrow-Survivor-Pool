@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import NextImage from 'next/image'
+import { AdSlot } from '@/components/AdSlot'
 import { getErrorMessage } from '@/lib/errorMessage'
 import { supabase } from '@/lib/supabaseClient'
 
@@ -333,6 +334,13 @@ export default function JoinSearchPage() {
         </ul>
 
         {!authed && <p className="text-xs text-gray-500 mt-3">Tip: you can browse pools without signing in, but you will need to sign in to join.</p>}
+
+        <AdSlot
+          slot={process.env.NEXT_PUBLIC_AD_SLOT_SITE_INLINE}
+          label="Join page advertisement"
+          className="mt-8"
+          minHeight="100px"
+        />
       </div>
 
       {selected && (

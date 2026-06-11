@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 import { AppHeader } from "@/components/AppHeader";
 
@@ -10,6 +11,8 @@ export const metadata: Metadata = {
   description: "Create, join, and manage NFL survivor pools with automatic pick locks, standings, and commissioner tools.",
 };
 
+const adsenseClient = process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT || process.env.NEXT_PUBLIC_ADSENSE_CLIENT;
+
 export default function RootLayout({
   children,
 }: {
@@ -18,6 +21,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen bg-slate-50 text-slate-950 antialiased">
+        {adsenseClient && (
+          <Script
+            async
+            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsenseClient}`}
+            crossOrigin="anonymous"
+            strategy="afterInteractive"
+          />
+        )}
         <AppHeader />
         <div>{children}</div>
       </body>

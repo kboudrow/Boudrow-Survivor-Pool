@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
+import { AdSlot } from '@/components/AdSlot'
 import { blogPosts, getBlogPost } from '@/lib/blogPosts'
 
 type Props = {
@@ -42,18 +43,42 @@ export default async function BlogPostPage({ params }: Props) {
           <p className="mt-4 text-lg text-slate-600">{post.description}</p>
         </header>
 
+        <AdSlot
+          slot={process.env.NEXT_PUBLIC_AD_SLOT_ARTICLE_TOP}
+          label="Article top advertisement"
+          className="mt-8"
+          minHeight="110px"
+        />
+
         <div className="mt-8 space-y-8">
-          {post.sections.map((section) => (
-            <section key={section.heading}>
-              <h2 className="text-2xl font-bold text-slate-950">{section.heading}</h2>
-              <div className="mt-3 space-y-4 text-slate-700">
-                {section.body.map((paragraph) => (
-                  <p key={paragraph}>{paragraph}</p>
-                ))}
-              </div>
-            </section>
+          {post.sections.map((section, index) => (
+            <div key={section.heading} className="space-y-8">
+              <section>
+                <h2 className="text-2xl font-bold text-slate-950">{section.heading}</h2>
+                <div className="mt-3 space-y-4 text-slate-700">
+                  {section.body.map((paragraph) => (
+                    <p key={paragraph}>{paragraph}</p>
+                  ))}
+                </div>
+              </section>
+              {index === 1 && (
+                <AdSlot
+                  slot={process.env.NEXT_PUBLIC_AD_SLOT_ARTICLE_INLINE}
+                  label="Article in-content advertisement"
+                  className="my-2"
+                  minHeight="250px"
+                />
+              )}
+            </div>
           ))}
         </div>
+
+        <AdSlot
+          slot={process.env.NEXT_PUBLIC_AD_SLOT_ARTICLE_BOTTOM}
+          label="Article bottom advertisement"
+          className="mt-10"
+          minHeight="120px"
+        />
 
         <div className="mt-10 rounded-lg border border-blue-100 bg-blue-50 p-5">
           <h2 className="text-lg font-bold text-slate-950">Ready to run a cleaner pool?</h2>
