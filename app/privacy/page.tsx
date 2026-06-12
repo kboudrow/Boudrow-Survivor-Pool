@@ -139,7 +139,7 @@ export default function PrivacyPage() {
           have rights to opt out of certain data sharing or targeted advertising where applicable.
         </p>
         <p className="mt-3 leading-7 text-slate-700">
-          To make a privacy request, contact: <span className="font-medium">boudrowkevin@gmail.com</span>. We may need to verify your
+          To make a privacy request, contact: <span className="font-medium">survivesunday1@gmail.com</span>. We may need to verify your
           identity before completing certain requests.
         </p>
 
@@ -163,7 +163,7 @@ export default function PrivacyPage() {
 
         <SectionTitle id="contact">13. Contact</SectionTitle>
         <p className="mt-3 leading-7 text-slate-700">
-          Questions about this Privacy Policy can be sent to: <span className="font-medium">boudrowkevin@gmail.com</span>
+          Questions about this Privacy Policy can be sent to: <span className="font-medium">survivesunday1@gmail.com</span>
         </p>
 
         <div className="mt-10 rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
