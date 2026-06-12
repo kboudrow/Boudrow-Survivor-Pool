@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/lock-picks",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}

@@ -524,6 +524,7 @@ function MyPoolsContent() {
   // members
   const [members, setMembers] = useState<Profile[]>([])
   const [memberCount, setMemberCount] = useState<number>(0)
+  const [membersLoadedFor, setMembersLoadedFor] = useState<string | null>(null)
 
   // picks (mine)
   const weeks = useMemo(() => Array.from({ length: 18 }, (_, i) => i + 1), [])
@@ -616,6 +617,27 @@ function MyPoolsContent() {
     }
     setMyDraftPicks(next)
     setDraftSavedAt(latest)
+  }
+
+  const loadMembers = async (poolId: string) => {
+    const { data: rosterRows, error: rosterErr } = await supabase.rpc('pool_member_roster', { p_pool_id: poolId })
+    if (rosterErr) throw rosterErr
+
+    const roster = ((rosterRows || []) as PoolMemberRosterRow[]).map((m) => ({
+      id: m.profile_id,
+      first_name: m.first_name,
+      last_name: m.last_name,
+      display_name: m.display_name,
+      username: m.username,
+      avatar_url: m.avatar_url,
+      role: m.role,
+      status: m.status,
+      joined_at: m.joined_at,
+    }))
+    setMembers(roster)
+    setMemberCount(roster.length)
+    setMembersLoadedFor(poolId)
+    return roster
   }
   const [standingsLoading, setStandingsLoading] = useState(false)
 
@@ -749,7 +771,11 @@ function MyPoolsContent() {
     const pid = poolId ?? selectedId
     if (!pid) return
     setStandingsLoading(true)
+    let roster = members
     try {
+      if (membersLoadedFor !== pid) {
+        roster = await loadMembers(pid)
+      }
       await restoreUnlockedPicks(pid)
       await finalizeLockedPicks(pid)
       await adjudicateCompletedWeeks(poolSeason ?? pool?.season)
@@ -772,7 +798,7 @@ function MyPoolsContent() {
 
     let alive = 0,
       elim = 0
-    for (const m of members) {
+    for (const m of roster) {
       const s = map[m.id]
       if (!s) {
         alive += 1
@@ -786,6 +812,12 @@ function MyPoolsContent() {
 
     setStandingsLoading(false)
   }
+
+  useEffect(() => {
+    if (isOpen && selectedId && activeTab === 'members' && membersLoadedFor !== selectedId) {
+      loadMembers(selectedId).catch((e) => setDetailError(getErrorMessage(e, 'Failed to load members.')))
+    }
+  }, [isOpen, selectedId, activeTab, membersLoadedFor])
 
   useEffect(() => {
     if (isOpen && selectedId && activeTab === 'standings') loadStandings(standingsWeek)
@@ -1003,6 +1035,7 @@ function MyPoolsContent() {
     // reset per-open state
     setPool(null)
     setMembers([])
+    setMembersLoadedFor(null)
     setMemberCount(0)
     setMyDraftPicks({})
     setMyFinalPicks({})
@@ -1030,7 +1063,7 @@ function MyPoolsContent() {
       setPool(poolRow)
       setStandingsWeek(poolRow.start_week)
       const season = poolRow.season ?? new Date().getFullYear()
-      const [{ data: weekRows }, { data: firstStartGame }, { data: rosterRows, error: rosterErr }, picksResult, { data: myStat }] = await Promise.all([
+      const [{ data: weekRows }, { data: firstStartGame }, { data: memberTotal }, picksResult, { data: myStat }] = await Promise.all([
         supabase
           .from('season_weeks')
           .select('season, week, week_sunday_date')
@@ -1045,15 +1078,13 @@ function MyPoolsContent() {
           .order('game_time', { ascending: true })
           .limit(1)
           .maybeSingle<{ game_time: string; kickoff_at_utc: string | null }>(),
-        supabase.rpc('pool_member_roster', { p_pool_id: id }),
+        supabase.rpc('count_pool_members', { p_pool_id: id }),
         Promise.all([
           supabase.from('pool_picks').select('week, slot, team_abbr, locked_at, result').eq('pool_id', id).eq('user_id', userId).gte('week', poolRow.start_week),
           supabase.from('pool_pick_drafts').select('week, slot, team_abbr, updated_at').eq('pool_id', id).eq('user_id', userId).gte('week', poolRow.start_week),
         ]),
         supabase.from('pool_member_stats').select('pool_id, user_id, wins, losses, pushes, strikes_used, eliminated').eq('pool_id', id).eq('user_id', userId).maybeSingle<MemberStats>(),
       ])
-      if (rosterErr) throw rosterErr
-
       const [{ data: finalPicks, error: finalErr }, { data: drafts, error: draftErr }] = picksResult
       if (finalErr) throw finalErr
       if (draftErr) throw draftErr
@@ -1065,19 +1096,7 @@ function MyPoolsContent() {
       const startWeekFallback = nextSeasonWeeks.find((row) => row.week === poolRow.start_week)?.week_sunday_date
       setPoolStartAt(firstStartGame?.kickoff_at_utc || firstStartGame?.game_time || (startWeekFallback ? `${startWeekFallback}T00:00:00` : null))
 
-      const roster = ((rosterRows || []) as PoolMemberRosterRow[]).map((m) => ({
-        id: m.profile_id,
-        first_name: m.first_name,
-        last_name: m.last_name,
-        display_name: m.display_name,
-        username: m.username,
-        avatar_url: m.avatar_url,
-        role: m.role,
-        status: m.status,
-        joined_at: m.joined_at,
-      }))
-      setMembers(roster)
-      setMemberCount(roster.length)
+      setMemberCount(typeof memberTotal === 'number' ? memberTotal : 0)
       setStatsByUser(myStat ? { [myStat.user_id]: myStat } : {})
 
       const locked: Record<string, FinalPickRow> = {}
