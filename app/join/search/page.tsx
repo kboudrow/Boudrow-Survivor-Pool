@@ -275,7 +275,7 @@ export default function JoinSearchPage() {
     <main className="min-h-[70vh] py-8 px-4">
       <div className="mx-auto w-full max-w-3xl">
         <div className="flex items-center gap-3 mb-4">
-          <NextImage src="/football.png" alt="Football" width={36} height={36} />
+          <NextImage src="/survive-sunday-logo.png" alt="Survive Sunday" width={42} height={42} className="object-contain" />
           <h1 className="text-2xl font-bold">Join a Pool</h1>
         </div>
 

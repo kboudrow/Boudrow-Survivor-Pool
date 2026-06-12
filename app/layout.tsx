@@ -14,6 +14,18 @@ export const metadata: Metadata = {
     template: "%s | Survive Sunday",
   },
   description: "Create, join, and manage NFL survivor pools with automatic pick locks, standings, and commissioner tools.",
+  icons: {
+    icon: "/survive-sunday-logo.png",
+    apple: "/survive-sunday-logo.png",
+  },
+  openGraph: {
+    title: "Survive Sunday",
+    description: "Create, join, and manage NFL survivor pools with automatic pick locks, standings, and commissioner tools.",
+    url: "https://www.survivesunday.com",
+    siteName: "Survive Sunday",
+    images: ["/survive-sunday-logo.png"],
+    type: "website",
+  },
   other: {
     "google-adsense-account": "ca-pub-7635962482487315",
   },

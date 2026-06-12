@@ -171,19 +171,21 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col">
       <main className="flex-1">
-        <section className="relative overflow-hidden border-b border-slate-200 bg-[linear-gradient(135deg,#f8fafc_0%,#eff6ff_45%,#fff7ed_100%)] px-6 pb-14 pt-14 text-center">
-          <div className="mx-auto max-w-5xl">
+        <section className="relative overflow-hidden border-b border-red-950 bg-[#090b0f] px-6 pb-14 pt-12 text-center text-white">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#4b0d12_0%,#12151c_42%,#090b0f_78%)] opacity-95" />
+          <div className="absolute inset-x-0 bottom-0 h-24 bg-[linear-gradient(180deg,rgba(9,11,15,0),rgba(9,11,15,1))]" />
+          <div className="relative mx-auto max-w-5xl">
             <div className="mb-6 flex justify-center">
-              <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-orange-200">
-                <NextImage src="/football.png" alt="Football" width={64} height={64} priority />
+              <div className="w-[min(280px,78vw)]">
+                <NextImage src="/survive-sunday-logo.png" alt="Survive Sunday" width={320} height={320} priority className="h-auto w-full object-contain drop-shadow-2xl" />
               </div>
             </div>
 
-            <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight text-slate-950">
+            <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight text-white">
               Survive Sunday with your pool intact.
             </h1>
 
-            <p className="mt-4 text-slate-600 max-w-2xl mx-auto">
+            <p className="mx-auto mt-4 max-w-2xl text-slate-200">
               Create NFL survivor pools, invite your people, and let Survive Sunday handle picks, locks, standings, and eliminations.
             </p>
 
@@ -192,7 +194,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => requireAuthThen('/pools/new')}
-                className="rounded-md bg-blue-600 px-5 py-3 font-semibold text-white shadow-sm hover:bg-blue-700"
+                className="rounded-md bg-[#c5161d] px-5 py-3 font-semibold text-white shadow-sm ring-1 ring-red-300/20 transition hover:bg-[#a91218]"
               >
                 Create a Pool
               </button>
@@ -200,26 +202,26 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => requireAuthThen('/join/search')}
-                className="rounded-md border border-slate-200 bg-white px-5 py-3 font-semibold text-slate-800 shadow-sm hover:bg-slate-50"
+                className="rounded-md border border-[#d2ad5b]/70 bg-white/10 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-white/15"
               >
                 Join a Pool
               </button>
 
               {isAuthed && (
-                <Link href="/pools" className="rounded-md bg-orange-500 px-5 py-3 font-semibold text-white shadow-sm hover:bg-orange-600">
+                <Link href="/pools" className="rounded-md bg-[#d2ad5b] px-5 py-3 font-semibold text-[#090b0f] shadow-sm transition hover:bg-[#e4c575]">
                   My Pools
                 </Link>
               )}
             </div>
 
             {!isAuthed && (
-              <p className="mt-3 text-sm text-gray-500">
+              <p className="mt-3 text-sm text-slate-300">
                 You&apos;ll need to{' '}
-                <button type="button" onClick={openSignIn} className="underline text-gray-700 hover:text-black">
+                <button type="button" onClick={openSignIn} className="underline text-white hover:text-[#d2ad5b]">
                   sign in
                 </button>{' '}
                 (or{' '}
-                <button type="button" onClick={openSignUp} className="underline text-gray-700 hover:text-black">
+                <button type="button" onClick={openSignUp} className="underline text-white hover:text-[#d2ad5b]">
                   create an account
                 </button>
                 ) to create or join a pool.
@@ -440,8 +442,8 @@ export default function Home() {
 
 function Feature({ title, desc }: { title: string; desc: string }) {
   return (
-    <div className="border rounded-lg p-4 bg-white">
-      <div className="font-semibold">{title}</div>
+    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="font-semibold text-[#111318]">{title}</div>
       <div className="text-sm text-gray-600">{desc}</div>
     </div>
   )
@@ -449,8 +451,8 @@ function Feature({ title, desc }: { title: string; desc: string }) {
 
 function How({ step, title, text }: { step: string; title: string; text: string }) {
   return (
-    <div className="border rounded-lg p-5">
-      <div className="text-xs uppercase text-gray-500">Step {step}</div>
+    <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="text-xs font-bold uppercase text-[#c5161d]">Step {step}</div>
       <div className="text-lg font-semibold">{title}</div>
       <p className="text-sm text-gray-600 mt-1">{text}</p>
     </div>

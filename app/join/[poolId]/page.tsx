@@ -159,7 +159,7 @@ export default function JoinPoolPage() {
       <div className="mx-auto w-full max-w-2xl border border-gray-200 rounded-xl p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <NextImage src="/football.png" alt="Football" width={40} height={40} />
+            <NextImage src="/survive-sunday-logo.png" alt="Survive Sunday" width={44} height={44} className="object-contain" />
             <h1 className="text-2xl font-bold">Join Pool</h1>
           </div>
 
