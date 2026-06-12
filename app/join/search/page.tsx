@@ -272,11 +272,14 @@ export default function JoinSearchPage() {
   const selectedIsFull = !!(selected && memberCount !== null && selected.max_members && memberCount >= selected.max_members)
 
   return (
-    <main className="min-h-[70vh] py-8 px-4">
+    <main className="min-h-[70vh] px-4 py-6 sm:px-6 sm:py-8">
       <div className="mx-auto w-full max-w-3xl">
-        <div className="flex items-center gap-3 mb-4">
+        <div className="mb-4 flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <NextImage src="/survive-sunday-logo.png" alt="Survive Sunday" width={42} height={42} className="object-contain" />
-          <h1 className="text-2xl font-bold">Join a Pool</h1>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-[#c5161d]">Find your league</p>
+            <h1 className="text-2xl font-bold text-slate-950">Join a Pool</h1>
+          </div>
         </div>
 
         {error && <div className="mb-3 text-red-600">{error}</div>}
@@ -285,10 +288,10 @@ export default function JoinSearchPage() {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search public and discoverable private pools"
-          className="w-full border rounded-md px-3 py-2 mb-3"
+          className="mb-3 w-full rounded-md border border-slate-300 px-3 py-3 text-base shadow-sm focus:border-[#c5161d] focus:outline-none focus:ring-2 focus:ring-red-100"
         />
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs text-gray-500">Public pools can be joined directly. Private pools require the password from the commissioner.</p>
+          <p className="text-xs leading-5 text-gray-500">Public pools can be joined directly. Private pools require the password from the commissioner.</p>
           {query.trim() && (
             <button onClick={() => setQuery('')} className="rounded-md bg-gray-100 px-3 py-1 text-xs hover:bg-gray-200">
               Clear search
@@ -308,15 +311,15 @@ export default function JoinSearchPage() {
           <p className="text-sm text-gray-600">Newest pools you can join</p>
         )}
 
-        <ul className="divide-y rounded-md border">
+        <ul className="divide-y overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
           {listToShow.map((pool) => (
             <li key={pool.id} className="p-3 hover:bg-gray-50 cursor-pointer" onClick={() => openPoolModal(pool)}>
-              <div className="flex items-center justify-between gap-3">
-                <div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
                   <div className="font-medium">{pool.name}</div>
                   <div className="text-xs text-gray-600">{formatPoolMeta(pool)}</div>
                 </div>
-                <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
                   {pool.created_by === userId && (
                     <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs text-amber-700">Your pool</span>
                   )}
@@ -353,7 +356,7 @@ export default function JoinSearchPage() {
       {selected && (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-slate-950/50" onClick={closePoolModal} />
-          <div className="absolute left-1/2 top-1/2 max-h-[88vh] w-[min(760px,92vw)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg bg-white shadow-xl">
+          <div className="absolute left-1/2 top-1/2 max-h-[88vh] w-[min(760px,94vw)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg bg-white shadow-xl">
             <div className="border-b border-slate-200 p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>

@@ -1072,16 +1072,19 @@ function MyPoolsContent() {
 
   /** ---------------- UI ---------------- */
   return (
-    <main className="min-h-[60vh] px-8 py-8 sm:px-10 lg:px-16 xl:px-24">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold">My Pools</h1>
+    <main className="min-h-[60vh] px-4 py-6 sm:px-8 lg:px-16 xl:px-24">
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wide text-[#c5161d]">Dashboard</p>
+          <h1 className="text-2xl font-bold text-slate-950">My Pools</h1>
+        </div>
 
         {/*  NEW: Archived button + Create Pool button */}
         <div className="flex items-center gap-2">
-          <Link href="/profile" className="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200">
+          <Link href="/profile" className="rounded-md bg-slate-100 px-3 py-2 text-sm font-medium hover:bg-slate-200">
             History
           </Link>
-          <Link href="/pools/new" className="px-3 py-2 rounded-md bg-green-600 text-white hover:bg-green-700">
+          <Link href="/pools/new" className="rounded-md bg-[#c5161d] px-3 py-2 text-sm font-semibold text-white hover:bg-[#a91218]">
             Create Pool
           </Link>
         </div>
@@ -1104,13 +1107,13 @@ function MyPoolsContent() {
         <>
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {pools.map((p) => (
-              <li key={p.id} className="border border-gray-200 rounded-lg p-4">
+              <li key={p.id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
                 <h2 className="text-lg font-semibold">{p.name}</h2>
                 <p className="text-sm text-gray-600">
                   {p.is_public ? 'Public' : 'Private'} - Starts week {p.start_week} - Strikes {p.strikes_allowed} - Tie = {p.tie_rule}
                 </p>
                 <div className="mt-3 flex gap-2">
-                  <button onClick={() => openPool(p.id)} className="px-3 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">
+                  <button onClick={() => openPool(p.id)} className="rounded-md bg-[#111318] px-3 py-2 text-sm font-semibold text-white hover:bg-black">
                     Open
                   </button>
                 </div>
@@ -1130,8 +1133,8 @@ function MyPoolsContent() {
       {isOpen && (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/50" onClick={closeModal} />
-          <div className="absolute right-0 top-0 h-full w-full max-w-5xl bg-white shadow-xl overflow-y-auto">
-            <div className="p-4 border-b flex items-center justify-between">
+          <div className="absolute right-0 top-0 h-full w-full max-w-5xl overflow-y-auto bg-white shadow-xl">
+            <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-xl font-semibold">{pool?.name || 'Pool'}</h2>
                 {pool && (
@@ -1144,7 +1147,7 @@ function MyPoolsContent() {
                   </p>
                 )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {canInvite && (
                   <button onClick={() => setInviteOpen(true)} className="px-3 py-1 rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
                     Invite

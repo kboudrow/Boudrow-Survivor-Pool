@@ -29,7 +29,7 @@ export default function HowItWorksPage() {
   return (
     <main className="min-h-[70vh] bg-slate-50 px-4 py-10">
       <div className="mx-auto max-w-4xl">
-        <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">How it works</p>
+        <p className="text-sm font-semibold uppercase tracking-wide text-[#c5161d]">How it works</p>
         <h1 className="mt-2 text-4xl font-extrabold tracking-normal text-slate-950">Run an NFL survivor pool without spreadsheets</h1>
         <p className="mt-3 max-w-2xl text-slate-600">
           Survive Sunday keeps the core flow simple: create a league, invite players, make picks, lock them, and track standings.
@@ -38,7 +38,7 @@ export default function HowItWorksPage() {
         <div className="mt-8 grid gap-4">
           {steps.map((step, index) => (
             <section key={step.title} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="text-sm font-bold text-blue-700">Step {index + 1}</div>
+              <div className="text-sm font-bold text-[#c5161d]">Step {index + 1}</div>
               <h2 className="mt-1 text-xl font-bold text-slate-950">{step.title}</h2>
               <p className="mt-2 text-slate-600">{step.text}</p>
             </section>
@@ -46,7 +46,7 @@ export default function HowItWorksPage() {
         </div>
 
         <div className="mt-8 flex flex-wrap gap-3">
-          <Link href="/pools/new" className="rounded-md bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700">
+          <Link href="/pools/new" className="rounded-md bg-[#c5161d] px-4 py-2 font-semibold text-white hover:bg-[#a91218]">
             Create a Pool
           </Link>
           <Link href="/join/search" className="rounded-md border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-800 hover:bg-slate-50">

@@ -36,7 +36,7 @@ export default async function BlogPostPage({ params }: Props) {
   const { slug } = await params
   const post = getBlogPost(slug)
   if (!post) notFound()
-  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://survivorpool.app').replace(/\/$/, '')
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://www.survivesunday.com').replace(/\/$/, '')
   const articleJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Article',
@@ -51,7 +51,7 @@ export default async function BlogPostPage({ params }: Props) {
     <main className="min-h-[70vh] bg-white px-4 py-10">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }} />
       <article className="mx-auto max-w-3xl">
-        <Link href="/blog" className="text-sm font-semibold text-blue-700 hover:text-blue-900">
+        <Link href="/blog" className="text-sm font-semibold text-[#c5161d] hover:text-[#a91218]">
           Back to blog
         </Link>
 
@@ -102,10 +102,10 @@ export default async function BlogPostPage({ params }: Props) {
           minHeight="120px"
         />
 
-        <div className="mt-10 rounded-lg border border-blue-100 bg-blue-50 p-5">
+        <div className="mt-10 rounded-lg border border-[#d2ad5b]/40 bg-[#fffaf0] p-5">
           <h2 className="text-lg font-bold text-slate-950">Ready to run a cleaner pool?</h2>
           <p className="mt-2 text-sm text-slate-700">Create a survivor pool, invite your group, and keep picks, locks, and standings organized.</p>
-          <Link href="/pools/new" className="mt-4 inline-flex rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+          <Link href="/pools/new" className="mt-4 inline-flex rounded-md bg-[#c5161d] px-4 py-2 text-sm font-semibold text-white hover:bg-[#a91218]">
             Create a Pool
           </Link>
         </div>

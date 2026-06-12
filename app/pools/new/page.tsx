@@ -201,7 +201,11 @@ export default function CreatePoolPage() {
 
   return (
     <div ref={topRef} className="wrap">
-      <h1>Create a New Pool</h1>
+      <div className="intro">
+        <p>Commissioner setup</p>
+        <h1>Create a New Pool</h1>
+        <span>Set the rules now. Once the pool starts, the important settings lock for fairness.</span>
+      </div>
 
       {error && (
         <div className="errorBox" role="alert" aria-live="polite">
@@ -386,8 +390,31 @@ export default function CreatePoolPage() {
       </form>
 
       <style jsx>{`
-        .wrap { max-width: 780px; margin: 0 auto; padding: 24px; }
-        h1 { margin-bottom: 16px; }
+        .wrap { max-width: 820px; margin: 0 auto; padding: 18px 16px 32px; }
+        .intro {
+          margin-bottom: 18px;
+          border: 1px solid #1f2937;
+          border-radius: 14px;
+          background: linear-gradient(135deg, #090b0f, #161a22 62%, #3b0b0f);
+          color: #fff;
+          padding: 20px;
+        }
+        .intro p {
+          margin: 0 0 6px;
+          color: #d2ad5b;
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: .08em;
+          text-transform: uppercase;
+        }
+        h1 { margin: 0; font-size: 30px; line-height: 1.1; }
+        .intro span {
+          display: block;
+          margin-top: 8px;
+          color: #d1d5db;
+          font-size: 14px;
+          line-height: 1.6;
+        }
 
         form { display: flex; flex-direction: column; gap: 16px; }
         .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -397,7 +424,7 @@ export default function CreatePoolPage() {
         input, select, textarea {
           padding: 10px;
           font-size: 14px;
-          border: 1px solid #ddd;
+          border: 1px solid #d1d5db;
           border-radius: 8px;
           outline: none;
         }
@@ -421,7 +448,7 @@ export default function CreatePoolPage() {
 
         .toggleRow { display: inline-flex; align-items: center; gap: 10px; margin-top: 4px; }
         .pill { font-size: 12px; padding: 4px 8px; border-radius: 999px; border: 1px solid #ddd; color: #666; }
-        .pill.active { background:#111; color:#fff; border-color:#111; }
+        .pill.active { background:#111318; color:#fff; border-color:#111318; }
         .toggle { width: 50px; height: 28px; border-radius:999px; border:1px solid #ddd; background:#eee; display:inline-flex; align-items:center; padding:2px; position:relative; }
         .toggle.on { background:#16a34a22; border-color:#16a34a; }
         .toggle.off { background:#e5e7eb; border-color:#ddd; }
@@ -433,7 +460,7 @@ export default function CreatePoolPage() {
           font-size:15px;
           border-radius:8px;
           border:none;
-          background:#111;
+          background:#c5161d;
           color:#fff;
           cursor:pointer;
         }
@@ -441,11 +468,17 @@ export default function CreatePoolPage() {
 
         .weekGrid { display: grid; grid-template-columns: repeat(9, 1fr); gap: 8px; }
         .week { padding: 8px 0; border:1px solid #ddd; border-radius:8px; background:#fff; font-weight:600; }
-        .week.on { background:#2563eb; color:#fff; border-color:#2563eb; }
+        .week.on { background:#c5161d; color:#fff; border-color:#c5161d; }
 
         @media (max-width: 720px){
-          .grid2 { grid-template-columns: 1fr; }
+          .grid2 { grid-template-columns: 1fr; gap: 12px; }
+          .wrap { padding: 14px 12px 28px; }
+          .intro { padding: 18px; border-radius: 12px; }
+          h1 { font-size: 28px; }
+          form { gap: 14px; }
+          input, select, textarea { min-height: 44px; font-size: 16px; }
           .weekGrid{ grid-template-columns: repeat(6, 1fr); }
+          .primary { min-height: 46px; width: 100%; }
         }
       `}</style>
     </div>
