@@ -31,6 +31,9 @@ function formatCreatePoolError(e: unknown): string {
   if (lower.includes('already exists') || code === '23505') {
     return 'That pool name is already taken. Try a different name.'
   }
+  if (lower.includes('auth session') || lower.includes('jwt') || lower.includes('not authenticated')) {
+    return 'Please sign in again before creating a pool.'
+  }
   if (lower.includes('restricted term')) {
     // Trigger throws: Pool name contains a restricted term: "xyz"
     return full
@@ -98,16 +101,18 @@ export default function CreatePoolPage() {
   }
 
   const scrollToTopAndFocusIfNeeded = (message: string) => {
-    // Bring the user back to the error
-    topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-
     // If it looks like a name problem, focus + select the name field for fast fixing
     if (isNameRelatedError(message)) {
+      nameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       setTimeout(() => {
         nameInputRef.current?.focus()
         nameInputRef.current?.select()
       }, 150)
+      return
     }
+
+    // Bring the user back to the general message
+    topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   const handleCreate = async () => {
@@ -116,8 +121,7 @@ export default function CreatePoolPage() {
 
     try {
       const { data: { user }, error: userErr } = await supabase.auth.getUser()
-      if (userErr) throw userErr
-      if (!user) throw new Error('You must be signed in to create a pool.')
+      if (userErr || !user) throw new Error('Please sign in again before creating a pool.')
 
       const trimmedName = poolName.trim()
       if (!trimmedName) throw new Error('Please enter a pool name.')
@@ -198,6 +202,7 @@ export default function CreatePoolPage() {
   }
 
   const nameError = isNameRelatedError(error)
+  const generalError = error && !nameError ? error : null
 
   return (
     <div ref={topRef} className="wrap">
@@ -207,10 +212,10 @@ export default function CreatePoolPage() {
         <span>Set the rules now. Once the pool starts, the important settings lock for fairness.</span>
       </div>
 
-      {error && (
-        <div className="errorBox" role="alert" aria-live="polite">
-          <div className="errorTitle">Fix this to continue</div>
-          <div>{error}</div>
+      {generalError && (
+        <div className="noticeBox" role="alert" aria-live="polite">
+          <div className="noticeTitle">One thing needs attention</div>
+          <div>{generalError}</div>
         </div>
       )}
 
@@ -230,6 +235,9 @@ export default function CreatePoolPage() {
           <p className="hint">
             Names must be <b>unique</b> and can’t contain restricted terms (e.g., “survivor”, “pool”, “abc”, “123”).
           </p>
+          {nameError && (
+            <p className="fieldError" role="alert" aria-live="polite">{error}</p>
+          )}
         </div>
 
         <div className="grid2">
@@ -431,15 +439,22 @@ export default function CreatePoolPage() {
 
         .hint { margin-top: 6px; font-size: 12px; color: #666; }
 
-        .errorBox {
-          border: 1px solid #fecaca;
-          background: #fef2f2;
-          color: #991b1b;
+        .noticeBox {
+          border: 1px solid #fed7aa;
+          background: #fff7ed;
+          color: #7c2d12;
           padding: 12px;
           border-radius: 10px;
           margin-bottom: 14px;
         }
-        .errorTitle { font-weight: 700; margin-bottom: 4px; }
+        .noticeTitle { font-weight: 700; margin-bottom: 4px; }
+
+        .fieldError {
+          margin-top: 2px;
+          color: #b91c1c;
+          font-size: 13px;
+          font-weight: 600;
+        }
 
         .inputError {
           border-color: #ef4444 !important;

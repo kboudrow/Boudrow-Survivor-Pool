@@ -1204,58 +1204,33 @@ function MyPoolsContent() {
                     </div>
                   )}
 
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
-                    <InfoTile label="Visibility" value={pool.is_public ? 'Public' : 'Private'} />
-                    <InfoTile label="Status" value={pool.activation_status === 'active' ? 'Active' : 'Draft'} />
-                    <InfoTile label="Member Limit" value={pool.max_members ? `${memberCount}/${pool.max_members}` : String(memberCount)} />
-                    <InfoTile label="Start Week" value={`Week ${pool.start_week}`} />
-                    <InfoTile label="Season" value={pool.include_playoffs ? 'Regular + Playoffs' : 'Regular only'} />
-                    <InfoTile label="Strikes Allowed" value={String(pool.strikes_allowed)} />
-                    <InfoTile label="Tie Counts As" value={pool.tie_rule === 'win' ? 'Win' : 'Loss'} />
-                    <InfoTile label="Pick Deadline" value={deadlineLabel} />
-                  </div>
                   {isEliminated && (
                     <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                       You are eliminated in this pool. You can still view matchups and standings, but you cannot make more picks.
                     </div>
                   )}
 
-                  <div className="mb-6">
-                    <h3 className="font-semibold mb-2">Used Teams</h3>
-                    {usedTeamAbbrs.length === 0 ? (
-                      <p className="text-sm text-gray-600">None yet - pick any team.</p>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        {usedTeamAbbrs.map((abbr) => (
-                          <span key={abbr} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 border">
-                            {abbr}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
                   <div className="mb-8">
-                    <div className="flex items-center justify-between mb-2">
-                      <div>
-                        <h3 className="font-semibold">Your Picks</h3>
-                        <p className="text-xs text-gray-500">Picks stay editable until their deadline. Locked picks count in standings.</p>
+                    <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <h3 className="font-semibold">Your Picks</h3>
+                          <p className="text-xs text-gray-500">
+                            Week {selectedPickWeek} - {deadlineLabel} - {picksAllowedForWeek(selectedPickWeek)} {picksAllowedForWeek(selectedPickWeek) === 1 ? 'pick' : 'picks'} needed
+                          </p>
+                        </div>
+                        <div className="text-xs text-gray-500">{draftSavedAt ? `Last saved ${fmtDateTime(draftSavedAt)}` : 'No drafts yet'}</div>
                       </div>
-                      <div className="text-xs text-gray-500">{draftSavedAt ? `Last saved ${fmtDateTime(draftSavedAt)}` : 'No drafts yet'}</div>
-                    </div>
-
-                    <div className="mb-4 grid gap-2 sm:grid-cols-3">
-                      <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2">
-                        <div className="text-xs uppercase tracking-wide text-emerald-700">Picks made</div>
-                        <div className="text-lg font-semibold text-emerald-950">{pickStatusSummary.draft}</div>
-                      </div>
-                      <div className="rounded-md border border-slate-300 bg-slate-50 px-3 py-2">
-                        <div className="text-xs uppercase tracking-wide text-slate-600">Locked</div>
-                        <div className="text-lg font-semibold text-slate-950">{pickStatusSummary.official}</div>
-                      </div>
-                      <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
-                        <div className="text-xs uppercase tracking-wide text-amber-700">Still empty</div>
-                        <div className="text-lg font-semibold text-amber-950">{pickStatusSummary.empty}</div>
+                      <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 font-medium text-emerald-800">
+                          Picks made: {pickStatusSummary.draft}
+                        </span>
+                        <span className="rounded-full border border-slate-300 bg-slate-50 px-2.5 py-1 font-medium text-slate-700">
+                          Locked: {pickStatusSummary.official}
+                        </span>
+                        <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 font-medium text-amber-800">
+                          Empty: {pickStatusSummary.empty}
+                        </span>
                       </div>
                     </div>
 
@@ -1277,7 +1252,7 @@ function MyPoolsContent() {
                               }}
                               className={`rounded-md border px-3 py-2 text-sm font-semibold ${
                                 selected
-                                  ? 'border-blue-600 bg-blue-600 text-white'
+                                  ? 'border-[#c5161d] bg-[#c5161d] text-white'
                                   : hasFinal
                                     ? 'border-slate-300 bg-slate-100 text-slate-700'
                                     : hasDraft
@@ -1309,7 +1284,7 @@ function MyPoolsContent() {
                           <div className="flex flex-wrap items-center gap-2">
                             <h4 className="text-lg font-semibold">Week {selectedPickWeek}</h4>
                             {picksAllowedForWeek(selectedPickWeek) > 1 && (
-                              <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+                              <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
                                 Double-pick week
                               </span>
                             )}
@@ -1359,7 +1334,7 @@ function MyPoolsContent() {
                           }
 
                           return (
-                            <div key={key} className="rounded-md border border-blue-100 bg-white p-3 shadow-sm">
+                            <div key={key} className="rounded-md border border-red-100 bg-white p-3 shadow-sm">
                               <div className="mb-2 flex items-center justify-between gap-2">
                                 <span className="text-xs font-medium text-slate-600">{picksAllowedForWeek(selectedPickWeek) > 1 ? `Pick ${slot}` : 'Pick'}</span>
                                 <span
@@ -1388,7 +1363,7 @@ function MyPoolsContent() {
                               <div className="mt-3 flex flex-wrap items-center gap-2">
                                 <button
                                   type="button"
-                                  className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                                  className="rounded bg-[#c5161d] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#a81218] disabled:opacity-50"
                                   onClick={() => setTeamPickerTarget({ week: selectedPickWeek, slot })}
                                   disabled={savingPick || !canMakePicks}
                                 >
@@ -1438,6 +1413,35 @@ function MyPoolsContent() {
                         Early games always lock at kickoff. Your pool deadline controls how long later games stay available.
                       </span>
                     </div>
+
+                    <details className="mt-4 rounded-lg border border-gray-200 bg-white p-3">
+                      <summary className="cursor-pointer text-sm font-semibold text-slate-900">Used teams</summary>
+                      {usedTeamAbbrs.length === 0 ? (
+                        <p className="mt-2 text-sm text-gray-600">None yet - pick any team.</p>
+                      ) : (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {usedTeamAbbrs.map((abbr) => (
+                            <span key={abbr} className="inline-flex items-center gap-1 rounded-full border bg-gray-100 px-2 py-1 text-sm">
+                              {abbr}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </details>
+
+                    <details className="mt-3 rounded-lg border border-gray-200 bg-white p-3">
+                      <summary className="cursor-pointer text-sm font-semibold text-slate-900">Pool rules and settings</summary>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <InfoTile label="Visibility" value={pool.is_public ? 'Public' : 'Private'} />
+                        <InfoTile label="Status" value={pool.activation_status === 'active' ? 'Active' : 'Draft'} />
+                        <InfoTile label="Member Limit" value={pool.max_members ? `${memberCount}/${pool.max_members}` : String(memberCount)} />
+                        <InfoTile label="Start Week" value={`Week ${pool.start_week}`} />
+                        <InfoTile label="Season" value={pool.include_playoffs ? 'Regular + Playoffs' : 'Regular only'} />
+                        <InfoTile label="Strikes Allowed" value={String(pool.strikes_allowed)} />
+                        <InfoTile label="Tie Counts As" value={pool.tie_rule === 'win' ? 'Win' : 'Loss'} />
+                        <InfoTile label="Pick Deadline" value={deadlineLabel} />
+                      </div>
+                    </details>
                   </div>
 
                   {teamPickerTarget && (
