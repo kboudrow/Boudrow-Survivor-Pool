@@ -8,10 +8,10 @@ export function AppHeader() {
       <div className="mx-auto flex min-h-16 max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
         <Link href="/" className="flex min-w-0 items-center gap-3">
           <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-50 ring-1 ring-orange-200">
-            <Image src="/football.png" alt="Survivor Pool" width={30} height={30} priority />
+            <Image src="/football.png" alt="Survive Sunday" width={30} height={30} priority />
           </span>
           <span className="min-w-0">
-            <span className="block truncate text-lg font-extrabold tracking-normal text-slate-950">Survivor Pool</span>
+            <span className="block truncate text-lg font-extrabold tracking-normal text-slate-950">Survive Sunday</span>
             <span className="hidden text-xs font-medium text-slate-500 sm:block">NFL picks, locks, and standings</span>
           </span>
         </Link>

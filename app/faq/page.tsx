@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'FAQ | Survivor Pool',
+  title: 'FAQ | Survive Sunday',
   description: 'Answers to common NFL survivor pool questions for commissioners and players.',
 }
 
@@ -24,7 +24,7 @@ const faqs = [
   },
   {
     question: 'Is this a betting site?',
-    answer: 'No. Survivor Pool is built to manage rules, picks, locks, and standings. It does not process wagers or payouts.',
+    answer: 'No. Survive Sunday is built to manage rules, picks, locks, and standings. It does not process wagers or payouts.',
   },
 ]
 

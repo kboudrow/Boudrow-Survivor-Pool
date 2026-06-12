@@ -1,8 +1,8 @@
 import Link from 'next/link'
 
 export const metadata = {
-  title: 'Privacy Policy | Survivor Pool',
-  description: 'Privacy Policy for Survivor Pool accounts, picks, payments, ads, cookies, and pool history.',
+  title: 'Privacy Policy | Survive Sunday',
+  description: 'Privacy Policy for Survive Sunday accounts, picks, payments, ads, cookies, and pool history.',
 }
 
 const lastUpdated = 'Last updated: June 6, 2026'
@@ -61,7 +61,7 @@ export default function PrivacyPage() {
 
         <SectionTitle id="scope">1. Scope</SectionTitle>
         <p className="mt-3 leading-7 text-slate-700">
-          This Privacy Policy explains how Survivor Pool collects, uses, discloses, and protects information when you use the Service.
+          This Privacy Policy explains how Survive Sunday collects, uses, discloses, and protects information when you use the Service.
           It applies to our website, app pages, account features, pool dashboards, payment activation flows, and related services.
         </p>
 

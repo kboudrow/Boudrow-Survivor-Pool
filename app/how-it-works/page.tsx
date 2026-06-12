@@ -2,7 +2,7 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'How It Works | Survivor Pool',
+  title: 'How It Works | Survive Sunday',
   description: 'Learn how to create, join, pick, lock, and survive in an NFL survivor pool.',
 }
 
@@ -32,7 +32,7 @@ export default function HowItWorksPage() {
         <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">How it works</p>
         <h1 className="mt-2 text-4xl font-extrabold tracking-normal text-slate-950">Run an NFL survivor pool without spreadsheets</h1>
         <p className="mt-3 max-w-2xl text-slate-600">
-          Survivor Pool keeps the core flow simple: create a league, invite players, make picks, lock them, and track standings.
+          Survive Sunday keeps the core flow simple: create a league, invite players, make picks, lock them, and track standings.
         </p>
 
         <div className="mt-8 grid gap-4">

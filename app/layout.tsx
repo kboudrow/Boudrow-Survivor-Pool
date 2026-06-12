@@ -8,9 +8,10 @@ const adsenseClient = (process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT || process.
   .trim();
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://www.survivesunday.com"),
   title: {
-    default: "Survivor Pool",
-    template: "%s | Survivor Pool",
+    default: "Survive Sunday",
+    template: "%s | Survive Sunday",
   },
   description: "Create, join, and manage NFL survivor pools with automatic pick locks, standings, and commissioner tools.",
   other: {

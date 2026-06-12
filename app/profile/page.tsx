@@ -424,7 +424,7 @@ export default function ProfilePage() {
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     className="w-full border rounded-md px-3 py-2"
-                    placeholder="e.g. Kev, Boudrow, etc."
+                    placeholder="e.g. Kev, SundayCrew, etc."
                   />
                   <p className="text-xs text-gray-500 mt-2">This is what others see in standings. (No emails are shown.)</p>
                   {usernameMsg && <div className="text-sm text-emerald-700 mt-2">{usernameMsg}</div>}

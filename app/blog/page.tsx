@@ -4,7 +4,7 @@ import { AdSlot } from '@/components/AdSlot'
 import { blogPosts } from '@/lib/blogPosts'
 
 export const metadata: Metadata = {
-  title: 'NFL Survivor Pool Blog | Survivor Pool',
+  title: 'NFL Survivor Pool Blog | Survive Sunday',
   description: 'Survivor pool strategy, commissioner tips, rules explainers, and NFL pool guides.',
   alternates: {
     canonical: '/blog',
@@ -18,7 +18,7 @@ export default function BlogPage() {
     <main className="min-h-[70vh] bg-slate-50 px-4 py-10">
       <div className="mx-auto max-w-5xl">
         <div className="mb-8">
-          <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">Survivor Pool Blog</p>
+          <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">Survive Sunday Blog</p>
           <h1 className="mt-2 text-4xl font-extrabold tracking-normal text-slate-950">Strategy, rules, and commissioner help</h1>
           <p className="mt-3 max-w-2xl text-slate-600">
             Practical articles for players trying to survive longer and commissioners trying to run cleaner NFL survivor pools.

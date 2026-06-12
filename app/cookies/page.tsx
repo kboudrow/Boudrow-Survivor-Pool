@@ -1,8 +1,8 @@
 import Link from 'next/link'
 
 export const metadata = {
-  title: 'Cookie Policy | Survivor Pool',
-  description: 'Cookie Policy for Survivor Pool authentication, payments, analytics, and advertising.',
+  title: 'Cookie Policy | Survive Sunday',
+  description: 'Cookie Policy for Survive Sunday authentication, payments, analytics, and advertising.',
 }
 
 const lastUpdated = 'Last updated: June 6, 2026'
@@ -30,7 +30,7 @@ export default function CookiesPage() {
         </div>
 
         <p className="leading-7 text-slate-700">
-          This Cookie Policy explains how Survivor Pool may use cookies, local storage, pixels, tags, web beacons, and similar
+          This Cookie Policy explains how Survive Sunday may use cookies, local storage, pixels, tags, web beacons, and similar
           technologies. It should be read with our <Link className="underline" href="/privacy">Privacy Policy</Link>.
         </p>
 

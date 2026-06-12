@@ -180,11 +180,11 @@ export default function Home() {
             </div>
 
             <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight text-slate-950">
-              Run NFL Survivor Pools the simple way.
+              Survive Sunday with your pool intact.
             </h1>
 
             <p className="mt-4 text-slate-600 max-w-2xl mx-auto">
-              Keep picks organized, locks automatic, and standings crystal clear. No spreadsheets. No chaos. Just a clean survivor pool experience for your group.
+              Create NFL survivor pools, invite your people, and let Survive Sunday handle picks, locks, standings, and eliminations.
             </p>
 
             {/* HERO CTA: Create/Join + (only when authed) My Pools */}
@@ -406,7 +406,7 @@ export default function Home() {
       <footer className="mt-auto border-t px-6 py-8 text-sm text-gray-600 bg-white">
         <div className="mx-auto max-w-5xl grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <div>
-            <div className="font-semibold mb-2">Survivor Pool</div>
+            <div className="font-semibold mb-2">Survive Sunday</div>
             <p>Pool management for friends, families, and offices. Not betting - just rules, picks, and bragging rights.</p>
           </div>
           <div>
@@ -432,7 +432,7 @@ export default function Home() {
             </p>
           </div>
         </div>
-        <div className="mt-6 text-xs text-gray-500">&copy; {new Date().getFullYear()} Survivor Pool. All rights reserved.</div>
+        <div className="mt-6 text-xs text-gray-500">&copy; {new Date().getFullYear()} Survive Sunday. All rights reserved.</div>
       </footer>
     </div>
   )

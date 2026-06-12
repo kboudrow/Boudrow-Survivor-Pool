@@ -1,8 +1,8 @@
 import Link from 'next/link'
 
 export const metadata = {
-  title: 'Terms of Service | Survivor Pool',
-  description: 'Terms for using Survivor Pool to create, join, and manage NFL survivor pools.',
+  title: 'Terms of Service | Survive Sunday',
+  description: 'Terms for using Survive Sunday to create, join, and manage NFL survivor pools.',
 }
 
 const lastUpdated = 'Last updated: June 6, 2026'
@@ -32,7 +32,7 @@ export default function TermsPage() {
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           <div className="mb-2 font-semibold">Plain-English summary</div>
           <ul className="list-disc space-y-1 pl-5">
-            <li>Survivor Pool helps groups manage picks, locks, standings, and pool history.</li>
+            <li>Survive Sunday helps groups manage picks, locks, standings, and pool history.</li>
             <li>The service is not a sportsbook, fantasy sports operator, gambling platform, escrow service, or prize administrator.</li>
             <li>Pool creators pay a platform activation fee to use paid pool features. That fee is not a buy-in, wager, prize pool, or player payout.</li>
             <li>These terms are a practical template and should be reviewed by an attorney before serious public launch.</li>
@@ -63,7 +63,7 @@ export default function TermsPage() {
 
         <SectionTitle id="acceptance">1. Acceptance</SectionTitle>
         <p className="mt-3 leading-7 text-slate-700">
-          By accessing or using Survivor Pool, including any related pages, tools, pool dashboards, payment flows, or account features
+          By accessing or using Survive Sunday, including any related pages, tools, pool dashboards, payment flows, or account features
           (the &quot;Service&quot;), you agree to these Terms of Service (the &quot;Terms&quot;). If you do not agree, do not use the Service.
         </p>
 
@@ -80,7 +80,7 @@ export default function TermsPage() {
 
         <SectionTitle id="service">3. The service</SectionTitle>
         <p className="mt-3 leading-7 text-slate-700">
-          Survivor Pool provides tools for creating, joining, and managing NFL-style survivor pools. Features may include pool
+          Survive Sunday provides tools for creating, joining, and managing NFL-style survivor pools. Features may include pool
           settings, public or private pool discovery, invite links, pick submission, pick locks, double-pick weeks, standings, admin
           controls, profile settings, archived history, and &quot;run it back&quot; cloning for future seasons.
         </p>
@@ -91,7 +91,7 @@ export default function TermsPage() {
 
         <SectionTitle id="payments">4. Payments and refunds</SectionTitle>
         <p className="mt-3 leading-7 text-slate-700">
-          Survivor Pool may charge a platform activation fee for creating or activating certain pools. Payments are processed by
+          Survive Sunday may charge a platform activation fee for creating or activating certain pools. Payments are processed by
           Stripe or another third-party payment processor. We do not store full payment card numbers on our servers.
         </p>
         <p className="mt-3 leading-7 text-slate-700">
@@ -146,11 +146,11 @@ export default function TermsPage() {
 
         <SectionTitle id="ip">9. Intellectual property</SectionTitle>
         <p className="mt-3 leading-7 text-slate-700">
-          Survivor Pool and its software, design, branding, and content are owned by us or our licensors. You may not copy, modify,
+          Survive Sunday and its software, design, branding, and content are owned by us or our licensors. You may not copy, modify,
           distribute, sell, or reverse engineer the Service except as allowed by law or with our permission.
         </p>
         <p className="mt-3 leading-7 text-slate-700">
-          Survivor Pool is not affiliated with, sponsored by, or endorsed by the National Football League, NFL, or any NFL club. Team
+          Survive Sunday is not affiliated with, sponsored by, or endorsed by the National Football League, NFL, or any NFL club. Team
           names, abbreviations, logos, and related marks are used for identification and remain the property of their respective owners.
         </p>
 

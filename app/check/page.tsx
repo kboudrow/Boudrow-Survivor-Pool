@@ -74,7 +74,7 @@ export default function CheckPage() {
 
   return (
     <main style={{ padding: 20 }}>
-      <h1>Survivor Pool</h1>
+      <h1>Survive Sunday</h1>
       <p style={{ margin: '12px 0' }}>{status}</p>
       {error && <p style={{ color: 'red', margin: '12px 0' }}>{error}</p>}
 
