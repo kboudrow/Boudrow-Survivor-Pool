@@ -1395,6 +1395,7 @@ export type Database = {
         Args: { p_password?: string; p_pool_id: string; p_token?: string }
         Returns: undefined
       }
+      leave_pool: { Args: { p_pool_id: string }; Returns: undefined }
       list_pool_members: {
         Args: { p_pool_id: string }
         Returns: {

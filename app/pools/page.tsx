@@ -563,6 +563,7 @@ function MyPoolsContent() {
   const [myEntries, setMyEntries] = useState<Profile[]>([])
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null)
   const [addingEntry, setAddingEntry] = useState(false)
+  const [leavingPool, setLeavingPool] = useState(false)
 
   // picks (mine)
   const weeks = useMemo(() => Array.from({ length: 18 }, (_, i) => i + 1), [])
@@ -1183,6 +1184,32 @@ function MyPoolsContent() {
     }
   }
 
+  const leavePool = async () => {
+    if (!selectedId || !pool) return
+    if (amOwner) {
+      alert('Pool creators cannot leave their own pool. You can archive it from the admin panel before it starts.')
+      return
+    }
+    if (leagueHasStarted) {
+      alert('You cannot leave this pool after it has started.')
+      return
+    }
+    const confirmed = window.confirm(`Leave ${pool.name}? This removes all of your entries and picks from this pool.`)
+    if (!confirmed) return
+
+    setLeavingPool(true)
+    try {
+      const { error } = await supabase.rpc('leave_pool', { p_pool_id: pool.id })
+      if (error) throw error
+      setPools((prev) => prev.filter((p) => p.id !== pool.id))
+      closeModal()
+    } catch (e: unknown) {
+      alert(getErrorMessage(e, 'Failed to leave pool.'))
+    } finally {
+      setLeavingPool(false)
+    }
+  }
+
   /** ---------- Export ---------- */
   const exportCsv = () => {
     if (!pool) return
@@ -1356,6 +1383,7 @@ function MyPoolsContent() {
     setInviteOpen(false)
     setPoolStartAt(null)
     setDetailError(null)
+    setLeavingPool(false)
   }
 
   useEffect(() => {
@@ -1459,6 +1487,15 @@ function MyPoolsContent() {
                   <Link href={`/pools/${pool.id}/admin`} className="px-3 py-1 rounded-md bg-amber-600 text-white hover:bg-amber-700">
                     Admin Panel
                   </Link>
+                )}
+                {pool && !amOwner && !leagueHasStarted && (
+                  <button
+                    onClick={leavePool}
+                    disabled={leavingPool}
+                    className="px-3 py-1 rounded-md bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50"
+                  >
+                    {leavingPool ? 'Leaving...' : 'Leave Pool'}
+                  </button>
                 )}
                 <button onClick={closeModal} className="px-3 py-1 rounded-md bg-gray-100 hover:bg-gray-200">
                   Close

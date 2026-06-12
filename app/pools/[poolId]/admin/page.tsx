@@ -526,13 +526,26 @@ export default function PoolAdminPage() {
   }
 
   const saveDraft = (row: AdminRow) =>
-    runAction('Save draft pick', async () => {
+    runAction('Save pick', async () => {
       if (!pool) return
       if (hasFinalPick(row)) {
-        throw new Error('This pick is already final. Use Override final to change the official pick.')
+        const team = (draftTeams[rowKey(row)] || finalTeams[rowKey(row)] || '').trim().toUpperCase()
+        if (!team) throw new Error('Choose a team before saving this pick.')
+        const confirmed = window.confirm(`Change ${entryLabel(row)}'s Pick ${row.slot} for Week ${selectedWeek} to ${team}?`)
+        if (!confirmed) return 'Pick update canceled.'
+        const { error } = await supabase.rpc('admin_override_entry_final_pick', {
+          p_pool_id: pool.id,
+          p_entry_id: row.entry_id,
+          p_week: selectedWeek,
+          p_team_abbr: team,
+          p_slot: row.slot,
+          p_reason: 'Updated from admin panel',
+        })
+        if (error) throw error
+        return `Pick saved as ${team}.`
       }
       const key = rowKey(row)
-      const team = draftTeams[key]?.trim().toUpperCase()
+      const team = (draftTeams[key] || finalTeams[key] || '').trim().toUpperCase()
       if (!team) {
         const { error } = await supabase.rpc('admin_clear_entry_week_draft_slot', {
           p_pool_id: pool.id,
@@ -542,7 +555,7 @@ export default function PoolAdminPage() {
           p_reason: 'Cleared from admin panel',
         })
         if (error) throw error
-        return 'Draft pick cleared.'
+        return 'Pick cleared.'
       }
 
       const { error } = await supabase.rpc('admin_upsert_entry_draft', {
@@ -554,29 +567,7 @@ export default function PoolAdminPage() {
         p_reason: 'Updated from admin panel',
       })
       if (error) throw error
-      return `Draft pick saved as ${team}.`
-    })
-
-  const saveFinal = (row: AdminRow) =>
-    runAction('Override final pick', async () => {
-      if (!pool) return
-      const team = finalTeams[rowKey(row)]?.trim().toUpperCase()
-      if (!team) throw new Error('Choose a team before overriding a final pick.')
-      if (hasFinalPick(row)) {
-        const confirmed = window.confirm(`Change ${entryLabel(row)}'s official Pick ${row.slot} for week ${selectedWeek} to ${team}?`)
-        if (!confirmed) return 'Final pick override canceled.'
-      }
-
-      const { error } = await supabase.rpc('admin_override_entry_final_pick', {
-        p_pool_id: pool.id,
-        p_entry_id: row.entry_id,
-        p_week: selectedWeek,
-        p_team_abbr: team,
-        p_slot: row.slot,
-        p_reason: 'Updated from admin panel',
-      })
-      if (error) throw error
-      return `Final pick overridden as ${team}.`
+      return `Pick saved as ${team}.`
     })
 
   const removeMember = (row: AdminRow) =>
@@ -730,7 +721,7 @@ export default function PoolAdminPage() {
               )}
 
               <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-[minmax(220px,320px)_minmax(240px,320px)_minmax(260px,360px)_1fr]">
-                <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                <div className="rounded-md border border-gray-200 bg-gray-50 p-3 lg:col-span-2 xl:col-span-4">
                   <label className="mb-1 block text-sm font-medium">Member limit</label>
                   <div className="flex gap-2">
                     <select
@@ -841,7 +832,7 @@ export default function PoolAdminPage() {
                       {savingDouble ? 'Saving...' : 'Save weeks'}
                     </button>
                   </div>
-                  <div className="mb-3 grid grid-cols-6 gap-2 sm:grid-cols-9 lg:grid-cols-[repeat(18,minmax(0,1fr))]">
+                  <div className="mb-3 flex flex-wrap gap-2">
                     {ALL_WEEKS.map((week) => {
                       const selected = selectedDoubleWeeks.has(week)
                       return (
@@ -851,7 +842,7 @@ export default function PoolAdminPage() {
                           onClick={() => toggleDoubleWeek(week)}
                           disabled={settingsLocked || week < pool.start_week}
                           title={week < pool.start_week ? `Pool starts in Week ${pool.start_week}.` : undefined}
-                          className={`rounded-md border px-2 py-1.5 text-sm font-semibold disabled:opacity-50 ${
+                          className={`h-10 w-12 rounded-md border text-sm font-semibold disabled:opacity-50 ${
                             selected ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-100'
                           }`}
                           aria-pressed={selected}
@@ -876,7 +867,7 @@ export default function PoolAdminPage() {
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="font-semibold">Members & Picks</h2>
-                  <p className="text-sm text-gray-600">Draft picks are pending. Final picks are official and count toward standings.</p>
+                  <p className="text-sm text-gray-600">Choose a week, then submit or edit each member&apos;s pick for that week.</p>
                 </div>
                 <label className="flex items-center gap-2 text-sm">
                   Week
@@ -904,8 +895,7 @@ export default function PoolAdminPage() {
                     <tr>
                       <th className="border p-2 text-left">Member</th>
                       <th className="border p-2 text-left">Slot</th>
-                      <th className="border p-2 text-left">Pending draft</th>
-                      <th className="border p-2 text-left">Official final pick</th>
+                      <th className="border p-2 text-left">Pick</th>
                       <th className="border p-2 text-left">Result</th>
                       <th className="border p-2 text-left">Record</th>
                       <th className="border p-2 text-left">Status</th>
@@ -921,35 +911,12 @@ export default function PoolAdminPage() {
                         </td>
                         <td className="border p-2">Pick {row.slot}</td>
                         <td className="border p-2">
-                          {hasFinalPick(row) ? (
-                            <div className="rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700">
-                              This pick is final. Draft changes are locked.
-                            </div>
-                          ) : (
-                            <>
                           <select
-                            value={draftTeams[rowKey(row)] || ''}
+                            value={draftTeams[rowKey(row)] || finalTeams[rowKey(row)] || ''}
                             onChange={(e) => setDraftTeams((prev) => ({ ...prev, [rowKey(row)]: e.target.value }))}
                             className="w-full rounded-md border px-2 py-1"
                           >
-                            <option value="">No draft</option>
-                            {TEAMS.map((team) => (
-                              <option key={team} value={team}>
-                                {team}
-                              </option>
-                            ))}
-                          </select>
-                          <div className="mt-1 text-xs text-gray-500">Saved {fmt(row.draft_updated_at)}</div>
-                            </>
-                          )}
-                        </td>
-                        <td className="border p-2">
-                          <select
-                            value={finalTeams[rowKey(row)] || ''}
-                            onChange={(e) => setFinalTeams((prev) => ({ ...prev, [rowKey(row)]: e.target.value }))}
-                            className="w-full rounded-md border px-2 py-1"
-                          >
-                            <option value="">No final</option>
+                            <option value="">No pick</option>
                             {TEAMS.map((team) => (
                               <option key={team} value={team}>
                                 {team}
@@ -957,9 +924,9 @@ export default function PoolAdminPage() {
                             ))}
                           </select>
                           <div className="mt-1 text-xs text-gray-500">
-                            {row.locked_at ? `Locked ${fmt(row.locked_at)}` : 'No official pick yet'}
+                            {row.locked_at ? `Official pick locked ${fmt(row.locked_at)}` : row.draft_updated_at ? `Saved ${fmt(row.draft_updated_at)}` : 'No pick submitted yet'}
                           </div>
-                          {row.result && <div className="mt-1 text-xs font-medium text-amber-700">Result already set. Override will clear it.</div>}
+                          {row.result && <div className="mt-1 text-xs font-medium text-amber-700">Result already set. Saving a new pick will clear that result.</div>}
                         </td>
                         <td className="border p-2">{row.result || 'Pending'}</td>
                         <td className="border p-2">
@@ -978,14 +945,10 @@ export default function PoolAdminPage() {
                           <div className="flex flex-wrap gap-2">
                             <button
                               onClick={() => saveDraft(row)}
-                              disabled={!!runningAction || hasFinalPick(row)}
-                              title={hasFinalPick(row) ? 'This pick is already final. Use Override final.' : undefined}
-                              className="rounded-md bg-gray-100 px-2 py-1 hover:bg-gray-200 disabled:opacity-50"
+                              disabled={!!runningAction}
+                              className="rounded-md bg-indigo-600 px-2 py-1 text-white hover:bg-indigo-700 disabled:opacity-50"
                             >
-                              Save draft
-                            </button>
-                            <button onClick={() => saveFinal(row)} disabled={!!runningAction} className="rounded-md bg-indigo-600 px-2 py-1 text-white hover:bg-indigo-700 disabled:opacity-50">
-                              Override final
+                              Save pick
                             </button>
                             <button
                               onClick={() => removeMember(row)}
