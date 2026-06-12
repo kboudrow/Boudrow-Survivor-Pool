@@ -122,6 +122,8 @@ const NFL_TEAMS: Team[] = [
   { abbr: 'TEN', name: 'Tennessee Titans', logo: espnLogo('TEN') },
   { abbr: 'WAS', name: 'Washington Commanders', logo: espnLogo('WSH') },
 ]
+
+const POOL_CARD_SELECT = 'id,name,is_public,start_week,strikes_allowed,tie_rule'
 const teamByAbbr = (abbr?: string | null) => NFL_TEAMS.find((t) => t.abbr === abbr) || null
 const isNoPick = (abbr?: string | null) => !!abbr?.startsWith('NO_PICK')
 const toAbbr = (input: string): string => {
@@ -509,12 +511,13 @@ function MyPoolsContent() {
 
   // modal + selection
   const [isOpen, setIsOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState<'picks' | 'standings' | 'members'>('standings')
+  const [activeTab, setActiveTab] = useState<'picks' | 'standings' | 'members'>('picks')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [pool, setPool] = useState<Pool | null>(null)
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [detailError, setDetailError] = useState<string | null>(null)
   const openedPoolParamRef = useRef<string | null>(null)
+  const backgroundRefreshRef = useRef<string | null>(null)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [poolStartAt, setPoolStartAt] = useState<string | null>(null)
 
@@ -638,7 +641,7 @@ function MyPoolsContent() {
         //  CHANGE #1: only non-archived pools you created
         const { data: createdPools, error: createdErr } = await supabase
           .from('pools')
-          .select('*')
+          .select(POOL_CARD_SELECT)
           .eq('created_by', user.id)
           .eq('archived', false)
           .order('created_at', { ascending: false })
@@ -653,7 +656,7 @@ function MyPoolsContent() {
           //  CHANGE #2: only non-archived pools you are a member of
           const { data, error } = await supabase
             .from('pools')
-            .select('*')
+            .select(POOL_CARD_SELECT)
             .in('id', ids)
             .eq('archived', false)
             .order('created_at', { ascending: false })
@@ -788,6 +791,32 @@ function MyPoolsContent() {
     if (isOpen && selectedId && activeTab === 'standings') loadStandings(standingsWeek)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, selectedId, activeTab, standingsWeek, members.length])
+
+  useEffect(() => {
+    if (!isOpen || detailsLoading || !selectedId || !pool || !userId || backgroundRefreshRef.current === selectedId) return
+    backgroundRefreshRef.current = selectedId
+
+    const refreshLockedPicks = async () => {
+      try {
+        await restoreUnlockedPicks(selectedId)
+        await finalizeLockedPicks(selectedId)
+        await loadMyPicks(selectedId, pool.start_week)
+
+        const { data: myStat } = await supabase
+          .from('pool_member_stats')
+          .select('pool_id, user_id, wins, losses, pushes, strikes_used, eliminated')
+          .eq('pool_id', selectedId)
+          .eq('user_id', userId)
+          .maybeSingle<MemberStats>()
+        setStatsByUser((prev) => (myStat ? { ...prev, [myStat.user_id]: myStat } : prev))
+      } catch (e) {
+        console.warn('Background pick refresh failed', e)
+      }
+    }
+
+    refreshLockedPicks()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, detailsLoading, selectedId, pool, userId])
 
   /** ---------- Draft save / clear ---------- */
   const saveDraft = async (week: number, slot: number, team: Team | null) => {
@@ -964,6 +993,7 @@ function MyPoolsContent() {
 
   /** ---------- Open / close modal ---------- */
   const openPool = async (id: string) => {
+    if (!userId) return
     setSelectedId(id)
     setIsOpen(true)
     setActiveTab('picks')
@@ -990,6 +1020,7 @@ function MyPoolsContent() {
     setStatsByUser({})
     setAliveCount(0)
     setElimCount(0)
+    backgroundRefreshRef.current = null
 
     try {
       const { data: poolRow, error: poolErr } = await supabase.from('pools').select('*').eq('id', id).maybeSingle<Pool>()
@@ -998,30 +1029,41 @@ function MyPoolsContent() {
 
       setPool(poolRow)
       setStandingsWeek(poolRow.start_week)
-      const { data: weekRows } = await supabase
-        .from('season_weeks')
-        .select('season, week, week_sunday_date')
-        .eq('season', poolRow.season ?? new Date().getFullYear())
-        .order('week', { ascending: true })
+      const season = poolRow.season ?? new Date().getFullYear()
+      const [{ data: weekRows }, { data: firstStartGame }, { data: rosterRows, error: rosterErr }, picksResult, { data: myStat }] = await Promise.all([
+        supabase
+          .from('season_weeks')
+          .select('season, week, week_sunday_date')
+          .eq('season', season)
+          .order('week', { ascending: true }),
+        supabase
+          .from('nfl_games')
+          .select('game_time,kickoff_at_utc')
+          .eq('season', season)
+          .eq('week', poolRow.start_week)
+          .order('kickoff_at_utc', { ascending: true, nullsFirst: false })
+          .order('game_time', { ascending: true })
+          .limit(1)
+          .maybeSingle<{ game_time: string; kickoff_at_utc: string | null }>(),
+        supabase.rpc('pool_member_roster', { p_pool_id: id }),
+        Promise.all([
+          supabase.from('pool_picks').select('week, slot, team_abbr, locked_at, result').eq('pool_id', id).eq('user_id', userId).gte('week', poolRow.start_week),
+          supabase.from('pool_pick_drafts').select('week, slot, team_abbr, updated_at').eq('pool_id', id).eq('user_id', userId).gte('week', poolRow.start_week),
+        ]),
+        supabase.from('pool_member_stats').select('pool_id, user_id, wins, losses, pushes, strikes_used, eliminated').eq('pool_id', id).eq('user_id', userId).maybeSingle<MemberStats>(),
+      ])
+      if (rosterErr) throw rosterErr
+
+      const [{ data: finalPicks, error: finalErr }, { data: drafts, error: draftErr }] = picksResult
+      if (finalErr) throw finalErr
+      if (draftErr) throw draftErr
 
       const nextSeasonWeeks = ((weekRows || []) as SeasonWeek[]).filter((row) => row.week >= 1 && row.week <= 18)
       setSeasonWeeks(nextSeasonWeeks)
       setSelectedPickWeek(Math.max(poolRow.start_week, currentPickWeek(nextSeasonWeeks)))
 
-      const { data: firstStartGame } = await supabase
-        .from('nfl_games')
-        .select('game_time,kickoff_at_utc')
-        .eq('season', poolRow.season ?? new Date().getFullYear())
-        .eq('week', poolRow.start_week)
-        .order('kickoff_at_utc', { ascending: true, nullsFirst: false })
-        .order('game_time', { ascending: true })
-        .limit(1)
-        .maybeSingle<{ game_time: string; kickoff_at_utc: string | null }>()
       const startWeekFallback = nextSeasonWeeks.find((row) => row.week === poolRow.start_week)?.week_sunday_date
       setPoolStartAt(firstStartGame?.kickoff_at_utc || firstStartGame?.game_time || (startWeekFallback ? `${startWeekFallback}T00:00:00` : null))
-
-      const { data: rosterRows, error: rosterErr } = await supabase.rpc('pool_member_roster', { p_pool_id: id })
-      if (rosterErr) throw rosterErr
 
       const roster = ((rosterRows || []) as PoolMemberRosterRow[]).map((m) => ({
         id: m.profile_id,
@@ -1036,13 +1078,22 @@ function MyPoolsContent() {
       }))
       setMembers(roster)
       setMemberCount(roster.length)
+      setStatsByUser(myStat ? { [myStat.user_id]: myStat } : {})
 
-      await restoreUnlockedPicks(id)
-      await finalizeLockedPicks(id)
+      const locked: Record<string, FinalPickRow> = {}
+      for (const pick of (finalPicks || []) as FinalPickRow[]) {
+        locked[pickKey(pick.week, pick.slot)] = pick
+      }
+      setMyFinalPicks(locked)
 
-      await loadMyPicks(id, poolRow.start_week)
-
-      await loadStandings(poolRow.start_week, id, poolRow.season, poolRow.start_week)
+      const nextDrafts: Record<string, Team | null> = {}
+      let latest: string | null = null
+      for (const draft of (drafts || []) as DraftPickRow[]) {
+        nextDrafts[pickKey(draft.week, draft.slot)] = teamByAbbr(draft.team_abbr) || { abbr: draft.team_abbr, name: draft.team_abbr }
+        if (draft.updated_at && (!latest || draft.updated_at > latest)) latest = draft.updated_at
+      }
+      setMyDraftPicks(nextDrafts)
+      setDraftSavedAt(latest)
     } catch (e: unknown) {
       setDetailError(getErrorMessage(e, 'Failed to load pool details.'))
     } finally {

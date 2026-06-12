@@ -5,10 +5,15 @@ import Link from 'next/link'
 import NextImage from 'next/image'
 import { useRouter } from 'next/navigation'
 import { AdSlot } from '@/components/AdSlot'
-import { supabase } from '@/lib/supabaseClient'
-import { ensureProfile } from '@/lib/ensureProfile'
 
 type Mode = 'idle' | 'signin' | 'signup'
+type SupabaseClientModule = typeof import('@/lib/supabaseClient')
+type EnsureProfileModule = typeof import('@/lib/ensureProfile')
+
+async function getSupabase() {
+  const { supabase }: SupabaseClientModule = await import('@/lib/supabaseClient')
+  return supabase
+}
 
 export default function Home() {
   const router = useRouter()
@@ -51,6 +56,7 @@ export default function Home() {
     if (ensuredUserIdRef.current === userId) return
     ensuredUserIdRef.current = userId
     setStatus('Signed in, ensuring profile...')
+    const { ensureProfile }: EnsureProfileModule = await import('@/lib/ensureProfile')
     const res = await ensureProfile()
     setStatus(res.ok ? 'Profile ready' : `Profile error: ${res.error}`)
     setMode('idle')
@@ -97,6 +103,7 @@ export default function Home() {
   const signInWithGoogle = async () => {
     setAuthError(null)
     const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined
+    const supabase = await getSupabase()
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -110,6 +117,7 @@ export default function Home() {
   const signInWithEmail = async () => {
     setAuthError(null)
     if (!email || !password) return setAuthError('Please enter email and password.')
+    const supabase = await getSupabase()
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) return setAuthError(error.message)
   }
@@ -122,6 +130,7 @@ export default function Home() {
     if (!password2) return setAuthError('Please re-enter your password.')
     if (!allPwOk) return setAuthError('Please meet all password requirements.')
 
+    const supabase = await getSupabase()
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -139,6 +148,7 @@ export default function Home() {
   useEffect(() => {
     let unsub: null | (() => void) = null
     const init = async () => {
+      const supabase = await getSupabase()
       const { data: { user }, error } = await supabase.auth.getUser()
       if (error) {
         setIsAuthed(false)
