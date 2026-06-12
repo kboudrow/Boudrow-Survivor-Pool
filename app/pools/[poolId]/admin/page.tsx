@@ -19,11 +19,16 @@ type Pool = {
   start_week: number
   activation_status?: 'draft' | 'active' | 'cancelled' | string | null
   max_members?: number | null
+  allow_multiple_entries?: boolean | null
+  max_entries_per_user?: number | null
   payment_status?: 'unpaid' | 'paid' | 'not_required' | 'waived' | 'refunded' | string | null
 }
 
 type AdminRow = {
+  entry_id: string
   user_id: string
+  entry_number: number | null
+  entry_name: string | null
   display_name: string
   role: string
   joined_at: string | null
@@ -43,6 +48,7 @@ type AdminRow = {
 
 const ALL_WEEKS = Array.from({ length: 18 }, (_, i) => i + 1)
 const MEMBER_LIMIT_OPTIONS = [10, 25, 50, 100, 250, 500]
+const ENTRY_LIMIT_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1)
 const TEAMS = [
   'ARI',
   'ATL',
@@ -82,8 +88,9 @@ function fmt(value?: string | null) {
   if (!value) return '-'
   return new Date(value).toLocaleString()
 }
-const rowKey = (row: AdminRow) => `${row.user_id}:${row.slot}`
+const rowKey = (row: AdminRow) => `${row.entry_id}:${row.slot}`
 const hasFinalPick = (row: AdminRow) => !!row.final_team_abbr || !!row.locked_at
+const entryLabel = (row: AdminRow) => (row.entry_number && row.entry_number > 1 ? `${row.display_name} (${row.entry_number})` : row.display_name)
 const fmtShort = (value?: string | null) =>
   value
     ? new Date(value).toLocaleString(undefined, {
@@ -111,10 +118,13 @@ export default function PoolAdminPage() {
   const [doubleWeeksText, setDoubleWeeksText] = useState('')
   const [maxMembersText, setMaxMembersText] = useState('')
   const [maxMembersPreset, setMaxMembersPreset] = useState('25')
+  const [allowMultipleEntriesDraft, setAllowMultipleEntriesDraft] = useState(false)
+  const [maxEntriesPerUserDraft, setMaxEntriesPerUserDraft] = useState('1')
   const [archiving, setArchiving] = useState(false)
   const [activating, setActivating] = useState(false)
   const [savingDouble, setSavingDouble] = useState(false)
   const [savingLimit, setSavingLimit] = useState(false)
+  const [savingEntries, setSavingEntries] = useState(false)
   const [savingVisibility, setSavingVisibility] = useState(false)
   const [isPublicDraft, setIsPublicDraft] = useState(true)
   const [visibilityPassword, setVisibilityPassword] = useState('')
@@ -124,9 +134,9 @@ export default function PoolAdminPage() {
   const [finalTeams, setFinalTeams] = useState<Record<string, string>>({})
   const [inviteOpen, setInviteOpen] = useState(false)
 
-  const memberCount = new Set(rows.map((row) => row.user_id)).size
+  const memberCount = rows.length ? new Set(rows.map((row) => row.entry_id)).size : 0
   const stats = useMemo(() => {
-    const uniqueMembers = Array.from(new Map(rows.map((row) => [row.user_id, row])).values())
+    const uniqueMembers = Array.from(new Map(rows.map((row) => [row.entry_id, row])).values())
     const alive = uniqueMembers.filter((row) => !row.eliminated).length
     return { alive, eliminated: uniqueMembers.length - alive }
   }, [rows])
@@ -154,8 +164,8 @@ export default function PoolAdminPage() {
     setError(null)
     try {
       const [{ data: p, error: pErr }, { data: overview, error: overviewErr }] = await Promise.all([
-        supabase.from('pools').select('id,name,created_by,is_public,visibility,double_pick_weeks,archived,season,start_week,activation_status,max_members,payment_status').eq('id', poolId).maybeSingle<Pool>(),
-        supabase.rpc('admin_pool_week_overview', { p_pool_id: poolId, p_week: week }),
+        supabase.from('pools').select('id,name,created_by,is_public,visibility,double_pick_weeks,archived,season,start_week,activation_status,max_members,allow_multiple_entries,max_entries_per_user,payment_status').eq('id', poolId).maybeSingle<Pool>(),
+        supabase.rpc('admin_pool_entry_week_overview', { p_pool_id: poolId, p_week: week }),
       ])
       if (pErr) throw pErr
       if (overviewErr) throw overviewErr
@@ -171,6 +181,8 @@ export default function PoolAdminPage() {
       const limitText = String(p.max_members ?? 25)
       setMaxMembersText(limitText)
       setMaxMembersPreset(MEMBER_LIMIT_OPTIONS.includes(Number(limitText)) ? limitText : 'custom')
+      setAllowMultipleEntriesDraft(!!p.allow_multiple_entries)
+      setMaxEntriesPerUserDraft(String(p.max_entries_per_user ?? 1))
       setIsPublicDraft(!!p.is_public)
       setVisibilityPassword('')
       setRows((overview || []) as AdminRow[])
@@ -368,6 +380,37 @@ export default function PoolAdminPage() {
     }
   }
 
+  const saveEntrySettings = async () => {
+    if (!pool) return
+    if (settingsLocked) {
+      setError('League settings cannot be changed after the league has started.')
+      return
+    }
+    const nextEntries = allowMultipleEntriesDraft ? parseInt(maxEntriesPerUserDraft, 10) : 1
+    if (!Number.isFinite(nextEntries) || nextEntries < 1 || nextEntries > 10) {
+      setError('Entries per user must be between 1 and 10.')
+      return
+    }
+
+    setSavingEntries(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const { error } = await supabase.rpc('admin_update_pool_entry_settings', {
+        p_pool_id: pool.id,
+        p_allow_multiple_entries: allowMultipleEntriesDraft,
+        p_max_entries_per_user: nextEntries,
+      })
+      if (error) throw error
+      setPool({ ...pool, allow_multiple_entries: allowMultipleEntriesDraft, max_entries_per_user: nextEntries })
+      setNotice('Entry settings saved.')
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to save entry settings.'))
+    } finally {
+      setSavingEntries(false)
+    }
+  }
+
   const saveVisibility = async () => {
     if (!pool) return
     if (settingsLocked) {
@@ -491,9 +534,9 @@ export default function PoolAdminPage() {
       const key = rowKey(row)
       const team = draftTeams[key]?.trim().toUpperCase()
       if (!team) {
-        const { error } = await supabase.rpc('admin_clear_user_week_draft_slot', {
+        const { error } = await supabase.rpc('admin_clear_entry_week_draft_slot', {
           p_pool_id: pool.id,
-          p_target_user: row.user_id,
+          p_entry_id: row.entry_id,
           p_week: selectedWeek,
           p_slot: row.slot,
           p_reason: 'Cleared from admin panel',
@@ -502,9 +545,9 @@ export default function PoolAdminPage() {
         return 'Draft pick cleared.'
       }
 
-      const { error } = await supabase.rpc('admin_upsert_user_draft', {
+      const { error } = await supabase.rpc('admin_upsert_entry_draft', {
         p_pool_id: pool.id,
-        p_target_user: row.user_id,
+        p_entry_id: row.entry_id,
         p_week: selectedWeek,
         p_team_abbr: team,
         p_slot: row.slot,
@@ -520,13 +563,13 @@ export default function PoolAdminPage() {
       const team = finalTeams[rowKey(row)]?.trim().toUpperCase()
       if (!team) throw new Error('Choose a team before overriding a final pick.')
       if (hasFinalPick(row)) {
-        const confirmed = window.confirm(`Change ${row.display_name}'s official Pick ${row.slot} for week ${selectedWeek} to ${team}?`)
+        const confirmed = window.confirm(`Change ${entryLabel(row)}'s official Pick ${row.slot} for week ${selectedWeek} to ${team}?`)
         if (!confirmed) return 'Final pick override canceled.'
       }
 
-      const { error } = await supabase.rpc('admin_override_final_pick', {
+      const { error } = await supabase.rpc('admin_override_entry_final_pick', {
         p_pool_id: pool.id,
-        p_target_user: row.user_id,
+        p_entry_id: row.entry_id,
         p_week: selectedWeek,
         p_team_abbr: team,
         p_slot: row.slot,
@@ -537,20 +580,20 @@ export default function PoolAdminPage() {
     })
 
   const removeMember = (row: AdminRow) =>
-    runAction('Remove member', async () => {
+    runAction('Remove entry', async () => {
       if (!pool) return
       if (settingsLocked) {
-        throw new Error('Members cannot be removed after the league has started.')
+        throw new Error('Entries cannot be removed after the league has started.')
       }
-      const confirmed = window.confirm(`Remove ${row.display_name} from this pool? This cannot be undone from this screen.`)
-      if (!confirmed) return 'Remove member canceled.'
+      const confirmed = window.confirm(`Remove ${entryLabel(row)} from this pool? This cannot be undone from this screen.`)
+      if (!confirmed) return 'Remove entry canceled.'
 
-      const { error } = await supabase.rpc('admin_remove_member', {
+      const { error } = await supabase.rpc('admin_remove_pool_entry', {
         p_pool_id: pool.id,
-        p_profile_id: row.user_id,
+        p_entry_id: row.entry_id,
       })
       if (error) throw error
-      return `${row.display_name} removed.`
+      return `${entryLabel(row)} removed.`
     })
 
   return (
@@ -686,7 +729,7 @@ export default function PoolAdminPage() {
                 </p>
               )}
 
-              <div className="grid gap-4 lg:grid-cols-[minmax(220px,320px)_minmax(260px,360px)_1fr]">
+              <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-[minmax(220px,320px)_minmax(240px,320px)_minmax(260px,360px)_1fr]">
                 <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
                   <label className="mb-1 block text-sm font-medium">Member limit</label>
                   <div className="flex gap-2">
@@ -719,6 +762,37 @@ export default function PoolAdminPage() {
                     </button>
                   </div>
                   <p className="mt-2 text-xs text-gray-600">Current members: {memberCount}. Limit must be 2-500 and cannot be below the current member count.</p>
+                </div>
+
+                <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                  <label className="mb-1 block text-sm font-medium">Entries per user</label>
+                  <select
+                    value={allowMultipleEntriesDraft ? 'multiple' : 'single'}
+                    onChange={(e) => setAllowMultipleEntriesDraft(e.target.value === 'multiple')}
+                    disabled={settingsLocked}
+                    className="w-full rounded-md border px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-500"
+                  >
+                    <option value="single">Single entry</option>
+                    <option value="multiple">Multiple entries</option>
+                  </select>
+                  {allowMultipleEntriesDraft && (
+                    <select
+                      value={maxEntriesPerUserDraft}
+                      onChange={(e) => setMaxEntriesPerUserDraft(e.target.value)}
+                      disabled={settingsLocked}
+                      className="mt-2 w-full rounded-md border px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-500"
+                    >
+                      {ENTRY_LIMIT_OPTIONS.map((limit) => (
+                        <option key={limit} value={String(limit)}>
+                          Up to {limit} {limit === 1 ? 'entry' : 'entries'} per user
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <button onClick={saveEntrySettings} disabled={savingEntries || settingsLocked} className="mt-2 w-full rounded-md bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50">
+                    {savingEntries ? 'Saving...' : 'Save entries'}
+                  </button>
+                  <p className="mt-2 text-xs text-gray-600">Members can add separate entries up to this limit, and each entry has its own picks and standings row.</p>
                 </div>
 
                 <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
@@ -842,7 +916,7 @@ export default function PoolAdminPage() {
                     {rows.map((row) => (
                       <tr key={rowKey(row)} className="align-top hover:bg-gray-50">
                         <td className="border p-2">
-                          <div className="font-medium">{row.display_name}</div>
+                          <div className="font-medium">{entryLabel(row)}</div>
                           <div className="text-xs text-gray-500">{row.role} - joined {fmt(row.joined_at)}</div>
                         </td>
                         <td className="border p-2">Pick {row.slot}</td>
@@ -916,10 +990,10 @@ export default function PoolAdminPage() {
                             <button
                               onClick={() => removeMember(row)}
                               disabled={!!runningAction || settingsLocked}
-                              title={settingsLocked ? 'Members cannot be removed after the league starts.' : undefined}
+                              title={settingsLocked ? 'Entries cannot be removed after the league starts.' : undefined}
                               className="rounded-md bg-red-50 px-2 py-1 text-red-700 hover:bg-red-100 disabled:opacity-50"
                             >
-                              Remove
+                              Remove entry
                             </button>
                           </div>
                         </td>

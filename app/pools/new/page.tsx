@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabaseClient'
 const ALL_WEEKS = Array.from({ length: 18 }, (_, i) => i + 1)
 const DEFAULT_SEASON = 2026
 const MEMBER_LIMIT_OPTIONS = [10, 25, 50, 100, 250, 500]
+const ENTRY_LIMIT_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1)
 
 /** Turn DB/SDK errors into plain-English UI messages */
 function formatCreatePoolError(e: unknown): string {
@@ -78,6 +79,8 @@ export default function CreatePoolPage() {
   const [password2, setPassword2] = useState('')
   const [maxMembers, setMaxMembers] = useState('25')
   const [customMaxMembers, setCustomMaxMembers] = useState('')
+  const [allowMultipleEntries, setAllowMultipleEntries] = useState(false)
+  const [maxEntriesPerUser, setMaxEntriesPerUser] = useState('1')
 
   // double pick weeks
   const [doubleWeeks, setDoubleWeeks] = useState<number[]>([])
@@ -134,6 +137,10 @@ export default function CreatePoolPage() {
       if (!Number.isFinite(max_members) || max_members < 2 || max_members > 500) {
         throw new Error('Member limit must be between 2 and 500.')
       }
+      const max_entries_per_user = allowMultipleEntries ? Number(maxEntriesPerUser) : 1
+      if (!Number.isFinite(max_entries_per_user) || max_entries_per_user < 1 || max_entries_per_user > 10) {
+        throw new Error('Entries per user must be between 1 and 10.')
+      }
 
       const include_playoffs = seasonLength === 'Regular Season & Playoffs'
       const strikes_allowed = String(mulligans) // DB column currently text in your schema
@@ -167,6 +174,8 @@ export default function CreatePoolPage() {
           activation_status: 'draft',
           payment_status: 'unpaid',
           max_members,
+          allow_multiple_entries: allowMultipleEntries,
+          max_entries_per_user,
         })
         .select('*')
         .single()
@@ -335,6 +344,33 @@ export default function CreatePoolPage() {
             />
           )}
           <p className="hint">This protects public pools from unexpected signups. You can adjust it before activation.</p>
+        </div>
+
+        <div className="field">
+          <label htmlFor="maxEntriesPerUser">Entries Per User</label>
+          <div className="toggleRow">
+            <span className={`pill ${!allowMultipleEntries ? 'active' : ''}`}>Single entry</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={allowMultipleEntries}
+              className={`toggle ${allowMultipleEntries ? 'on' : 'off'}`}
+              onClick={() => setAllowMultipleEntries((v) => !v)}
+            >
+              <span className="knob" />
+            </button>
+            <span className={`pill ${allowMultipleEntries ? 'active' : ''}`}>Multiple entries</span>
+          </div>
+          {allowMultipleEntries && (
+            <select id="maxEntriesPerUser" value={maxEntriesPerUser} onChange={(e) => setMaxEntriesPerUser(e.target.value)}>
+              {ENTRY_LIMIT_OPTIONS.map((limit) => (
+                <option key={limit} value={String(limit)}>
+                  Up to {limit} {limit === 1 ? 'entry' : 'entries'} per user
+                </option>
+              ))}
+            </select>
+          )}
+          <p className="hint">Entry-specific picks and standings will use this setting once multi-entry gameplay is enabled.</p>
         </div>
 
         {!isPublic && (

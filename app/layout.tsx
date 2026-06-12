@@ -15,8 +15,12 @@ export const metadata: Metadata = {
   },
   description: "Create, join, and manage NFL survivor pools with automatic pick locks, standings, and commissioner tools.",
   icons: {
-    icon: "/survive-sunday-logo.png",
-    apple: "/survive-sunday-logo.png",
+    icon: [
+      { url: "/survive-sunday-logo.png", type: "image/png" },
+      { url: "/survive-sunday-logo.png", sizes: "any" },
+    ],
+    shortcut: "/survive-sunday-logo.png",
+    apple: [{ url: "/survive-sunday-logo.png", type: "image/png" }],
   },
   openGraph: {
     title: "Survive Sunday",

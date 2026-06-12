@@ -27,7 +27,7 @@ type Pool = {
 
 function formatPoolMeta(pool: Pool) {
   const tieLabel = pool.tie_rule === 'win' ? 'Win' : pool.tie_rule === 'loss' ? 'Loss' : '-'
-  return `${pool.is_public ? 'Public' : 'Private'} - Starts week ${pool.start_week} - Strikes ${pool.strikes_allowed ?? '-'} - Tie = ${tieLabel}`
+  return `Starts week ${pool.start_week} - Strikes ${pool.strikes_allowed ?? '-'} - Tie = ${tieLabel}`
 }
 
 function deadlineLabel(pool: Pool) {
@@ -47,6 +47,7 @@ function Info({ label, value }: { label: string; value: string }) {
 
 export default function JoinSearchPage() {
   const router = useRouter()
+  const signInToJoinSearch = `/?auth=signin&returnTo=${encodeURIComponent('/join/search')}`
 
   const [authed, setAuthed] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
@@ -62,6 +63,7 @@ export default function JoinSearchPage() {
 
   const [selected, setSelected] = useState<Pool | null>(null)
   const [memberCount, setMemberCount] = useState<number | null>(null)
+  const [poolMemberCounts, setPoolMemberCounts] = useState<Record<string, number>>({})
   const [memberCountLoading, setMemberCountLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [password, setPassword] = useState('')
@@ -202,7 +204,9 @@ export default function JoinSearchPage() {
       setMemberCountLoading(true)
       const { data: count, error } = await supabase.rpc('count_pool_members', { p_pool_id: pool.id })
       if (error) throw error
-      setMemberCount((count as number) ?? 0)
+      const nextCount = (count as number) ?? 0
+      setMemberCount(nextCount)
+      setPoolMemberCounts((prev) => ({ ...prev, [pool.id]: nextCount }))
     } catch {
       setMemberCount(null)
     } finally {
@@ -223,7 +227,7 @@ export default function JoinSearchPage() {
     } = await supabase.auth.getUser()
 
     if (user) return true
-    router.push('/?auth=signin')
+    router.push(signInToJoinSearch)
     return false
   }
 
@@ -265,6 +269,41 @@ export default function JoinSearchPage() {
   }
 
   const listToShow = query.trim() ? results : recent
+
+  useEffect(() => {
+    let alive = true
+    const missing = listToShow.filter((pool) => poolMemberCounts[pool.id] === undefined)
+    if (missing.length === 0) return
+
+    const loadCounts = async () => {
+      const entries = await Promise.all(
+        missing.map(async (pool) => {
+          try {
+            const { data, error } = await supabase.rpc('count_pool_members', { p_pool_id: pool.id })
+            if (error) throw error
+            return [pool.id, (data as number) ?? 0] as const
+          } catch {
+            return [pool.id, null] as const
+          }
+        })
+      )
+
+      if (!alive) return
+      setPoolMemberCounts((prev) => {
+        const next = { ...prev }
+        for (const [poolId, count] of entries) {
+          if (count !== null) next[poolId] = count
+        }
+        return next
+      })
+    }
+
+    loadCounts()
+    return () => {
+      alive = false
+    }
+  }, [listToShow, poolMemberCounts])
+
   const showEmptySearch = !searching && results.length === 0 && query.trim()
   const showEmptyRecent = !recentLoading && !query.trim() && recent.length === 0
   const selectedAlreadyJoined = selected ? joinedPoolIds.has(selected.id) : false
@@ -326,13 +365,15 @@ export default function JoinSearchPage() {
                   {joinedPoolIds.has(pool.id) && (
                     <span className="rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-xs text-blue-700">Joined</span>
                   )}
-                  {pool.max_members && <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-600">Limit {pool.max_members}</span>}
+                  <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-600">
+                    Members {poolMemberCounts[pool.id] ?? '-'}/{pool.max_members ?? '-'}
+                  </span>
                   <span
                     className={`rounded-full border px-2 py-0.5 text-xs ${
                       pool.is_public ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : 'bg-gray-100 border-gray-300 text-gray-700'
                     }`}
                   >
-                    {pool.is_public ? 'Open' : 'Locked'}
+                    {pool.is_public ? 'Public' : 'Private'}
                   </span>
                 </div>
               </div>
@@ -362,7 +403,7 @@ export default function JoinSearchPage() {
                 <div>
                   <div className="mb-2 flex flex-wrap gap-2">
                     <span className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${selected.is_public ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-300 bg-slate-100 text-slate-700'}`}>
-                      {selected.is_public ? 'Open pool' : 'Private pool'}
+                      {selected.is_public ? 'Public pool' : 'Private pool'}
                     </span>
                     {selectedAlreadyJoined && <span className="rounded-full border border-blue-300 bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">Joined</span>}
                     {selectedOwnedByMe && <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">Your pool</span>}
@@ -408,7 +449,7 @@ export default function JoinSearchPage() {
                   {joining ? 'Joining...' : 'Join Pool'}
                 </button>
               ) : !authed ? (
-                <button onClick={() => router.push('/?auth=signin')} className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+                <button onClick={() => router.push(signInToJoinSearch)} className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
                   Sign in to join private pool
                 </button>
               ) : !showPassword ? (

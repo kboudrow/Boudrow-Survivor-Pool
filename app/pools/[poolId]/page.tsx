@@ -24,7 +24,19 @@ type Pool = {
   plan?: 'free' | 'pro'
   activation_status?: 'draft' | 'active' | 'cancelled' | string | null
   max_members?: number | null
+  member_count?: number | null
 }
+
+function isMissingAuthSession(error: unknown) {
+  if (!error || typeof error !== 'object') return false
+  const err = error as { name?: string; message?: string }
+  return err.name === 'AuthSessionMissingError' || err.message === 'Auth session missing!' || err.message === 'Auth session missing'
+}
+
+type GetPoolInviteRpc = (
+  fn: 'get_pool_invite',
+  args: { p_pool_id: string }
+) => Promise<{ data: Pool[] | null; error: { message: string } | null }>
 
 export default function PoolDetailPage() {
   const router = useRouter()
@@ -51,6 +63,9 @@ export default function PoolDetailPage() {
   const poolStartKnown = poolStartMs !== null && Number.isFinite(poolStartMs)
   const leagueHasStarted = poolStartKnown && Date.now() >= poolStartMs
   const canInvite = !!pool && isActive && poolStartKnown && !leagueHasStarted
+  const authReturnTo = `/pools/${poolId}`
+  const signInHref = `/?auth=signin&returnTo=${encodeURIComponent(authReturnTo)}`
+  const signUpHref = `/?auth=signup&returnTo=${encodeURIComponent(authReturnTo)}`
 
   useEffect(() => {
     let alive = true
@@ -60,28 +75,24 @@ export default function PoolDetailPage() {
         setLoading(true)
         setError(null)
 
-        // auth
         const { data: { user }, error: userErr } = await supabase.auth.getUser()
-        if (userErr) throw userErr
+        if (userErr && !isMissingAuthSession(userErr)) throw userErr
         setAuthed(!!user)
         setUserId(user?.id ?? null)
 
-        // pool (ensure created_by is selected)
-        const { data: p, error: pErr } = await supabase
-          .from('pools')
-          .select('*')
-          .eq('id', poolId)
-          .maybeSingle<Pool>()
-        if (pErr) throw pErr
-        if (!p) throw new Error('Pool not found.')
+        const rpc = supabase.rpc as unknown as GetPoolInviteRpc
+        const { data: inviteRows, error: inviteErr } = await rpc('get_pool_invite', { p_pool_id: poolId })
+        if (inviteErr) throw inviteErr
+        const poolRow = inviteRows?.[0] ?? null
+        if (!poolRow) throw new Error('Pool not found.')
         if (!alive) return
-        setPool(p)
+        setPool(poolRow)
 
         const { data: firstStartGame } = await supabase
           .from('nfl_games')
           .select('game_time,kickoff_at_utc')
-          .eq('season', p.season ?? new Date().getFullYear())
-          .eq('week', p.start_week)
+          .eq('season', poolRow.season ?? new Date().getFullYear())
+          .eq('week', poolRow.start_week)
           .order('kickoff_at_utc', { ascending: true, nullsFirst: false })
           .order('game_time', { ascending: true })
           .limit(1)
@@ -91,21 +102,17 @@ export default function PoolDetailPage() {
           const { data: startWeek } = await supabase
             .from('season_weeks')
             .select('week_sunday_date')
-            .eq('season', p.season ?? new Date().getFullYear())
-            .eq('week', p.start_week)
+            .eq('season', poolRow.season ?? new Date().getFullYear())
+            .eq('week', poolRow.start_week)
             .maybeSingle<{ week_sunday_date: string }>()
           fallbackStartAt = startWeek?.week_sunday_date ? `${startWeek.week_sunday_date}T00:00:00` : null
         }
         if (alive) setPoolStartAt(firstStartGame?.kickoff_at_utc || firstStartGame?.game_time || fallbackStartAt)
 
         // owner?
-        setIsOwner(!!user?.id && user.id === p.created_by)
+        setIsOwner(!!user?.id && user.id === poolRow.created_by)
 
-        // member count via RPC (RLS safe)
-        try {
-          const { data: cnt, error: cntErr } = await supabase.rpc('count_pool_members', { p_pool_id: poolId })
-          if (!cntErr) setMemberCount((cnt as number) ?? 0)
-        } catch { /* noop */ }
+        setMemberCount(poolRow.member_count ?? 0)
 
         // membership check
         if (user?.id) {
@@ -222,7 +229,7 @@ export default function PoolDetailPage() {
           </div>
         </div>
 
-        {loading && <p>Loading…</p>}
+        {loading && <p>Loading...</p>}
         {!loading && error && <p className="text-red-600">{error}</p>}
 
         {!loading && !error && pool && (
@@ -266,17 +273,21 @@ export default function PoolDetailPage() {
             )}
 
             {!authed && (
-              <div className="mt-4">
-                <p className="text-sm text-gray-700 mb-3">You need to sign in to join.</p>
+              <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-medium text-slate-900">Sign in or create an account to join this pool.</p>
+                <p className="mt-1 text-sm text-slate-600">After that, we will bring you right back here so you can finish joining.</p>
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={signInWithGoogle}
-                    className="px-4 py-2 rounded-md bg-[#4285F4] text-white hover:bg-blue-600"
+                    className="mt-3 px-4 py-2 rounded-md bg-[#4285F4] text-white hover:bg-blue-600"
                   >
                     Continue with Google
                   </button>
-                  <Link href="/" className="px-4 py-2 rounded-md bg-gray-100 hover:bg-gray-200">
-                    Use email on Home
+                  <Link href={signInHref} className="mt-3 px-4 py-2 rounded-md bg-[#c5161d] text-white hover:bg-[#a91218]">
+                    Sign in with email
+                  </Link>
+                  <Link href={signUpHref} className="mt-3 px-4 py-2 rounded-md border border-slate-300 bg-white text-slate-800 hover:bg-slate-100">
+                    Create account
                   </Link>
                 </div>
               </div>
@@ -284,7 +295,7 @@ export default function PoolDetailPage() {
 
             {authed && alreadyMember && (
               <div className="mt-4 flex items-center gap-2">
-                <span className="text-sm text-emerald-700">You’re already a member of this pool.</span>
+                <span className="text-sm text-emerald-700">You&apos;re already a member of this pool.</span>
                 <Link href={`/pools?pool=${pool.id}`} className="px-3 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 text-sm">
                   Open Pool
                 </Link>
@@ -307,7 +318,7 @@ export default function PoolDetailPage() {
                   disabled={joining || (!isActive && !isOwner) || (isFull && !isOwner) || (!pool.is_public && !password.trim())}
                   className="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
                 >
-                  {joining ? 'Joining…' : 'Join Pool'}
+                  {joining ? 'Joining...' : 'Join Pool'}
                 </button>
                 <Link href="/pools" className="px-4 py-2 rounded-md bg-gray-100 hover:bg-gray-200">
                   Cancel

@@ -49,6 +49,10 @@ export function AuthNav() {
     const { supabase }: SupabaseClientModule = await import('@/lib/supabaseClient')
     await supabase.auth.signOut()
     setEmail(null)
+    try {
+      window.localStorage.setItem('surviveSunday:auth-event', 'signed-out')
+      window.localStorage.removeItem('surviveSunday:auth-event')
+    } catch {}
     window.location.href = '/'
   }
 

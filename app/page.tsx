@@ -21,7 +21,9 @@ export default function Home() {
   const [mode, setMode] = useState<Mode>('idle')
   const [isAuthed, setIsAuthed] = useState(false)
   const [, setStatus] = useState('Not signed in')
+  const [returnTo, setReturnTo] = useState<string | null>(null)
   const ensuredUserIdRef = useRef<string | null>(null)
+  const returnToRef = useRef<string | null>(null)
 
   // auth form state
   const [authError, setAuthError] = useState<string | null>(null)
@@ -47,6 +49,11 @@ export default function Home() {
     match: !!password && !!password2 && password === password2,
   }
   const allPwOk = pw.len && pw.upper && pw.lower && pw.num && pw.special && pw.match
+
+  const safeReturnTo = (value: string | null) => {
+    if (!value || !value.startsWith('/') || value.startsWith('//')) return null
+    return value
+  }
 
   const runEnsureProfileOnce = async (userId: string | null) => {
     if (!userId) {
@@ -83,8 +90,14 @@ export default function Home() {
   useEffect(() => {
     if (typeof window === 'undefined') return
     const params = new URLSearchParams(window.location.search)
+    const nextReturnTo = safeReturnTo(params.get('returnTo'))
+    setReturnTo(nextReturnTo)
+    returnToRef.current = nextReturnTo
     if (params.get('auth') === 'signin') {
       openSignIn()
+      window.history.replaceState(null, '', window.location.pathname)
+    } else if (params.get('auth') === 'signup') {
+      openSignUp()
       window.history.replaceState(null, '', window.location.pathname)
     }
   }, [])
@@ -102,7 +115,7 @@ export default function Home() {
   // auth handlers
   const signInWithGoogle = async () => {
     setAuthError(null)
-    const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined
+    const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}${returnToRef.current || returnTo || ''}` : undefined
     const supabase = await getSupabase()
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -157,6 +170,7 @@ export default function Home() {
         setIsAuthed(true)
         setStatus('Signed in')
         await runEnsureProfileOnce(user.id)
+        if (returnToRef.current) router.push(returnToRef.current)
       } else {
         setIsAuthed(false)
         setStatus('Not signed in')
@@ -170,13 +184,16 @@ export default function Home() {
         runEnsureProfileOnce(uid)
 
         // If they were trying to do something (CTAs), collapse auth panel on success
-        if (nowAuthed) setMode('idle')
+        if (nowAuthed) {
+          setMode('idle')
+          if (returnToRef.current) router.push(returnToRef.current)
+        }
       })
       unsub = () => sub.subscription.unsubscribe()
     }
     init()
     return () => { if (unsub) unsub() }
-  }, [])
+  }, [router])
 
   return (
     <div className="min-h-screen flex flex-col">

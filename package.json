@@ -8,7 +8,12 @@
     "start": "next start",
     "lint": "eslint",
     "load:test": "node scripts/load-test.mjs",
-    "schedule:sql": "node scripts/write-nfl-schedule-sql.mjs"
+    "schedule:sql": "node scripts/write-nfl-schedule-sql.mjs",
+    "supabase": "set SUPABASE_TELEMETRY_DISABLED=1&& supabase",
+    "supabase:login": "set SUPABASE_TELEMETRY_DISABLED=1&& supabase login",
+    "supabase:types": "node scripts/generate-supabase-types.mjs",
+    "supabase:link": "set SUPABASE_TELEMETRY_DISABLED=1&& supabase link",
+    "supabase:status": "set SUPABASE_TELEMETRY_DISABLED=1&& supabase status"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.55.0",
@@ -25,6 +30,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "^15.5.19",
+    "supabase": "^2.106.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

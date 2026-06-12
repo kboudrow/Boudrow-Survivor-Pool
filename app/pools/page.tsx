@@ -26,10 +26,16 @@ type Pool = {
   plan?: 'free' | 'pro'
   activation_status?: 'draft' | 'active' | 'cancelled' | string | null
   max_members?: number | null
+  allow_multiple_entries?: boolean | null
+  max_entries_per_user?: number | null
 }
 
 type Profile = {
   id: string
+  profile_id?: string | null
+  entry_id?: string | null
+  entry_number?: number | null
+  entry_name?: string | null
   first_name?: string | null
   last_name?: string | null
   display_name?: string | null
@@ -59,14 +65,15 @@ type Game = {
 
 type SeasonWeek = { season: number; week: number; week_sunday_date: string }
 
-type PickRow = { user_id: string; week: number; slot: number; team_abbr: string; result: 'win' | 'loss' | 'push' | null }
-type DraftPickRow = { week: number; slot: number; team_abbr: string; updated_at: string | null }
-type FinalPickRow = { week: number; slot: number; team_abbr: string; locked_at: string; result: 'win' | 'loss' | 'push' | null }
+type PickRow = { user_id: string; entry_id: string; week: number; slot: number; team_abbr: string; result: 'win' | 'loss' | 'push' | null }
+type DraftPickRow = { entry_id: string; week: number; slot: number; team_abbr: string; updated_at: string | null }
+type FinalPickRow = { entry_id: string; week: number; slot: number; team_abbr: string; locked_at: string; result: 'win' | 'loss' | 'push' | null }
 type PickNotice = { team: Team; week: number; slot: number; action: 'saved' | 'cleared' }
 
 type MemberStats = {
   pool_id: string
   user_id: string
+  entry_id: string
   wins: number
   losses: number
   pushes: number
@@ -75,7 +82,10 @@ type MemberStats = {
 }
 
 type PoolMemberRosterRow = {
+  entry_id: string
   profile_id: string
+  entry_number: number | null
+  entry_name: string | null
   display_name: string | null
   username: string | null
   first_name: string | null
@@ -138,12 +148,14 @@ const pickKey = (week: number, slot = 1) => `${week}:${slot}`
 
 /** ---------------- Time + Lock Helpers ---------------- */
 const fmtLocal = (iso: string) =>
-  new Date(iso).toLocaleString(undefined, {
-    weekday: 'short',
-    month: 'short',
+  new Date(iso).toLocaleString('en-GB', {
+    weekday: 'long',
     day: 'numeric',
+    month: 'short',
+    year: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
+    hour12: true,
   })
 
 const displayNameForMember = (m: Profile) =>
@@ -151,7 +163,12 @@ const displayNameForMember = (m: Profile) =>
   m.username ||
   `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim() ||
   m.email ||
-  `${m.id.slice(0, 8)}...`
+  `${(m.profile_id || m.id).slice(0, 8)}...`
+
+const entryLabelForMember = (m: Profile) => {
+  const name = displayNameForMember(m)
+  return m.entry_number && m.entry_number > 1 ? `${name} (${m.entry_number})` : name
+}
 
 function normalizeTimeTo24h(s?: string | null): string | null {
   if (!s) return null
@@ -231,11 +248,29 @@ function msToCountdown(ms: number) {
 
 function fmtDateTime(value?: string | null) {
   if (!value) return '-'
-  return new Date(value).toLocaleString(undefined, {
-    month: 'short',
+  return new Date(value).toLocaleString('en-GB', {
+    weekday: 'long',
     day: 'numeric',
+    month: 'short',
+    year: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
+    hour12: true,
+  })
+}
+
+function fmtEtDateTime(value?: string | null) {
+  if (!value) return '-'
+  return new Date(value).toLocaleString('en-GB', {
+    timeZone: 'America/New_York',
+    weekday: 'long',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZoneName: 'short',
   })
 }
 
@@ -525,11 +560,13 @@ function MyPoolsContent() {
   const [members, setMembers] = useState<Profile[]>([])
   const [memberCount, setMemberCount] = useState<number>(0)
   const [membersLoadedFor, setMembersLoadedFor] = useState<string | null>(null)
+  const [myEntries, setMyEntries] = useState<Profile[]>([])
+  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null)
+  const [addingEntry, setAddingEntry] = useState(false)
 
   // picks (mine)
   const weeks = useMemo(() => Array.from({ length: 18 }, (_, i) => i + 1), [])
   const [selectedPickWeek, setSelectedPickWeek] = useState(1)
-  const [seasonWeeks, setSeasonWeeks] = useState<SeasonWeek[]>([])
   const [myDraftPicks, setMyDraftPicks] = useState<Record<string, Team | null>>({})
   const [myFinalPicks, setMyFinalPicks] = useState<Record<string, FinalPickRow>>({})
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null)
@@ -561,15 +598,21 @@ function MyPoolsContent() {
   const poolStartKnown = poolStartMs !== null && Number.isFinite(poolStartMs)
   const leagueHasStarted = poolStartKnown && Date.now() >= poolStartMs
   const canInvite = !!pool && pool.activation_status === 'active' && poolStartKnown && !leagueHasStarted
-  const myStats = userId ? statsByUser[userId] : undefined
+  const myStats = selectedEntryId ? statsByUser[selectedEntryId] : undefined
   const isEliminated = !!myStats?.eliminated
-  const canMakePicks = !!pool && !isEliminated && selectedPickWeek >= pool.start_week
+  const canMakePicks = !!pool && !!selectedEntryId && !isEliminated && selectedPickWeek >= pool.start_week
   const deadlineLabel =
     pool?.deadline_mode === 'rolling'
       ? 'Rolling: each game locks at kickoff'
       : normalizeTimeTo24h(pool?.deadline_fixed) === '20:15'
         ? 'Before Monday Night Football'
         : 'Sunday 1 PM ET'
+  const selectedWeekCloseLabel =
+    pool?.deadline_mode === 'rolling'
+      ? 'Each matchup closes at kickoff.'
+      : fixedLockUtc
+        ? `Week ${selectedPickWeek} closes ${fmtEtDateTime(fixedLockUtc)}.`
+        : 'Week close time unavailable.'
 
   const showPickNotice = (notice: PickNotice) => {
     if (pickNoticeTimerRef.current) window.clearTimeout(pickNoticeTimerRef.current)
@@ -592,12 +635,12 @@ function MyPoolsContent() {
     if (error) throw error
   }
 
-  const loadMyPicks = async (poolId: string, startWeek = pool?.start_week ?? 1) => {
-    if (!userId) return
+  const loadMyPicks = async (poolId: string, startWeek = pool?.start_week ?? 1, entryId = selectedEntryId) => {
+    if (!userId || !entryId) return
 
     const [{ data: finalPicks, error: finalErr }, { data: drafts, error: draftErr }] = await Promise.all([
-      supabase.from('pool_picks').select('week, slot, team_abbr, locked_at, result').eq('pool_id', poolId).eq('user_id', userId).gte('week', startWeek),
-      supabase.from('pool_pick_drafts').select('week, slot, team_abbr, updated_at').eq('pool_id', poolId).eq('user_id', userId).gte('week', startWeek),
+      supabase.from('pool_picks').select('entry_id, week, slot, team_abbr, locked_at, result').eq('pool_id', poolId).eq('entry_id', entryId).gte('week', startWeek),
+      supabase.from('pool_pick_drafts').select('entry_id, week, slot, team_abbr, updated_at').eq('pool_id', poolId).eq('entry_id', entryId).gte('week', startWeek),
     ])
     if (finalErr) throw finalErr
     if (draftErr) throw draftErr
@@ -620,11 +663,15 @@ function MyPoolsContent() {
   }
 
   const loadMembers = async (poolId: string) => {
-    const { data: rosterRows, error: rosterErr } = await supabase.rpc('pool_member_roster', { p_pool_id: poolId })
+    const { data: rosterRows, error: rosterErr } = await supabase.rpc('pool_entry_roster', { p_pool_id: poolId })
     if (rosterErr) throw rosterErr
 
     const roster = ((rosterRows || []) as PoolMemberRosterRow[]).map((m) => ({
-      id: m.profile_id,
+      id: m.entry_id,
+      entry_id: m.entry_id,
+      profile_id: m.profile_id,
+      entry_number: m.entry_number,
+      entry_name: m.entry_name,
       first_name: m.first_name,
       last_name: m.last_name,
       display_name: m.display_name,
@@ -637,6 +684,9 @@ function MyPoolsContent() {
     setMembers(roster)
     setMemberCount(roster.length)
     setMembersLoadedFor(poolId)
+    const entries = roster.filter((m) => m.profile_id === userId)
+    setMyEntries(entries)
+    setSelectedEntryId((current) => (current && entries.some((entry) => entry.id === current) ? current : entries[0]?.id ?? null))
     return roster
   }
   const [standingsLoading, setStandingsLoading] = useState(false)
@@ -649,14 +699,38 @@ function MyPoolsContent() {
   /** ---------- Load user + pools ---------- */
   useEffect(() => {
     let alive = true
+    let unsubscribe: (() => void) | null = null
+    const clearSignedOutState = () => {
+      setUserId(null)
+      setPools([])
+      setPool(null)
+      setMembers([])
+      setMembersLoadedFor(null)
+      setPicksThisWeek([])
+      setStatsByUser({})
+      setAliveCount(0)
+      setElimCount(0)
+      setMyDraftPicks({})
+      setMyFinalPicks({})
+      setError(null)
+      setLoading(false)
+      if (typeof window !== 'undefined' && window.location.pathname === '/pools') {
+        window.location.href = '/?auth=signin'
+      }
+    }
+
     const load = async () => {
       try {
         setLoading(true)
         setError(null)
         const { data: userResp, error: userErr } = await supabase.auth.getUser()
-        if (userErr) throw userErr
+        if (userErr && userErr.name !== 'AuthSessionMissingError') throw userErr
         const user = userResp.user
-        if (!user) throw new Error('You must be signed in.')
+        if (!user) {
+          if (!alive) return
+          clearSignedOutState()
+          return
+        }
         if (!alive) return
         setUserId(user.id)
 
@@ -700,8 +774,23 @@ function MyPoolsContent() {
       }
     }
     load()
+
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session?.user) clearSignedOutState()
+    })
+    unsubscribe = () => data.subscription.unsubscribe()
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'surviveSunday:auth-event' && event.newValue === 'signed-out') {
+        clearSignedOutState()
+      }
+    }
+    window.addEventListener('storage', onStorage)
+
     return () => {
       alive = false
+      unsubscribe?.()
+      window.removeEventListener('storage', onStorage)
     }
   }, [])
 
@@ -786,14 +875,14 @@ function MyPoolsContent() {
 
     const { data: stats } = await supabase
       .from('pool_member_stats')
-      .select('pool_id, user_id, wins, losses, pushes, strikes_used, eliminated')
+      .select('pool_id, user_id, entry_id, wins, losses, pushes, strikes_used, eliminated')
       .eq('pool_id', pid)
 
     const map: Record<string, MemberStats> = {}
-    for (const s of (stats || []) as MemberStats[]) map[s.user_id] = s
+    for (const s of (stats || []) as MemberStats[]) map[s.entry_id] = s
     setStatsByUser(map)
 
-    const { data: picks } = await supabase.from('pool_picks').select('user_id, week, slot, team_abbr, result').eq('pool_id', pid).eq('week', week)
+    const { data: picks } = await supabase.from('pool_picks').select('user_id, entry_id, week, slot, team_abbr, result').eq('pool_id', pid).eq('week', week)
     setPicksThisWeek((picks || []) as PickRow[])
 
     let alive = 0,
@@ -817,6 +906,7 @@ function MyPoolsContent() {
     if (isOpen && selectedId && activeTab === 'members' && membersLoadedFor !== selectedId) {
       loadMembers(selectedId).catch((e) => setDetailError(getErrorMessage(e, 'Failed to load members.')))
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, selectedId, activeTab, membersLoadedFor])
 
   useEffect(() => {
@@ -825,22 +915,23 @@ function MyPoolsContent() {
   }, [isOpen, selectedId, activeTab, standingsWeek, members.length])
 
   useEffect(() => {
-    if (!isOpen || detailsLoading || !selectedId || !pool || !userId || backgroundRefreshRef.current === selectedId) return
-    backgroundRefreshRef.current = selectedId
+    const refreshKey = `${selectedId}:${selectedEntryId}`
+    if (!isOpen || detailsLoading || !selectedId || !pool || !userId || !selectedEntryId || backgroundRefreshRef.current === refreshKey) return
+    backgroundRefreshRef.current = refreshKey
 
     const refreshLockedPicks = async () => {
       try {
         await restoreUnlockedPicks(selectedId)
         await finalizeLockedPicks(selectedId)
-        await loadMyPicks(selectedId, pool.start_week)
+        await loadMyPicks(selectedId, pool.start_week, selectedEntryId)
 
         const { data: myStat } = await supabase
           .from('pool_member_stats')
-          .select('pool_id, user_id, wins, losses, pushes, strikes_used, eliminated')
+          .select('pool_id, user_id, entry_id, wins, losses, pushes, strikes_used, eliminated')
           .eq('pool_id', selectedId)
-          .eq('user_id', userId)
+          .eq('entry_id', selectedEntryId)
           .maybeSingle<MemberStats>()
-        setStatsByUser((prev) => (myStat ? { ...prev, [myStat.user_id]: myStat } : prev))
+        setStatsByUser((prev) => (myStat ? { ...prev, [myStat.entry_id]: myStat } : prev))
       } catch (e) {
         console.warn('Background pick refresh failed', e)
       }
@@ -848,11 +939,11 @@ function MyPoolsContent() {
 
     refreshLockedPicks()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, detailsLoading, selectedId, pool, userId])
+  }, [isOpen, detailsLoading, selectedId, pool, userId, selectedEntryId])
 
   /** ---------- Draft save / clear ---------- */
   const saveDraft = async (week: number, slot: number, team: Team | null) => {
-    if (!selectedId || !userId) return false
+    if (!selectedId || !userId || !selectedEntryId) return false
     if (pool && week < pool.start_week) {
       alert(`This pool starts in Week ${pool.start_week}.`)
       return false
@@ -869,16 +960,42 @@ function MyPoolsContent() {
     setSavingPickKeys((prev) => ({ ...prev, [key]: true }))
     try {
       if (team) {
-        const { error } = await supabase.from('pool_pick_drafts').upsert({ pool_id: selectedId, user_id: userId, week, slot, team_abbr: team.abbr })
-        if (error) throw error
+        const { data: updatedRows, error: updateErr } = await supabase
+          .from('pool_pick_drafts')
+          .update({ team_abbr: team.abbr, updated_at: new Date().toISOString() })
+          .eq('pool_id', selectedId)
+          .eq('entry_id', selectedEntryId)
+          .eq('week', week)
+          .eq('slot', slot)
+          .select('entry_id')
+        if (updateErr) throw updateErr
+        if (!updatedRows?.length) {
+          const { error } = await supabase.from('pool_pick_drafts').insert({ pool_id: selectedId, user_id: userId, entry_id: selectedEntryId, week, slot, team_abbr: team.abbr })
+          if (error) throw error
+        }
       } else {
-        const { error } = await supabase.from('pool_pick_drafts').delete().eq('pool_id', selectedId).eq('user_id', userId).eq('week', week).eq('slot', slot)
+        const { error } = await supabase.from('pool_pick_drafts').delete().eq('pool_id', selectedId).eq('entry_id', selectedEntryId).eq('week', week).eq('slot', slot)
         if (error) throw error
       }
       setDraftSavedAt(new Date().toISOString())
       return true
     } catch (e: unknown) {
       const message = getErrorMessage(e, 'Failed to save pick')
+      if (team && message.toLowerCase().includes('maximum of')) {
+        const { data: updatedRows, error: updateErr } = await supabase
+          .from('pool_pick_drafts')
+          .update({ team_abbr: team.abbr, updated_at: new Date().toISOString() })
+          .eq('pool_id', selectedId)
+          .eq('entry_id', selectedEntryId)
+          .eq('week', week)
+          .eq('slot', slot)
+          .select('entry_id')
+        if (!updateErr && updatedRows?.length) {
+          await loadMyPicks(selectedId, pool?.start_week ?? 1)
+          setDraftSavedAt(new Date().toISOString())
+          return true
+        }
+      }
       if (team && message.toLowerCase().includes('already selected for week')) {
         await loadMyPicks(selectedId, pool?.start_week ?? 1)
         setDraftSavedAt(new Date().toISOString())
@@ -944,7 +1061,7 @@ function MyPoolsContent() {
   }
 
   const clearAllPicks = async () => {
-    if (!selectedId || !userId) return
+    if (!selectedId || !userId || !selectedEntryId) return
     if (isEliminated) {
       alert('You are eliminated, so you can view matchups but cannot make more picks.')
       return
@@ -960,11 +1077,48 @@ function MyPoolsContent() {
       return next
     })
     try {
-      const { error } = await supabase.from('pool_pick_drafts').delete().eq('pool_id', selectedId).eq('user_id', userId)
+      const { error } = await supabase.from('pool_pick_drafts').delete().eq('pool_id', selectedId).eq('entry_id', selectedEntryId)
       if (error) throw error
       setDraftSavedAt(new Date().toISOString())
     } catch (e: unknown) {
       alert(getErrorMessage(e, 'Failed to clear picks'))
+    }
+  }
+
+  const selectEntry = async (entryId: string) => {
+    if (!selectedId || !pool || entryId === selectedEntryId) return
+    setSelectedEntryId(entryId)
+    setMyDraftPicks({})
+    setMyFinalPicks({})
+    setDraftSavedAt(null)
+    setTeamPickerTarget(null)
+    setTeamSearch('')
+    backgroundRefreshRef.current = null
+    await loadMyPicks(selectedId, pool.start_week, entryId)
+
+    const { data: myStat } = await supabase
+      .from('pool_member_stats')
+      .select('pool_id, user_id, entry_id, wins, losses, pushes, strikes_used, eliminated')
+      .eq('pool_id', selectedId)
+      .eq('entry_id', entryId)
+      .maybeSingle<MemberStats>()
+    setStatsByUser((prev) => (myStat ? { ...prev, [myStat.entry_id]: myStat } : prev))
+  }
+
+  const addEntry = async () => {
+    if (!selectedId || !pool) return
+    setAddingEntry(true)
+    try {
+      const { data, error } = await supabase.rpc('add_pool_entry', { p_pool_id: selectedId })
+      if (error) throw error
+      const roster = await loadMembers(selectedId)
+      const newEntryId = typeof data === 'string' ? data : roster.filter((m) => m.profile_id === userId).at(-1)?.id
+      if (newEntryId) await selectEntry(newEntryId)
+      setMemberCount(roster.length)
+    } catch (e: unknown) {
+      alert(getErrorMessage(e, 'Failed to add entry.'))
+    } finally {
+      setAddingEntry(false)
     }
   }
 
@@ -998,22 +1152,6 @@ function MyPoolsContent() {
     const finalTeams = Object.values(myFinalPicks).map((p) => p.team_abbr)
     return Array.from(new Set([...draftTeams, ...finalTeams]))
   }, [myDraftPicks, myFinalPicks])
-  const pickStatusSummary = (() => {
-    let official = 0
-    let draft = 0
-    let empty = 0
-
-    availableWeeks.forEach((week) => {
-      for (let slot = 1; slot <= picksAllowedForWeek(week); slot += 1) {
-        const key = pickKey(week, slot)
-        if (myFinalPicks[key]) official += 1
-        else if (myDraftPicks[key]) draft += 1
-        else empty += 1
-      }
-    })
-
-    return { official, draft, empty }
-  })()
   const filteredTeams = useMemo(() => {
     const q = teamSearch.trim().toLowerCase()
     if (!q) return NFL_TEAMS
@@ -1037,13 +1175,14 @@ function MyPoolsContent() {
     setMembers([])
     setMembersLoadedFor(null)
     setMemberCount(0)
+    setMyEntries([])
+    setSelectedEntryId(null)
     setMyDraftPicks({})
     setMyFinalPicks({})
     setDraftSavedAt(null)
     setTeamPickerTarget(null)
     setTeamSearch('')
     setWeekGames([])
-    setSeasonWeeks([])
     setPoolStartAt(null)
     setSelectedPickWeek(1)
     setGamesLoading(false)
@@ -1062,8 +1201,13 @@ function MyPoolsContent() {
 
       setPool(poolRow)
       setStandingsWeek(poolRow.start_week)
+      const roster = await loadMembers(id)
+      const entries = roster.filter((m) => m.profile_id === userId)
+      const nextEntryId = entries[0]?.id ?? null
+      setSelectedEntryId(nextEntryId)
+
       const season = poolRow.season ?? new Date().getFullYear()
-      const [{ data: weekRows }, { data: firstStartGame }, { data: memberTotal }, picksResult, { data: myStat }] = await Promise.all([
+      const [{ data: weekRows }, { data: firstStartGame }, { data: memberTotal }, { data: myStat }] = await Promise.all([
         supabase
           .from('season_weeks')
           .select('season, week, week_sunday_date')
@@ -1079,40 +1223,20 @@ function MyPoolsContent() {
           .limit(1)
           .maybeSingle<{ game_time: string; kickoff_at_utc: string | null }>(),
         supabase.rpc('count_pool_members', { p_pool_id: id }),
-        Promise.all([
-          supabase.from('pool_picks').select('week, slot, team_abbr, locked_at, result').eq('pool_id', id).eq('user_id', userId).gte('week', poolRow.start_week),
-          supabase.from('pool_pick_drafts').select('week, slot, team_abbr, updated_at').eq('pool_id', id).eq('user_id', userId).gte('week', poolRow.start_week),
-        ]),
-        supabase.from('pool_member_stats').select('pool_id, user_id, wins, losses, pushes, strikes_used, eliminated').eq('pool_id', id).eq('user_id', userId).maybeSingle<MemberStats>(),
+        nextEntryId
+          ? supabase.from('pool_member_stats').select('pool_id, user_id, entry_id, wins, losses, pushes, strikes_used, eliminated').eq('pool_id', id).eq('entry_id', nextEntryId).maybeSingle<MemberStats>()
+          : Promise.resolve({ data: null }),
       ])
-      const [{ data: finalPicks, error: finalErr }, { data: drafts, error: draftErr }] = picksResult
-      if (finalErr) throw finalErr
-      if (draftErr) throw draftErr
 
       const nextSeasonWeeks = ((weekRows || []) as SeasonWeek[]).filter((row) => row.week >= 1 && row.week <= 18)
-      setSeasonWeeks(nextSeasonWeeks)
       setSelectedPickWeek(Math.max(poolRow.start_week, currentPickWeek(nextSeasonWeeks)))
 
       const startWeekFallback = nextSeasonWeeks.find((row) => row.week === poolRow.start_week)?.week_sunday_date
       setPoolStartAt(firstStartGame?.kickoff_at_utc || firstStartGame?.game_time || (startWeekFallback ? `${startWeekFallback}T00:00:00` : null))
 
       setMemberCount(typeof memberTotal === 'number' ? memberTotal : 0)
-      setStatsByUser(myStat ? { [myStat.user_id]: myStat } : {})
-
-      const locked: Record<string, FinalPickRow> = {}
-      for (const pick of (finalPicks || []) as FinalPickRow[]) {
-        locked[pickKey(pick.week, pick.slot)] = pick
-      }
-      setMyFinalPicks(locked)
-
-      const nextDrafts: Record<string, Team | null> = {}
-      let latest: string | null = null
-      for (const draft of (drafts || []) as DraftPickRow[]) {
-        nextDrafts[pickKey(draft.week, draft.slot)] = teamByAbbr(draft.team_abbr) || { abbr: draft.team_abbr, name: draft.team_abbr }
-        if (draft.updated_at && (!latest || draft.updated_at > latest)) latest = draft.updated_at
-      }
-      setMyDraftPicks(nextDrafts)
-      setDraftSavedAt(latest)
+      setStatsByUser(myStat ? { [myStat.entry_id]: myStat } : {})
+      if (nextEntryId) await loadMyPicks(id, poolRow.start_week, nextEntryId)
     } catch (e: unknown) {
       setDetailError(getErrorMessage(e, 'Failed to load pool details.'))
     } finally {
@@ -1289,19 +1413,51 @@ function MyPoolsContent() {
                             Week {selectedPickWeek} - {deadlineLabel} - {picksAllowedForWeek(selectedPickWeek)} {picksAllowedForWeek(selectedPickWeek) === 1 ? 'pick' : 'picks'} needed
                           </p>
                         </div>
-                        <div className="text-xs text-gray-500">{draftSavedAt ? `Last saved ${fmtDateTime(draftSavedAt)}` : 'No drafts yet'}</div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {myEntries.length > 1 && (
+                            <select
+                              value={selectedEntryId ?? ''}
+                              onChange={(event) => selectEntry(event.target.value)}
+                              className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700"
+                            >
+                              {myEntries.map((entry) => (
+                                <option key={entry.id} value={entry.id}>
+                                  {entryLabelForMember(entry)}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                          {pool.allow_multiple_entries && myEntries.length < (pool.max_entries_per_user ?? 1) && (
+                            <button
+                              type="button"
+                              onClick={addEntry}
+                              disabled={addingEntry}
+                              className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                            >
+                              {addingEntry ? 'Adding...' : 'Add entry'}
+                            </button>
+                          )}
+                          {draftSavedAt && <div className="text-xs text-gray-500">Last saved {fmtDateTime(draftSavedAt)}</div>}
+                        </div>
                       </div>
-                      <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 font-medium text-emerald-800">
-                          Picks made: {pickStatusSummary.draft}
-                        </span>
-                        <span className="rounded-full border border-slate-300 bg-slate-50 px-2.5 py-1 font-medium text-slate-700">
-                          Locked: {pickStatusSummary.official}
-                        </span>
-                        <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 font-medium text-amber-800">
-                          Empty: {pickStatusSummary.empty}
-                        </span>
-                      </div>
+                      <details className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2">
+                        <summary className="cursor-pointer text-xs font-semibold text-slate-800">Used teams ({usedTeamAbbrs.length})</summary>
+                        {usedTeamAbbrs.length === 0 ? (
+                          <p className="mt-2 text-sm text-gray-600">None yet - pick any team.</p>
+                        ) : (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {usedTeamAbbrs.map((abbr) => {
+                              const team = teamByAbbr(abbr) || { abbr, name: abbr }
+                              return (
+                                <span key={abbr} className="inline-flex items-center gap-1.5 rounded-full border bg-white px-2 py-1 text-sm">
+                                  <TeamLogo team={team} size={20} />
+                                  {abbr}
+                                </span>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </details>
                     </div>
 
                     <div className="mb-4 overflow-x-auto">
@@ -1309,8 +1465,11 @@ function MyPoolsContent() {
                         {availableWeeks.map((w) => {
                           const selected = selectedPickWeek === w
                           const required = picksAllowedForWeek(w)
+                          const finalPicksForWeek = Array.from({ length: required }, (_, i) => myFinalPicks[pickKey(w, i + 1)]).filter(Boolean)
                           const hasDraft = Array.from({ length: required }, (_, i) => myDraftPicks[pickKey(w, i + 1)]).some(Boolean)
-                          const hasFinal = Array.from({ length: required }, (_, i) => myFinalPicks[pickKey(w, i + 1)]).some(Boolean)
+                          const hasFinal = finalPicksForWeek.length > 0
+                          const hasLoss = finalPicksForWeek.some((pick) => pick?.result === 'loss')
+                          const allWins = finalPicksForWeek.length === required && finalPicksForWeek.every((pick) => pick?.result === 'win')
                           return (
                             <button
                               key={`week-button-${w}`}
@@ -1322,11 +1481,15 @@ function MyPoolsContent() {
                               }}
                               className={`rounded-md border px-3 py-2 text-sm font-semibold ${
                                 selected
-                                  ? 'border-[#c5161d] bg-[#c5161d] text-white'
-                                  : hasFinal
+                                  ? 'border-slate-950 bg-slate-950 text-white'
+                                  : hasLoss
+                                    ? 'border-red-300 bg-red-50 text-red-700'
+                                    : allWins
+                                      ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                                      : hasFinal
                                     ? 'border-slate-300 bg-slate-100 text-slate-700'
                                     : hasDraft
-                                      ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                                      ? 'border-blue-300 bg-blue-50 text-blue-700'
                                       : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
                               }`}
                             >
@@ -1363,10 +1526,8 @@ function MyPoolsContent() {
                             Make {picksAllowedForWeek(selectedPickWeek)} {picksAllowedForWeek(selectedPickWeek) === 1 ? 'pick' : 'picks'} for this week.
                           </p>
                         </div>
-                        <div className="text-xs text-gray-500">
-                          {seasonWeeks.find((row) => row.week === selectedPickWeek)?.week_sunday_date
-                            ? `Week opens Tuesday at 6:00 AM ET before ${seasonWeeks.find((row) => row.week === selectedPickWeek)?.week_sunday_date}`
-                            : 'Week timing unavailable'}
+                        <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600">
+                          {selectedWeekCloseLabel}
                         </div>
                       </div>
 
@@ -1462,14 +1623,26 @@ function MyPoolsContent() {
                         {!gamesLoading && weekGames.length === 0 && <p className="text-sm text-gray-600">No games found for this week.</p>}
                         {!gamesLoading && weekGames.length > 0 && (
                           <div className="grid gap-2 md:grid-cols-2">
-                            {weekGames.map((game) => (
-                              <div key={game.id} className="rounded-md border border-gray-200 bg-gray-50 p-3">
-                                <div className="text-xs text-gray-500">{fmtDateTime(game.kickoff_at_utc || game.game_time)}</div>
-                                <div className="mt-1 font-medium">
-                                  {toAbbr(game.away_team)} @ {toAbbr(game.home_team)}
+                            {weekGames.map((game) => {
+                              const away = teamByAbbr(toAbbr(game.away_team)) || { abbr: toAbbr(game.away_team), name: toAbbr(game.away_team) }
+                              const home = teamByAbbr(toAbbr(game.home_team)) || { abbr: toAbbr(game.home_team), name: toAbbr(game.home_team) }
+                              return (
+                                <div key={game.id} className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                                  <div className="text-xs text-gray-500">{fmtDateTime(game.kickoff_at_utc || game.game_time)}</div>
+                                  <div className="mt-2 flex items-center gap-3 font-medium">
+                                    <span className="inline-flex items-center gap-1.5">
+                                      <TeamLogo team={away} size={26} />
+                                      {away.abbr}
+                                    </span>
+                                    <span className="text-sm text-slate-400">@</span>
+                                    <span className="inline-flex items-center gap-1.5">
+                                      <TeamLogo team={home} size={26} />
+                                      {home.abbr}
+                                    </span>
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
+                              )
+                            })}
                           </div>
                         )}
                       </div>
@@ -1484,27 +1657,13 @@ function MyPoolsContent() {
                       </span>
                     </div>
 
-                    <details className="mt-4 rounded-lg border border-gray-200 bg-white p-3">
-                      <summary className="cursor-pointer text-sm font-semibold text-slate-900">Used teams</summary>
-                      {usedTeamAbbrs.length === 0 ? (
-                        <p className="mt-2 text-sm text-gray-600">None yet - pick any team.</p>
-                      ) : (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {usedTeamAbbrs.map((abbr) => (
-                            <span key={abbr} className="inline-flex items-center gap-1 rounded-full border bg-gray-100 px-2 py-1 text-sm">
-                              {abbr}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </details>
-
                     <details className="mt-3 rounded-lg border border-gray-200 bg-white p-3">
                       <summary className="cursor-pointer text-sm font-semibold text-slate-900">Pool rules and settings</summary>
                       <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         <InfoTile label="Visibility" value={pool.is_public ? 'Public' : 'Private'} />
                         <InfoTile label="Status" value={pool.activation_status === 'active' ? 'Active' : 'Draft'} />
                         <InfoTile label="Member Limit" value={pool.max_members ? `${memberCount}/${pool.max_members}` : String(memberCount)} />
+                        <InfoTile label="Entries" value={pool.allow_multiple_entries ? `Up to ${pool.max_entries_per_user ?? 1} per user` : 'Single entry'} />
                         <InfoTile label="Start Week" value={`Week ${pool.start_week}`} />
                         <InfoTile label="Season" value={pool.include_playoffs ? 'Regular + Playoffs' : 'Regular only'} />
                         <InfoTile label="Strikes Allowed" value={String(pool.strikes_allowed)} />
@@ -1589,7 +1748,7 @@ function MyPoolsContent() {
                       </thead>
                       <tbody>
                         {members.map((m) => {
-                          const name = displayNameForMember(m)
+                          const name = entryLabelForMember(m)
                           const s =
                             statsByUser[m.id] ||
                             ({
@@ -1600,7 +1759,7 @@ function MyPoolsContent() {
                               eliminated: false,
                             } as MemberStats)
 
-                          const memberPicks = picksThisWeek.filter((p) => p.user_id === m.id).sort((a, b) => a.slot - b.slot)
+                          const memberPicks = picksThisWeek.filter((p) => p.entry_id === m.id).sort((a, b) => a.slot - b.slot)
 
                           return (
                             <tr key={m.id} className="hover:bg-gray-50">
@@ -1623,7 +1782,7 @@ function MyPoolsContent() {
                                     {memberPicks.map((pick) => {
                                       const team = isNoPick(pick.team_abbr) ? { abbr: 'NO PICK', name: 'No pick submitted' } : teamByAbbr(toAbbr(pick.team_abbr)) || { abbr: pick.team_abbr, name: pick.team_abbr }
                                       return (
-                                        <div key={`${pick.user_id}-${pick.week}-${pick.slot}`} className="flex items-center gap-2">
+                                        <div key={`${pick.entry_id}-${pick.week}-${pick.slot}`} className="flex items-center gap-2">
                                           <div className="relative w-7 h-7">
                                             {'logo' in team && (team as Team).logo ? (
                                               // eslint-disable-next-line @next/next/no-img-element
@@ -1648,7 +1807,7 @@ function MyPoolsContent() {
                                 {memberPicks.length > 0 ? (
                                   <div className="space-y-1">
                                     {memberPicks.map((pick) => (
-                                      <div key={`${pick.user_id}-${pick.week}-${pick.slot}-result`}>
+                                      <div key={`${pick.entry_id}-${pick.week}-${pick.slot}-result`}>
                                         <ResultPill status={pick.result || 'Pending'} />
                                       </div>
                                     ))}
@@ -1705,11 +1864,11 @@ function MyPoolsContent() {
                               // eslint-disable-next-line @next/next/no-img-element
                               <img src={m.avatar_url} alt="" className="w-full h-full object-cover" />
                             ) : (
-                              <span className="text-xs text-gray-600">{(displayNameForMember(m)[0] || '?').toUpperCase()}</span>
+                              <span className="text-xs text-gray-600">{(entryLabelForMember(m)[0] || '?').toUpperCase()}</span>
                             )}
                           </div>
                           <div className="flex-1">
-                            <div className="text-sm font-medium">{displayNameForMember(m)}</div>
+                            <div className="text-sm font-medium">{entryLabelForMember(m)}</div>
                             {m.role && <div className="text-xs text-gray-500 capitalize">{m.role}</div>}
                           </div>
                         </li>

@@ -120,7 +120,6 @@ begin
     event_slot := old.slot;
     event_old_team := old.team_abbr;
     event_new_team := null;
-    event_result := case when tg_table_name = 'pool_picks' then old.result else null end;
   elsif tg_op = 'INSERT' then
     event_pool_id := new.pool_id;
     event_user_id := new.user_id;
@@ -128,7 +127,6 @@ begin
     event_slot := new.slot;
     event_old_team := null;
     event_new_team := new.team_abbr;
-    event_result := case when tg_table_name = 'pool_picks' then new.result else null end;
   else
     event_pool_id := new.pool_id;
     event_user_id := new.user_id;
@@ -136,7 +134,16 @@ begin
     event_slot := new.slot;
     event_old_team := old.team_abbr;
     event_new_team := new.team_abbr;
-    event_result := case when tg_table_name = 'pool_picks' then new.result else null end;
+  end if;
+
+  if tg_table_name = 'pool_picks' then
+    if tg_op = 'DELETE' then
+      event_result := old.result;
+    else
+      event_result := new.result;
+    end if;
+  else
+    event_result := null;
   end if;
 
   insert into public.pick_save_events (

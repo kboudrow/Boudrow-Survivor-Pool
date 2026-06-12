@@ -22,7 +22,19 @@ type Pool = {
   plan?: 'free' | 'pro'
   activation_status?: 'draft' | 'active' | 'cancelled' | string | null
   max_members?: number | null
+  member_count?: number | null
 }
+
+function isMissingAuthSession(error: unknown) {
+  if (!error || typeof error !== 'object') return false
+  const err = error as { name?: string; message?: string }
+  return err.name === 'AuthSessionMissingError' || err.message === 'Auth session missing!' || err.message === 'Auth session missing'
+}
+
+type GetPoolInviteRpc = (
+  fn: 'get_pool_invite',
+  args: { p_pool_id: string }
+) => Promise<{ data: Pool[] | null; error: { message: string } | null }>
 
 export default function JoinPoolPage() {
   const router = useRouter()
@@ -42,6 +54,9 @@ export default function JoinPoolPage() {
 
   const isActive = pool?.activation_status === 'active'
   const isFull = !!(pool?.max_members && memberCount >= pool.max_members)
+  const authReturnTo = `/join/${poolId}`
+  const signInHref = `/?auth=signin&returnTo=${encodeURIComponent(authReturnTo)}`
+  const signUpHref = `/?auth=signup&returnTo=${encodeURIComponent(authReturnTo)}`
 
   const isOwner = useMemo(() => {
     return !!(userId && pool?.created_by && userId === pool.created_by)
@@ -56,29 +71,21 @@ export default function JoinPoolPage() {
         setLoading(true)
         setError(null)
 
-        // auth
         const { data: { user }, error: userErr } = await supabase.auth.getUser()
-        if (userErr) throw userErr
+        if (userErr && !isMissingAuthSession(userErr)) throw userErr
         setAuthed(!!user)
         setUserId(user?.id ?? null)
 
-        // pool (IMPORTANT: include created_by)
-        const { data: p, error: pErr } = await supabase
-          .from('pools')
-          .select('*')
-          .eq('id', poolId)
-          .maybeSingle<Pool>()
-        if (pErr) throw pErr
-        if (!p) throw new Error('Pool not found.')
+        const rpc = supabase.rpc as unknown as GetPoolInviteRpc
+        const { data: inviteRows, error: inviteErr } = await rpc('get_pool_invite', { p_pool_id: poolId })
+        if (inviteErr) throw inviteErr
+        const poolRow = inviteRows?.[0] ?? null
+        if (!poolRow) throw new Error('Pool not found.')
         if (!alive) return
-        setPool(p)
+        setPool(poolRow)
 
-        // member count via RPC
-        const { data: cnt, error: cErr } = await supabase.rpc('count_pool_members', { p_pool_id: poolId })
-        if (cErr) throw cErr
-        setMemberCount((cnt as number) ?? 0)
+        setMemberCount(poolRow.member_count ?? 0)
 
-        // membership check (best-effort: direct select is usually OK with RLS you set)
         if (user?.id) {
           const { data: mem } = await supabase
             .from('pool_members')
@@ -175,7 +182,7 @@ export default function JoinPoolPage() {
           )}
         </div>
 
-        {loading && <p>Loading…</p>}
+        {loading && <p>Loading...</p>}
         {!loading && error && <p className="text-red-600">{error}</p>}
 
         {!loading && !error && pool && (
@@ -183,8 +190,8 @@ export default function JoinPoolPage() {
             <div className="mb-4">
               <h2 className="text-xl font-semibold">{pool.name}</h2>
               <p className="text-sm text-gray-600">
-                {pool.is_public ? 'Public' : 'Private'} · Starts week {pool.start_week} ·
-                {' '}Strikes {pool.strikes_allowed} · Tie = {pool.tie_rule === 'win' ? 'Win' : 'Loss'}
+                {pool.is_public ? 'Public' : 'Private'} - Starts week {pool.start_week} -
+                {' '}Strikes {pool.strikes_allowed} - Tie = {pool.tie_rule === 'win' ? 'Win' : 'Loss'}
               </p>
               <p className="text-sm text-gray-600">
                 Pick Deadline: {pool.deadline_mode === 'rolling' ? 'Rolling: each game locks at kickoff' : (fixedDeadlineLabel || 'Sunday 1 PM ET')}
@@ -211,17 +218,21 @@ export default function JoinPoolPage() {
             )}
 
             {!authed && (
-              <div className="mt-4">
-                <p className="text-sm text-gray-700 mb-3">You need to sign in to join.</p>
+              <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-medium text-slate-900">Sign in or create an account to join this pool.</p>
+                <p className="mt-1 text-sm text-slate-600">After that, we will bring you right back here so you can finish joining.</p>
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={signInWithGoogle}
-                    className="px-4 py-2 rounded-md bg-[#4285F4] text-white hover:bg-blue-600"
+                    className="mt-3 px-4 py-2 rounded-md bg-[#4285F4] text-white hover:bg-blue-600"
                   >
                     Continue with Google
                   </button>
-                  <Link href="/" className="px-4 py-2 rounded-md bg-gray-100 hover:bg-gray-200">
-                    Use email on Home
+                  <Link href={signInHref} className="mt-3 px-4 py-2 rounded-md bg-[#c5161d] text-white hover:bg-[#a91218]">
+                    Sign in with email
+                  </Link>
+                  <Link href={signUpHref} className="mt-3 px-4 py-2 rounded-md border border-slate-300 bg-white text-slate-800 hover:bg-slate-100">
+                    Create account
                   </Link>
                 </div>
               </div>
@@ -229,7 +240,7 @@ export default function JoinPoolPage() {
 
             {authed && alreadyMember && (
               <div className="mt-4 flex items-center gap-2">
-                <span className="text-sm text-emerald-700">You’re already a member of this pool.</span>
+                <span className="text-sm text-emerald-700">You&apos;re already a member of this pool.</span>
                 <Link href={`/pools?pool=${pool.id}`} className="px-3 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 text-sm">
                   Open Pool
                 </Link>
@@ -252,7 +263,7 @@ export default function JoinPoolPage() {
                   disabled={joining || (!isActive && !isOwner) || (isFull && !isOwner) || (!pool.is_public && !password.trim())}
                   className="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
                 >
-                  {joining ? 'Joining…' : 'Join Pool'}
+                  {joining ? 'Joining...' : 'Join Pool'}
                 </button>
                 <Link href="/pools" className="px-4 py-2 rounded-md bg-gray-100 hover:bg-gray-200">
                   Cancel
@@ -263,17 +274,6 @@ export default function JoinPoolPage() {
         )}
       </div>
 
-      <div className="mx-auto w-full max-w-2xl text-xs text-gray-500 mt-4">
-        <p>
-          If you see an “RLS” error while joining, ensure there’s an insert policy on{' '}
-          <code className="mx-1 px-1 py-0.5 bg-gray-100 rounded">pool_members</code> like:
-        </p>
-        <pre className="mt-2 p-3 bg-gray-50 rounded border overflow-auto">{`create policy pool_member_self_join
-on public.pool_members
-for insert
-to authenticated
-with check (auth.uid() = profile_id);`}</pre>
-      </div>
     </main>
   )
 }

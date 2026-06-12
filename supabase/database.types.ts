@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -365,6 +365,87 @@ export type Database = {
           },
         ]
       }
+      pick_save_events: {
+        Row: {
+          action: string
+          actor_user_id: string | null
+          created_at: string
+          id: string
+          new_team_abbr: string | null
+          old_team_abbr: string | null
+          pool_id: string
+          result: string | null
+          slot: number
+          source_table: string
+          user_id: string
+          week: number
+        }
+        Insert: {
+          action: string
+          actor_user_id?: string | null
+          created_at?: string
+          id?: string
+          new_team_abbr?: string | null
+          old_team_abbr?: string | null
+          pool_id: string
+          result?: string | null
+          slot?: number
+          source_table: string
+          user_id: string
+          week: number
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string | null
+          created_at?: string
+          id?: string
+          new_team_abbr?: string | null
+          old_team_abbr?: string | null
+          pool_id?: string
+          result?: string | null
+          slot?: number
+          source_table?: string
+          user_id?: string
+          week?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pick_save_events_actor_user_id_fkey"
+            columns: ["actor_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pick_save_events_pool_id_fkey"
+            columns: ["pool_id"]
+            isOneToOne: false
+            referencedRelation: "pools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pick_save_events_pool_id_fkey"
+            columns: ["pool_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_pool_history"
+            referencedColumns: ["pool_id"]
+          },
+          {
+            foreignKeyName: "pick_save_events_pool_id_fkey"
+            columns: ["pool_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_pools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pick_save_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       picks: {
         Row: {
           created_at: string
@@ -420,6 +501,7 @@ export type Database = {
         Row: {
           eliminated: boolean
           eliminated_week: number | null
+          entry_id: string
           losses: number
           pool_id: string
           pushes: number
@@ -431,6 +513,7 @@ export type Database = {
         Insert: {
           eliminated?: boolean
           eliminated_week?: number | null
+          entry_id: string
           losses?: number
           pool_id: string
           pushes?: number
@@ -442,6 +525,7 @@ export type Database = {
         Update: {
           eliminated?: boolean
           eliminated_week?: number | null
+          entry_id?: string
           losses?: number
           pool_id?: string
           pushes?: number
@@ -451,6 +535,13 @@ export type Database = {
           wins?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "pool_member_stats_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "pool_members"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "pool_member_stats_pool_id_fkey"
             columns: ["pool_id"]
@@ -485,6 +576,8 @@ export type Database = {
         Row: {
           eliminated_week: number | null
           entry_count: string | null
+          entry_name: string | null
+          entry_number: number
           id: string
           joined_at: string | null
           lives_remaining: number | null
@@ -496,6 +589,8 @@ export type Database = {
         Insert: {
           eliminated_week?: number | null
           entry_count?: string | null
+          entry_name?: string | null
+          entry_number?: number
           id?: string
           joined_at?: string | null
           lives_remaining?: number | null
@@ -507,6 +602,8 @@ export type Database = {
         Update: {
           eliminated_week?: number | null
           entry_count?: string | null
+          entry_name?: string | null
+          entry_number?: number
           id?: string
           joined_at?: string | null
           lives_remaining?: number | null
@@ -569,6 +666,7 @@ export type Database = {
       }
       pool_pick_drafts: {
         Row: {
+          entry_id: string
           pool_id: string
           slot: number
           team_abbr: string
@@ -577,6 +675,7 @@ export type Database = {
           week: number
         }
         Insert: {
+          entry_id: string
           pool_id: string
           slot?: number
           team_abbr: string
@@ -585,6 +684,7 @@ export type Database = {
           week: number
         }
         Update: {
+          entry_id?: string
           pool_id?: string
           slot?: number
           team_abbr?: string
@@ -593,6 +693,13 @@ export type Database = {
           week?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "pool_pick_drafts_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "pool_members"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "pool_pick_drafts_pool_id_fkey"
             columns: ["pool_id"]
@@ -627,6 +734,7 @@ export type Database = {
         Row: {
           adjudicated_at: string | null
           created_at: string
+          entry_id: string
           locked_at: string
           pool_id: string
           result: string | null
@@ -638,6 +746,7 @@ export type Database = {
         Insert: {
           adjudicated_at?: string | null
           created_at?: string
+          entry_id: string
           locked_at: string
           pool_id: string
           result?: string | null
@@ -649,6 +758,7 @@ export type Database = {
         Update: {
           adjudicated_at?: string | null
           created_at?: string
+          entry_id?: string
           locked_at?: string
           pool_id?: string
           result?: string | null
@@ -658,6 +768,13 @@ export type Database = {
           week?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "pool_picks_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "pool_members"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "pool_picks_pool_id_fkey"
             columns: ["pool_id"]
@@ -694,6 +811,7 @@ export type Database = {
           activated_by: string | null
           activation_status: string
           allow_discovery: boolean
+          allow_multiple_entries: boolean
           archived: boolean
           archived_at: string | null
           cloned_from_pool_id: string | null
@@ -707,6 +825,7 @@ export type Database = {
           include_playoffs: boolean
           is_public: boolean
           join_password_hash: string | null
+          max_entries_per_user: number
           max_members: number
           mulligans: number
           name: string
@@ -734,6 +853,7 @@ export type Database = {
           activated_by?: string | null
           activation_status?: string
           allow_discovery?: boolean
+          allow_multiple_entries?: boolean
           archived?: boolean
           archived_at?: string | null
           cloned_from_pool_id?: string | null
@@ -747,6 +867,7 @@ export type Database = {
           include_playoffs?: boolean
           is_public?: boolean
           join_password_hash?: string | null
+          max_entries_per_user?: number
           max_members?: number
           mulligans?: number
           name: string
@@ -774,6 +895,7 @@ export type Database = {
           activated_by?: string | null
           activation_status?: string
           allow_discovery?: boolean
+          allow_multiple_entries?: boolean
           archived?: boolean
           archived_at?: string | null
           cloned_from_pool_id?: string | null
@@ -787,6 +909,7 @@ export type Database = {
           include_playoffs?: boolean
           is_public?: boolean
           join_password_hash?: string | null
+          max_entries_per_user?: number
           max_members?: number
           mulligans?: number
           name?: string
@@ -1017,6 +1140,7 @@ export type Database = {
       }
     }
     Functions: {
+      add_pool_entry: { Args: { p_pool_id: string }; Returns: string }
       adjudicate_completed_weeks: {
         Args: { p_season: number }
         Returns: number
@@ -1030,6 +1154,16 @@ export type Database = {
         Returns: undefined
       }
       admin_can_manage: { Args: { p_pool_id: string }; Returns: boolean }
+      admin_clear_entry_week_draft_slot: {
+        Args: {
+          p_entry_id: string
+          p_pool_id: string
+          p_reason?: string
+          p_slot?: number
+          p_week: number
+        }
+        Returns: undefined
+      }
       admin_clear_user_week_draft_slot: {
         Args: {
           p_pool_id: string
@@ -1048,6 +1182,17 @@ export type Database = {
           p_week: number
         }
         Returns: number
+      }
+      admin_override_entry_final_pick: {
+        Args: {
+          p_entry_id: string
+          p_pool_id: string
+          p_reason?: string
+          p_slot?: number
+          p_team_abbr: string
+          p_week: number
+        }
+        Returns: undefined
       }
       admin_override_final_pick:
         | {
@@ -1071,6 +1216,30 @@ export type Database = {
             }
             Returns: undefined
           }
+      admin_pool_entry_week_overview: {
+        Args: { p_pool_id: string; p_week: number }
+        Returns: {
+          display_name: string
+          draft_team_abbr: string
+          draft_updated_at: string
+          eliminated: boolean
+          eliminated_week: number
+          entry_id: string
+          entry_name: string
+          entry_number: number
+          final_team_abbr: string
+          joined_at: string
+          locked_at: string
+          losses: number
+          pushes: number
+          result: string
+          role: string
+          slot: number
+          strikes_used: number
+          user_id: string
+          wins: number
+        }[]
+      }
       admin_pool_week_overview: {
         Args: { p_pool_id: string; p_week: number }
         Returns: {
@@ -1096,8 +1265,20 @@ export type Database = {
         Args: { p_pool_id: string; p_profile_id: string }
         Returns: undefined
       }
+      admin_remove_pool_entry: {
+        Args: { p_entry_id: string; p_pool_id: string }
+        Returns: undefined
+      }
       admin_set_double_weeks: {
         Args: { p_pool_id: string; p_weeks: number[] }
+        Returns: undefined
+      }
+      admin_update_pool_entry_settings: {
+        Args: {
+          p_allow_multiple_entries: boolean
+          p_max_entries_per_user: number
+          p_pool_id: string
+        }
         Returns: undefined
       }
       admin_update_pool_member_limit: {
@@ -1106,6 +1287,17 @@ export type Database = {
       }
       admin_update_pool_visibility: {
         Args: { p_is_public: boolean; p_password?: string; p_pool_id: string }
+        Returns: undefined
+      }
+      admin_upsert_entry_draft: {
+        Args: {
+          p_entry_id: string
+          p_pool_id: string
+          p_reason?: string
+          p_slot?: number
+          p_team_abbr: string
+          p_week: number
+        }
         Returns: undefined
       }
       admin_upsert_user_draft: {
@@ -1134,16 +1326,16 @@ export type Database = {
         Args: { p_pool_id: string }
         Returns: number
       }
+      finalize_no_pick_losses: {
+        Args: { p_pool_id: string; p_week: number }
+        Returns: number
+      }
       finalize_picks_week: {
         Args: { p_pool_id: string; p_week: number }
         Returns: number
       }
       finalize_week_picks: {
         Args: { p_pool: string; p_week: number }
-        Returns: number
-      }
-      restore_unlocked_picks_for_pool: {
-        Args: { p_pool_id: string }
         Returns: number
       }
       get_my_account: {
@@ -1179,6 +1371,25 @@ export type Database = {
           username: string
         }[]
       }
+      get_pool_invite: {
+        Args: { p_pool_id: string }
+        Returns: {
+          activation_status: string
+          created_by: string
+          deadline_fixed: string
+          deadline_mode: string
+          id: string
+          include_playoffs: boolean
+          is_public: boolean
+          max_members: number
+          member_count: number
+          name: string
+          notes: string
+          start_week: number
+          strikes_allowed: number
+          tie_rule: string
+        }[]
+      }
       is_pool_member: { Args: { p: string }; Returns: boolean }
       join_pool: {
         Args: { p_password?: string; p_pool_id: string; p_token?: string }
@@ -1190,22 +1401,47 @@ export type Database = {
           profile_id: string
         }[]
       }
+      picks_allowed: {
+        Args: { p_pool_id: string; p_week: number }
+        Returns: number
+      }
+      pool_entry_roster: {
+        Args: { p_pool_id: string }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          entry_id: string
+          entry_name: string
+          entry_number: number
+          first_name: string
+          joined_at: string
+          last_name: string
+          profile_id: string
+          role: string
+          status: string
+          username: string
+        }[]
+      }
       pool_member_roster: {
         Args: { p_pool_id: string }
         Returns: {
-          avatar_url: string | null
-          display_name: string | null
-          first_name: string | null
-          joined_at: string | null
-          last_name: string | null
+          avatar_url: string
+          display_name: string
+          first_name: string
+          joined_at: string
+          last_name: string
           profile_id: string
-          role: string | null
-          status: string | null
-          username: string | null
+          role: string
+          status: string
+          username: string
         }[]
       }
-      picks_allowed: {
+      pool_week_deadline_at: {
         Args: { p_pool_id: string; p_week: number }
+        Returns: string
+      }
+      restore_unlocked_picks_for_pool: {
+        Args: { p_pool_id: string }
         Returns: number
       }
       search_pools: {
