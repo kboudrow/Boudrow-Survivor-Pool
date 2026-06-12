@@ -33,11 +33,6 @@ function isMissingAuthSession(error: unknown) {
   return err.name === 'AuthSessionMissingError' || err.message === 'Auth session missing!' || err.message === 'Auth session missing'
 }
 
-type GetPoolInviteRpc = (
-  fn: 'get_pool_invite',
-  args: { p_pool_id: string }
-) => Promise<{ data: Pool[] | null; error: { message: string } | null }>
-
 export default function PoolDetailPage() {
   const router = useRouter()
   const { poolId } = useParams<{ poolId: string }>() // Next 15: useParams in client pages
@@ -80,10 +75,9 @@ export default function PoolDetailPage() {
         setAuthed(!!user)
         setUserId(user?.id ?? null)
 
-        const rpc = supabase.rpc as unknown as GetPoolInviteRpc
-        const { data: inviteRows, error: inviteErr } = await rpc('get_pool_invite', { p_pool_id: poolId })
+        const { data: inviteRows, error: inviteErr } = await supabase.rpc('get_pool_invite', { p_pool_id: poolId })
         if (inviteErr) throw inviteErr
-        const poolRow = inviteRows?.[0] ?? null
+        const poolRow = ((inviteRows || []) as Pool[])[0] ?? null
         if (!poolRow) throw new Error('Pool not found.')
         if (!alive) return
         setPool(poolRow)

@@ -324,6 +324,30 @@ export default function CreatePoolPage() {
             <p className="hint">
               Public pools may appear in browse/search. Private pools require a password to join.
             </p>
+            {!isPublic && (
+              <div className="privatePasswordFields">
+                <div className="field">
+                  <label htmlFor="poolPwd">Password (case-sensitive)</label>
+                  <input
+                    id="poolPwd"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="poolPwd2">Confirm Password</label>
+                  <input
+                    id="poolPwd2"
+                    type="password"
+                    value={password2}
+                    onChange={(e) => setPassword2(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -372,31 +396,6 @@ export default function CreatePoolPage() {
           )}
           <p className="hint">Entry-specific picks and standings will use this setting once multi-entry gameplay is enabled.</p>
         </div>
-
-        {!isPublic && (
-          <div className="grid2">
-            <div className="field">
-              <label htmlFor="poolPwd">Password (case-sensitive)</label>
-              <input
-                id="poolPwd"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="poolPwd2">Confirm Password</label>
-              <input
-                id="poolPwd2"
-                type="password"
-                value={password2}
-                onChange={(e) => setPassword2(e.target.value)}
-                required
-              />
-            </div>
-          </div>
-        )}
 
         <div className="field">
           <label>Double-Pick Weeks</label>
@@ -463,6 +462,16 @@ export default function CreatePoolPage() {
         form { display: flex; flex-direction: column; gap: 16px; }
         .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
         .field { display: flex; flex-direction: column; gap: 6px; }
+        .privatePasswordFields {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 10px;
+          margin-top: 4px;
+          padding: 12px;
+          border: 1px solid #d1d5db;
+          border-radius: 10px;
+          background: #f9fafb;
+        }
         label { font-weight: 600; }
 
         input, select, textarea {
