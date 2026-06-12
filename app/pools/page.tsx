@@ -17,7 +17,7 @@ type Pool = {
   start_week: number
   include_playoffs: boolean
   strikes_allowed: number
-  tie_rule: 'win' | 'loss' | 'push'
+  tie_rule: 'win' | 'loss'
   deadline_mode: 'fixed' | 'rolling'
   deadline_fixed: string | null
   notes: string | null
@@ -123,6 +123,7 @@ const NFL_TEAMS: Team[] = [
   { abbr: 'WAS', name: 'Washington Commanders', logo: espnLogo('WSH') },
 ]
 const teamByAbbr = (abbr?: string | null) => NFL_TEAMS.find((t) => t.abbr === abbr) || null
+const isNoPick = (abbr?: string | null) => !!abbr?.startsWith('NO_PICK')
 const toAbbr = (input: string): string => {
   if (!input) return input
   const up = input.toUpperCase().trim()
@@ -547,11 +548,24 @@ function MyPoolsContent() {
   const [statsByUser, setStatsByUser] = useState<Record<string, MemberStats>>({})
   const [aliveCount, setAliveCount] = useState(0)
   const [elimCount, setElimCount] = useState(0)
-  const picksAllowedForWeek = (week: number) => (pool?.double_pick_weeks?.includes(week) ? 2 : 1)
+  const availableWeeks = useMemo(() => weeks.filter((week) => week >= (pool?.start_week ?? 1)), [weeks, pool?.start_week])
+  const picksAllowedForWeek = (week: number) => {
+    if (week < (pool?.start_week ?? 1)) return 0
+    return pool?.double_pick_weeks?.includes(week) ? 2 : 1
+  }
   const poolStartMs = poolStartAt ? Date.parse(poolStartAt) : null
   const poolStartKnown = poolStartMs !== null && Number.isFinite(poolStartMs)
   const leagueHasStarted = poolStartKnown && Date.now() >= poolStartMs
   const canInvite = !!pool && pool.activation_status === 'active' && poolStartKnown && !leagueHasStarted
+  const myStats = userId ? statsByUser[userId] : undefined
+  const isEliminated = !!myStats?.eliminated
+  const canMakePicks = !!pool && !isEliminated && selectedPickWeek >= pool.start_week
+  const deadlineLabel =
+    pool?.deadline_mode === 'rolling'
+      ? 'Rolling: each game locks at kickoff'
+      : normalizeTimeTo24h(pool?.deadline_fixed) === '20:15'
+        ? 'Before Monday Night Football'
+        : 'Sunday 1 PM ET'
 
   const showPickNotice = (notice: PickNotice) => {
     if (pickNoticeTimerRef.current) window.clearTimeout(pickNoticeTimerRef.current)
@@ -574,12 +588,12 @@ function MyPoolsContent() {
     if (error) throw error
   }
 
-  const loadMyPicks = async (poolId: string) => {
+  const loadMyPicks = async (poolId: string, startWeek = pool?.start_week ?? 1) => {
     if (!userId) return
 
     const [{ data: finalPicks, error: finalErr }, { data: drafts, error: draftErr }] = await Promise.all([
-      supabase.from('pool_picks').select('week, slot, team_abbr, locked_at, result').eq('pool_id', poolId).eq('user_id', userId),
-      supabase.from('pool_pick_drafts').select('week, slot, team_abbr, updated_at').eq('pool_id', poolId).eq('user_id', userId),
+      supabase.from('pool_picks').select('week, slot, team_abbr, locked_at, result').eq('pool_id', poolId).eq('user_id', userId).gte('week', startWeek),
+      supabase.from('pool_pick_drafts').select('week, slot, team_abbr, updated_at').eq('pool_id', poolId).eq('user_id', userId).gte('week', startWeek),
     ])
     if (finalErr) throw finalErr
     if (draftErr) throw draftErr
@@ -706,8 +720,18 @@ function MyPoolsContent() {
           .eq('week', week)
           .maybeSingle<SeasonWeek>()
 
-        if (sw?.week_sunday_date) setFixedLockUtc(etLocalToUtcISO(sw.week_sunday_date, t24))
-        else setFixedLockUtc(null)
+        if (t24 === '20:15' && data?.length) {
+          const latestKickoff = data
+            .map((game) => game.kickoff_at_utc || game.game_time)
+            .filter(Boolean)
+            .sort()
+            .at(-1)
+          setFixedLockUtc(latestKickoff || null)
+        } else if (sw?.week_sunday_date) {
+          setFixedLockUtc(etLocalToUtcISO(sw.week_sunday_date, t24))
+        } else {
+          setFixedLockUtc(null)
+        }
       } else {
         setFixedLockUtc(null)
       }
@@ -718,7 +742,7 @@ function MyPoolsContent() {
   }, [teamPickerTarget, activeTab, selectedPickWeek, pool])
 
   /** ---------- Standings loader ---------- */
-  const loadStandings = async (week: number, poolId?: string, poolSeason?: number | null) => {
+  const loadStandings = async (week: number, poolId?: string, poolSeason?: number | null, poolStartWeek = pool?.start_week ?? 1) => {
     const pid = poolId ?? selectedId
     if (!pid) return
     setStandingsLoading(true)
@@ -726,7 +750,7 @@ function MyPoolsContent() {
       await restoreUnlockedPicks(pid)
       await finalizeLockedPicks(pid)
       await adjudicateCompletedWeeks(poolSeason ?? pool?.season)
-      await loadMyPicks(pid)
+      await loadMyPicks(pid, poolStartWeek)
     } catch (e: unknown) {
       console.warn('Failed to refresh finalized picks or standings results', e)
     }
@@ -768,6 +792,14 @@ function MyPoolsContent() {
   /** ---------- Draft save / clear ---------- */
   const saveDraft = async (week: number, slot: number, team: Team | null) => {
     if (!selectedId || !userId) return false
+    if (pool && week < pool.start_week) {
+      alert(`This pool starts in Week ${pool.start_week}.`)
+      return false
+    }
+    if (isEliminated) {
+      alert('You are eliminated, so you can view matchups but cannot make more picks.')
+      return false
+    }
     const key = pickKey(week, slot)
     if (myFinalPicks[key]) {
       alert(`Week ${week}, Pick ${slot} is locked and can no longer be changed.`)
@@ -787,7 +819,7 @@ function MyPoolsContent() {
     } catch (e: unknown) {
       const message = getErrorMessage(e, 'Failed to save pick')
       if (team && message.toLowerCase().includes('already selected for week')) {
-        await loadMyPicks(selectedId)
+        await loadMyPicks(selectedId, pool?.start_week ?? 1)
         setDraftSavedAt(new Date().toISOString())
         return true
       }
@@ -852,9 +884,13 @@ function MyPoolsContent() {
 
   const clearAllPicks = async () => {
     if (!selectedId || !userId) return
+    if (isEliminated) {
+      alert('You are eliminated, so you can view matchups but cannot make more picks.')
+      return
+    }
     setMyDraftPicks((prev) => {
       const next = { ...prev }
-      weeks.forEach((week) => {
+      availableWeeks.forEach((week) => {
         for (let slot = 1; slot <= picksAllowedForWeek(week); slot += 1) {
           const key = pickKey(week, slot)
           if (!myFinalPicks[key]) next[key] = null
@@ -875,7 +911,7 @@ function MyPoolsContent() {
   const exportCsv = () => {
     if (!pool) return
     const rows = [['Week', 'Pick', 'Team', 'Abbr', 'Status']]
-    weeks.forEach((w) => {
+    availableWeeks.forEach((w) => {
       for (let slot = 1; slot <= picksAllowedForWeek(w); slot += 1) {
         const key = pickKey(w, slot)
         const finalPick = myFinalPicks[key]
@@ -906,7 +942,7 @@ function MyPoolsContent() {
     let draft = 0
     let empty = 0
 
-    weeks.forEach((week) => {
+    availableWeeks.forEach((week) => {
       for (let slot = 1; slot <= picksAllowedForWeek(week); slot += 1) {
         const key = pickKey(week, slot)
         if (myFinalPicks[key]) official += 1
@@ -961,6 +997,7 @@ function MyPoolsContent() {
       if (!poolRow) throw new Error('Pool not found')
 
       setPool(poolRow)
+      setStandingsWeek(poolRow.start_week)
       const { data: weekRows } = await supabase
         .from('season_weeks')
         .select('season, week, week_sunday_date')
@@ -969,7 +1006,7 @@ function MyPoolsContent() {
 
       const nextSeasonWeeks = ((weekRows || []) as SeasonWeek[]).filter((row) => row.week >= 1 && row.week <= 18)
       setSeasonWeeks(nextSeasonWeeks)
-      setSelectedPickWeek(currentPickWeek(nextSeasonWeeks))
+      setSelectedPickWeek(Math.max(poolRow.start_week, currentPickWeek(nextSeasonWeeks)))
 
       const { data: firstStartGame } = await supabase
         .from('nfl_games')
@@ -1003,9 +1040,9 @@ function MyPoolsContent() {
       await restoreUnlockedPicks(id)
       await finalizeLockedPicks(id)
 
-      await loadMyPicks(id)
+      await loadMyPicks(id, poolRow.start_week)
 
-      await loadStandings(1, id, poolRow.season)
+      await loadStandings(poolRow.start_week, id, poolRow.season, poolRow.start_week)
     } catch (e: unknown) {
       setDetailError(getErrorMessage(e, 'Failed to load pool details.'))
     } finally {
@@ -1035,7 +1072,7 @@ function MyPoolsContent() {
 
   /** ---------------- UI ---------------- */
   return (
-    <main className="min-h-[60vh] px-6 py-8 sm:px-8">
+    <main className="min-h-[60vh] px-8 py-8 sm:px-10 lg:px-16 xl:px-24">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">My Pools</h1>
 
@@ -1100,8 +1137,10 @@ function MyPoolsContent() {
                 {pool && (
                   <p className="text-xs text-gray-600">
                     {pool.deadline_mode === 'fixed'
-                      ? `Hybrid lock: earliest of kickoff or ${(normalizeTimeTo24h(pool.deadline_fixed) || '13:00')} ET on Sunday`
-                      : 'Rolling lock: each matchup commits at kickoff'}
+                      ? normalizeTimeTo24h(pool.deadline_fixed) === '20:15'
+                        ? 'Before Monday Night Football: every unstarted game stays available until it kicks off'
+                        : 'Sunday 1 PM ET: all remaining picks lock when the early games begin'
+                      : 'Rolling: each matchup locks at its own kickoff'}
                   </p>
                 )}
               </div>
@@ -1169,12 +1208,14 @@ function MyPoolsContent() {
                     <InfoTile label="Start Week" value={`Week ${pool.start_week}`} />
                     <InfoTile label="Season" value={pool.include_playoffs ? 'Regular + Playoffs' : 'Regular only'} />
                     <InfoTile label="Strikes Allowed" value={String(pool.strikes_allowed)} />
-                    <InfoTile label="Tie Counts As" value={pool.tie_rule} />
-                    <InfoTile
-                      label="Pick Deadline"
-                      value={pool.deadline_mode === 'fixed' ? (normalizeTimeTo24h(pool.deadline_fixed) || '-') + ' ET' : 'Rolling'}
-                    />
+                    <InfoTile label="Tie Counts As" value={pool.tie_rule === 'win' ? 'Win' : 'Loss'} />
+                    <InfoTile label="Pick Deadline" value={deadlineLabel} />
                   </div>
+                  {isEliminated && (
+                    <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                      You are eliminated in this pool. You can still view matchups and standings, but you cannot make more picks.
+                    </div>
+                  )}
 
                   <div className="mb-6">
                     <h3 className="font-semibold mb-2">Used Teams</h3>
@@ -1217,7 +1258,7 @@ function MyPoolsContent() {
 
                     <div className="mb-4 overflow-x-auto">
                       <div className="flex min-w-max gap-2 pb-1">
-                        {weeks.map((w) => {
+                        {availableWeeks.map((w) => {
                           const selected = selectedPickWeek === w
                           const required = picksAllowedForWeek(w)
                           const hasDraft = Array.from({ length: required }, (_, i) => myDraftPicks[pickKey(w, i + 1)]).some(Boolean)
@@ -1286,7 +1327,11 @@ function MyPoolsContent() {
                           const key = pickKey(selectedPickWeek, slot)
                           const finalPick = myFinalPicks[key]
                           const draftPick = myDraftPicks[key]
-                          const finalTeam = finalPick ? teamByAbbr(finalPick.team_abbr) || { abbr: finalPick.team_abbr, name: finalPick.team_abbr } : null
+                          const finalTeam = finalPick
+                            ? isNoPick(finalPick.team_abbr)
+                              ? { abbr: 'NO PICK', name: 'No pick submitted' }
+                              : teamByAbbr(finalPick.team_abbr) || { abbr: finalPick.team_abbr, name: finalPick.team_abbr }
+                            : null
                           const savingPick = !!savingPickKeys[key]
 
                           if (finalPick && finalTeam) {
@@ -1342,7 +1387,7 @@ function MyPoolsContent() {
                                   type="button"
                                   className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                                   onClick={() => setTeamPickerTarget({ week: selectedPickWeek, slot })}
-                                  disabled={savingPick}
+                                  disabled={savingPick || !canMakePicks}
                                 >
                                   {draftPick ? 'Change pick' : 'Choose team'}
                                 </button>
@@ -1352,7 +1397,7 @@ function MyPoolsContent() {
                                     className="rounded bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-200 disabled:opacity-50"
                                     title="Clear this pick"
                                     onClick={() => clearPick(selectedPickWeek, slot)}
-                                    disabled={savingPick}
+                                    disabled={savingPick || !canMakePicks}
                                   >
                                     Clear pick
                                   </button>
@@ -1383,11 +1428,11 @@ function MyPoolsContent() {
                     </section>
 
                     <div className="mt-3 flex items-center gap-2">
-                      <button onClick={clearAllPicks} className="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200">
+                      <button onClick={clearAllPicks} disabled={!canMakePicks} className="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200 disabled:opacity-50">
                         Clear All Picks
                       </button>
                       <span className="text-xs text-gray-500">
-                        Picks finalize automatically at kickoff (rolling) or at the earlier of kickoff / fixed time (hybrid).
+                        Early games always lock at kickoff. Your pool deadline controls how long later games stay available.
                       </span>
                     </div>
                   </div>
@@ -1421,7 +1466,7 @@ function MyPoolsContent() {
                     <div className="flex items-center gap-2">
                       <label className="text-sm">Week</label>
                       <select className="border rounded-md px-2 py-1 text-sm" value={standingsWeek} onChange={(e) => setStandingsWeek(Number(e.target.value))}>
-                        {weeks.map((w) => (
+                        {availableWeeks.map((w) => (
                           <option key={w} value={w}>
                             Week {w}
                           </option>
@@ -1499,7 +1544,7 @@ function MyPoolsContent() {
                                 {memberPicks.length > 0 ? (
                                   <div className="space-y-2">
                                     {memberPicks.map((pick) => {
-                                      const team = teamByAbbr(toAbbr(pick.team_abbr)) || { abbr: pick.team_abbr, name: pick.team_abbr }
+                                      const team = isNoPick(pick.team_abbr) ? { abbr: 'NO PICK', name: 'No pick submitted' } : teamByAbbr(toAbbr(pick.team_abbr)) || { abbr: pick.team_abbr, name: pick.team_abbr }
                                       return (
                                         <div key={`${pick.user_id}-${pick.week}-${pick.slot}`} className="flex items-center gap-2">
                                           <div className="relative w-7 h-7">

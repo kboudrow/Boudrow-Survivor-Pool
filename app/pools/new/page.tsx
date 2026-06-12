@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabaseClient'
 
 const ALL_WEEKS = Array.from({ length: 18 }, (_, i) => i + 1)
 const DEFAULT_SEASON = 2026
+const MEMBER_LIMIT_OPTIONS = [10, 25, 50, 100, 250, 500]
 
 /** Turn DB/SDK errors into plain-English UI messages */
 function formatCreatePoolError(e: unknown): string {
@@ -62,9 +63,9 @@ export default function CreatePoolPage() {
   // Pool fields
   const [poolName, setPoolName] = useState('')
   const [startWeek, setStartWeek] = useState('Week 1')
-  const [pickDeadline, setPickDeadline] = useState('Before 1PM Games')
+  const [pickDeadline, setPickDeadline] = useState('Sunday 1 PM ET')
   const [mulligans, setMulligans] = useState(0)
-  const [tiebreaker, setTiebreaker] = useState<'Win' | 'Loss' | 'Push'>('Loss')
+  const [tiebreaker, setTiebreaker] = useState<'Win' | 'Loss'>('Loss')
   const [seasonLength, setSeasonLength] = useState('Regular Season')
   const [notes, setNotes] = useState('')
 
@@ -72,7 +73,8 @@ export default function CreatePoolPage() {
   const [isPublic, setIsPublic] = useState(true)
   const [password, setPassword] = useState('')
   const [password2, setPassword2] = useState('')
-  const [maxMembers, setMaxMembers] = useState(25)
+  const [maxMembers, setMaxMembers] = useState('25')
+  const [customMaxMembers, setCustomMaxMembers] = useState('')
 
   // double pick weeks
   const [doubleWeeks, setDoubleWeeks] = useState<number[]>([])
@@ -86,8 +88,10 @@ export default function CreatePoolPage() {
     () => Number(String(startWeek).replace(/\D+/g, '')) || 1,
     [startWeek]
   )
+  const max_members = maxMembers === 'custom' ? Number(customMaxMembers) : Number(maxMembers)
 
   const toggleWeek = (w: number) => {
+    if (w < start_week) return
     setDoubleWeeks((prev) =>
       prev.includes(w) ? prev.filter((x) => x !== w) : [...prev, w].sort((a, b) => a - b)
     )
@@ -123,15 +127,19 @@ export default function CreatePoolPage() {
         if (!password.trim()) throw new Error('Please enter a password for private pools.')
         if (password !== password2) throw new Error('Passwords do not match.')
       }
+      if (!Number.isFinite(max_members) || max_members < 2 || max_members > 500) {
+        throw new Error('Member limit must be between 2 and 500.')
+      }
 
       const include_playoffs = seasonLength === 'Regular Season & Playoffs'
       const strikes_allowed = String(mulligans) // DB column currently text in your schema
-      const tie_rule = tiebreaker.toLowerCase() as 'win' | 'loss' | 'push'
+      const tie_rule = tiebreaker.toLowerCase() as 'win' | 'loss'
+      const validDoubleWeeks = doubleWeeks.filter((week) => week >= start_week)
 
       let deadline_mode: 'fixed' | 'rolling' = 'fixed'
       let deadline_fixed: string | null = '13:00'
-      if (pickDeadline === 'Before MNF') deadline_fixed = '20:15'
-      if (pickDeadline === 'Rolling (locks at kickoff)') deadline_mode = 'rolling'
+      if (pickDeadline === 'Before Monday Night Football') deadline_fixed = '20:15'
+      if (pickDeadline === 'Rolling: each game locks at kickoff') deadline_mode = 'rolling'
 
       // 1) create pool
       const { data: pool, error: insErr } = await supabase
@@ -149,12 +157,12 @@ export default function CreatePoolPage() {
           notes: notes?.trim() ? notes.trim() : null,
           created_by: user.id,
           season: DEFAULT_SEASON,
-          double_pick_weeks: doubleWeeks,
+          double_pick_weeks: validDoubleWeeks,
           plan: 'free',
           pick_privacy: 'hidden',
           activation_status: 'draft',
           payment_status: 'unpaid',
-          max_members: maxMembers,
+          max_members,
         })
         .select('*')
         .single()
@@ -223,7 +231,15 @@ export default function CreatePoolPage() {
         <div className="grid2">
           <div className="field">
             <label htmlFor="startWeek">Start Week</label>
-            <select id="startWeek" value={startWeek} onChange={(e) => setStartWeek(e.target.value)}>
+            <select
+              id="startWeek"
+              value={startWeek}
+              onChange={(e) => {
+                const next = Number(e.target.value.replace(/\D+/g, '')) || 1
+                setStartWeek(e.target.value)
+                setDoubleWeeks((weeks) => weeks.filter((week) => week >= next))
+              }}
+            >
               {Array.from({ length: 18 }, (_, i) => `Week ${i + 1}`).map((w) => (
                 <option key={w} value={w}>{w}</option>
               ))}
@@ -233,11 +249,11 @@ export default function CreatePoolPage() {
           <div className="field">
             <label htmlFor="pickDeadline">Pick Deadline</label>
             <select id="pickDeadline" value={pickDeadline} onChange={(e) => setPickDeadline(e.target.value)}>
-              <option>Before 1PM Games</option>
-              <option>Before MNF</option>
-              <option>Rolling (locks at kickoff)</option>
+              <option>Sunday 1 PM ET</option>
+              <option>Before Monday Night Football</option>
+              <option>Rolling: each game locks at kickoff</option>
             </select>
-            <p className="hint">1PM ET is strongly recommended for standard survivor rules.</p>
+            <p className="hint">Early games always lock at kickoff. Sunday 1 PM is the standard survivor deadline.</p>
           </div>
         </div>
 
@@ -253,10 +269,9 @@ export default function CreatePoolPage() {
 
           <div className="field">
             <label htmlFor="tiebreaker">Tie Counts As</label>
-            <select id="tiebreaker" value={tiebreaker} onChange={(e) => setTiebreaker(e.target.value as 'Win' | 'Loss' | 'Push')}>
+            <select id="tiebreaker" value={tiebreaker} onChange={(e) => setTiebreaker(e.target.value as 'Win' | 'Loss')}>
               <option value="Win">Win</option>
               <option value="Loss">Loss</option>
-              <option value="Push">Push</option>
             </select>
           </div>
         </div>
@@ -293,14 +308,20 @@ export default function CreatePoolPage() {
 
         <div className="field">
           <label htmlFor="maxMembers">Member Limit</label>
-          <select id="maxMembers" value={maxMembers} onChange={(e) => setMaxMembers(Number(e.target.value))}>
-            <option value={10}>10 members</option>
-            <option value={25}>25 members</option>
-            <option value={50}>50 members</option>
-            <option value={100}>100 members</option>
-            <option value={250}>250 members</option>
-            <option value={500}>500 members</option>
+          <select id="maxMembers" value={maxMembers} onChange={(e) => setMaxMembers(e.target.value)}>
+            {MEMBER_LIMIT_OPTIONS.map((limit) => (
+              <option key={limit} value={String(limit)}>{limit} members</option>
+            ))}
+            <option value="custom">Custom</option>
           </select>
+          {maxMembers === 'custom' && (
+            <input
+              value={customMaxMembers}
+              onChange={(e) => setCustomMaxMembers(e.target.value)}
+              inputMode="numeric"
+              placeholder="Enter 2 to 500"
+            />
+          )}
           <p className="hint">This protects public pools from unexpected signups. You can adjust it before activation.</p>
         </div>
 
@@ -336,8 +357,10 @@ export default function CreatePoolPage() {
               <button
                 type="button"
                 key={w}
+                disabled={w < start_week}
                 className={`week ${doubleWeeks.includes(w) ? 'on' : ''}`}
                 onClick={() => toggleWeek(w)}
+                title={w < start_week ? 'This pool starts later, so this week is not available.' : undefined}
               >
                 {w}
               </button>

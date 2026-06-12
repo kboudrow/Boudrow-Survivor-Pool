@@ -42,6 +42,7 @@ type AdminRow = {
 }
 
 const ALL_WEEKS = Array.from({ length: 18 }, (_, i) => i + 1)
+const MEMBER_LIMIT_OPTIONS = [10, 25, 50, 100, 250, 500]
 const TEAMS = [
   'ARI',
   'ATL',
@@ -109,6 +110,7 @@ export default function PoolAdminPage() {
   const [selectedWeek, setSelectedWeek] = useState(1)
   const [doubleWeeksText, setDoubleWeeksText] = useState('')
   const [maxMembersText, setMaxMembersText] = useState('')
+  const [maxMembersPreset, setMaxMembersPreset] = useState('25')
   const [archiving, setArchiving] = useState(false)
   const [activating, setActivating] = useState(false)
   const [savingDouble, setSavingDouble] = useState(false)
@@ -129,6 +131,7 @@ export default function PoolAdminPage() {
     return { alive, eliminated: uniqueMembers.length - alive }
   }, [rows])
   const isPoolActive = pool?.activation_status === 'active'
+  const isPaidPool = pool?.payment_status === 'paid' || pool?.activation_status === 'active'
   const poolStartMs = poolStartAt ? Date.parse(poolStartAt) : null
   const poolStartKnown = poolStartMs !== null && Number.isFinite(poolStartMs)
   const leagueHasStarted = poolStartKnown && Date.now() >= poolStartMs
@@ -164,8 +167,10 @@ export default function PoolAdminPage() {
 
       setPool(p)
       setIsOwner(!!user?.id && user.id === p.created_by)
-      setDoubleWeeksText((p.double_pick_weeks || []).join(','))
-      setMaxMembersText(String(p.max_members ?? 25))
+      setDoubleWeeksText((p.double_pick_weeks || []).filter((week) => week >= p.start_week).join(','))
+      const limitText = String(p.max_members ?? 25)
+      setMaxMembersText(limitText)
+      setMaxMembersPreset(MEMBER_LIMIT_OPTIONS.includes(Number(limitText)) ? limitText : 'custom')
       setIsPublicDraft(!!p.is_public)
       setVisibilityPassword('')
       setRows((overview || []) as AdminRow[])
@@ -302,7 +307,7 @@ export default function PoolAdminPage() {
       const weeks = doubleWeeksText
         .split(',')
         .map((s) => parseInt(s.trim(), 10))
-        .filter((n) => Number.isFinite(n) && n >= 1 && n <= 18)
+        .filter((n) => Number.isFinite(n) && n >= (pool?.start_week ?? 1) && n <= 18)
 
       const { error } = await supabase.rpc('admin_set_double_weeks', {
         p_pool_id: pool.id,
@@ -319,7 +324,7 @@ export default function PoolAdminPage() {
   }
 
   const toggleDoubleWeek = (week: number) => {
-    if (settingsLocked) return
+    if (settingsLocked || (pool && week < pool.start_week)) return
     const weeks = new Set(selectedDoubleWeeks)
     if (weeks.has(week)) {
       weeks.delete(week)
@@ -335,7 +340,6 @@ export default function PoolAdminPage() {
       setError('League settings cannot be changed after the league has started.')
       return
     }
-
     const nextLimit = parseInt(maxMembersText.trim(), 10)
     if (!Number.isFinite(nextLimit) || nextLimit < 2 || nextLimit > 500) {
       setError('Member limit must be between 2 and 500.')
@@ -663,8 +667,8 @@ export default function PoolAdminPage() {
                   </button>
                   <button
                     onClick={toggleArchive}
-                    disabled={archiving || settingsLocked}
-                    title={settingsLocked ? 'League settings are locked after the league starts.' : undefined}
+                    disabled={archiving || settingsLocked || isPaidPool}
+                    title={isPaidPool ? 'Paid or active pools cannot be archived.' : settingsLocked ? 'League settings are locked after the league starts.' : undefined}
                     className="rounded-md bg-amber-600 px-3 py-2 text-sm text-white hover:bg-amber-700 disabled:opacity-50"
                   >
                     {archiving ? 'Updating...' : pool.archived ? 'Unarchive pool' : 'Archive pool'}
@@ -686,14 +690,30 @@ export default function PoolAdminPage() {
                 <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
                   <label className="mb-1 block text-sm font-medium">Member limit</label>
                   <div className="flex gap-2">
-                    <input
-                      value={maxMembersText}
-                      onChange={(e) => setMaxMembersText(e.target.value)}
+                    <select
+                      value={maxMembersPreset}
+                      onChange={(e) => {
+                        setMaxMembersPreset(e.target.value)
+                        if (e.target.value !== 'custom') setMaxMembersText(e.target.value)
+                      }}
                       disabled={settingsLocked}
-                      inputMode="numeric"
                       className="w-full rounded-md border px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-500"
-                      placeholder="25"
-                    />
+                    >
+                      {MEMBER_LIMIT_OPTIONS.map((limit) => (
+                        <option key={limit} value={String(limit)}>{limit} members</option>
+                      ))}
+                      <option value="custom">Custom</option>
+                    </select>
+                    {maxMembersPreset === 'custom' && (
+                      <input
+                        value={maxMembersText}
+                        onChange={(e) => setMaxMembersText(e.target.value)}
+                        disabled={settingsLocked}
+                        inputMode="numeric"
+                        className="w-full rounded-md border px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-500"
+                        placeholder="Enter 2 to 500"
+                      />
+                    )}
                     <button onClick={saveMemberLimit} disabled={savingLimit || settingsLocked} className="rounded-md bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50">
                       {savingLimit ? 'Saving...' : 'Save'}
                     </button>
@@ -755,7 +775,8 @@ export default function PoolAdminPage() {
                           key={week}
                           type="button"
                           onClick={() => toggleDoubleWeek(week)}
-                          disabled={settingsLocked}
+                          disabled={settingsLocked || week < pool.start_week}
+                          title={week < pool.start_week ? `Pool starts in Week ${pool.start_week}.` : undefined}
                           className={`rounded-md border px-2 py-1.5 text-sm font-semibold disabled:opacity-50 ${
                             selected ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-100'
                           }`}

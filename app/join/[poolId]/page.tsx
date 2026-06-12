@@ -14,7 +14,7 @@ type Pool = {
   start_week: number
   include_playoffs: boolean
   strikes_allowed: number
-  tie_rule: 'win' | 'loss' | 'push'
+  tie_rule: 'win' | 'loss'
   deadline_mode: 'fixed' | 'rolling'
   deadline_fixed: string | null
   notes: string | null
@@ -150,9 +150,8 @@ export default function JoinPoolPage() {
   const fixedDeadlineLabel = useMemo(() => {
     if (!pool) return null
     if (pool.deadline_mode !== 'fixed') return null
-    if (!pool.deadline_fixed) return 'Sun 1:00 PM ET (default)'
-    const t = pool.deadline_fixed.trim().toUpperCase()
-    return `${t} ET`
+    if (pool.deadline_fixed === '20:15') return 'Before Monday Night Football'
+    return 'Sunday 1 PM ET'
   }, [pool])
 
   return (
@@ -185,10 +184,10 @@ export default function JoinPoolPage() {
               <h2 className="text-xl font-semibold">{pool.name}</h2>
               <p className="text-sm text-gray-600">
                 {pool.is_public ? 'Public' : 'Private'} · Starts week {pool.start_week} ·
-                {' '}Strikes {pool.strikes_allowed} · Tie = {pool.tie_rule}
+                {' '}Strikes {pool.strikes_allowed} · Tie = {pool.tie_rule === 'win' ? 'Win' : 'Loss'}
               </p>
               <p className="text-sm text-gray-600">
-                Pick Deadline: {pool.deadline_mode === 'rolling' ? 'Rolling (locks at kickoff)' : (fixedDeadlineLabel || 'Fixed')}
+                Pick Deadline: {pool.deadline_mode === 'rolling' ? 'Rolling: each game locks at kickoff' : (fixedDeadlineLabel || 'Sunday 1 PM ET')}
               </p>
               {pool.notes && <p className="text-sm text-gray-600 mt-1">{pool.notes}</p>}
             </div>

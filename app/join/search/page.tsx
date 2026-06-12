@@ -26,7 +26,14 @@ type Pool = {
 }
 
 function formatPoolMeta(pool: Pool) {
-  return `${pool.is_public ? 'Public' : 'Private'} - Starts week ${pool.start_week} - Strikes ${pool.strikes_allowed ?? '-'} - Tie = ${pool.tie_rule ?? '-'}`
+  const tieLabel = pool.tie_rule === 'win' ? 'Win' : pool.tie_rule === 'loss' ? 'Loss' : '-'
+  return `${pool.is_public ? 'Public' : 'Private'} - Starts week ${pool.start_week} - Strikes ${pool.strikes_allowed ?? '-'} - Tie = ${tieLabel}`
+}
+
+function deadlineLabel(pool: Pool) {
+  if (pool.deadline_mode === 'rolling') return 'Rolling: each game locks at kickoff'
+  if (pool.deadline_fixed === '20:15') return 'Before Monday Night Football'
+  return 'Sunday 1 PM ET'
 }
 
 function Info({ label, value }: { label: string; value: string }) {
@@ -371,9 +378,9 @@ export default function JoinSearchPage() {
                 <Info label="Visibility" value={selected.is_public ? 'Public' : 'Private'} />
                 <Info label="Members" value={memberCountLoading ? 'Loading...' : memberCount !== null ? `${memberCount}/${selected.max_members ?? '-'}` : '-'} />
                 <Info label="Strikes Allowed" value={String(selected.strikes_allowed ?? '-')} />
-                <Info label="Tie Counts As" value={selected.tie_rule ?? '-'} />
+                <Info label="Tie Counts As" value={selected.tie_rule === 'win' ? 'Win' : selected.tie_rule === 'loss' ? 'Loss' : '-'} />
                 <Info label="Start Week" value={`Week ${selected.start_week}`} />
-                <Info label="Deadline" value={selected.deadline_mode === 'rolling' ? 'Rolling (kickoff)' : selected.deadline_fixed || 'Sun 1:00 PM ET'} />
+                <Info label="Deadline" value={deadlineLabel(selected)} />
               </div>
 
               {selected.notes && <p className="mb-4 rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-700">{selected.notes}</p>}
