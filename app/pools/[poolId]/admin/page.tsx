@@ -174,9 +174,10 @@ export default function PoolAdminPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser()
+      const { data: canManage } = await supabase.rpc('admin_can_manage', { p_pool_id: poolId })
 
       setPool(p)
-      setIsOwner(!!user?.id && user.id === p.created_by)
+      setIsOwner(!!user?.id && !!canManage)
       setDoubleWeeksText((p.double_pick_weeks || []).filter((week) => week >= p.start_week).join(','))
       const limitText = String(p.max_members ?? 25)
       setMaxMembersText(limitText)

@@ -5,6 +5,8 @@ import Link from 'next/link'
 
 type SupabaseClientModule = typeof import('@/lib/supabaseClient')
 
+const SUPERADMIN_EMAIL = 'survivesunday1@gmail.com'
+
 function getInitials(email: string | null) {
   if (!email) return 'SP'
   const name = email.split('@')[0] || email
@@ -15,6 +17,7 @@ export function AuthNav() {
   const [loaded, setLoaded] = useState(false)
   const [email, setEmail] = useState<string | null>(null)
   const isAuthed = !!email
+  const isSuperAdmin = email?.toLowerCase() === SUPERADMIN_EMAIL
   const initials = useMemo(() => getInitials(email), [email])
 
   useEffect(() => {
@@ -89,6 +92,11 @@ export function AuthNav() {
       <Link href="/join/search" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
         Join Pool
       </Link>
+      {isSuperAdmin && (
+        <Link href="/admin" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
+          Admin
+        </Link>
+      )}
       <Link href="/pools/new" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
         Create Pool
       </Link>

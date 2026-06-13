@@ -1391,6 +1391,7 @@ export type Database = {
         }[]
       }
       is_pool_member: { Args: { p: string }; Returns: boolean }
+      is_super_admin: { Args: never; Returns: boolean }
       join_pool: {
         Args: { p_password?: string; p_pool_id: string; p_token?: string }
         Returns: undefined
@@ -1469,6 +1470,52 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      superadmin_pool_entries: {
+        Args: { p_pool_id: string }
+        Returns: {
+          display_name: string
+          draft_picks_count: number
+          eliminated: boolean
+          eliminated_week: number
+          email: string
+          entry_id: string
+          entry_number: number
+          final_picks_count: number
+          joined_at: string
+          losses: number
+          profile_id: string
+          pushes: number
+          role: string
+          status: string
+          strikes_used: number
+          wins: number
+        }[]
+      }
+      superadmin_pool_overview: {
+        Args: never
+        Returns: {
+          activation_status: string
+          allow_multiple_entries: boolean
+          archived: boolean
+          created_at: string
+          created_by: string
+          draft_picks_count: number
+          entries_count: number
+          final_picks_count: number
+          is_public: boolean
+          max_entries_per_user: number
+          max_members: number
+          name: string
+          owner_email: string
+          payment_status: string
+          pool_id: string
+          season: number
+          start_week: number
+          stats_rows_count: number
+          unique_members_count: number
+        }[]
+      }
+      superadmin_repair_future_2026_results: { Args: never; Returns: string }
       update_my_profile: {
         Args: {
           p_avatar_url?: string
