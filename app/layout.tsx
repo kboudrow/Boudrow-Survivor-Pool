@@ -16,11 +16,11 @@ export const metadata: Metadata = {
   description: "Create, join, and manage NFL survivor pools with automatic pick locks, standings, and commissioner tools.",
   icons: {
     icon: [
-      { url: "/survive-sunday-logo.png", type: "image/png" },
-      { url: "/survive-sunday-logo.png", sizes: "any" },
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.png", type: "image/png", sizes: "32x32" },
     ],
-    shortcut: "/survive-sunday-logo.png",
-    apple: [{ url: "/survive-sunday-logo.png", type: "image/png" }],
+    shortcut: "/favicon.ico",
+    apple: [{ url: "/apple-touch-icon.png", type: "image/png", sizes: "180x180" }],
   },
   openGraph: {
     title: "Survive Sunday",
