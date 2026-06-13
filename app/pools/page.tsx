@@ -1255,6 +1255,9 @@ function MyPoolsContent() {
       .map(([abbr, count]) => ({ team: teamByAbbr(toAbbr(abbr)) || { abbr, name: abbr }, count }))
       .sort((a, b) => b.count - a.count || a.team.abbr.localeCompare(b.team.abbr))
   }, [visiblePicksThisWeek])
+  const topExposedTeam = teamExposure[0] || null
+  const expectedPickCount = memberCount * picksAllowedForWeek(standingsWeek)
+  const visiblePickPercent = expectedPickCount > 0 ? Math.round((visiblePicksThisWeek.length / expectedPickCount) * 100) : 0
   const previousWeekHistory = useMemo(() => {
     const rows = []
     for (const week of availableWeeks.filter((w) => w < standingsWeek)) {
@@ -1875,14 +1878,14 @@ function MyPoolsContent() {
                     </div>
                   </div>
 
-                  <div className="mb-6 grid gap-3 lg:grid-cols-3">
+                  <div className="mb-6 grid gap-3 lg:grid-cols-4">
                     <div className="rounded-lg border border-gray-200 bg-white p-4">
                       <div className="text-xs uppercase text-gray-500">Visible Pick Coverage</div>
                       <div className="mt-2 text-2xl font-bold">
-                        {visiblePicksThisWeek.length}/{Math.max(memberCount * picksAllowedForWeek(standingsWeek), visiblePicksThisWeek.length)}
+                        {visiblePicksThisWeek.length}/{Math.max(expectedPickCount, visiblePicksThisWeek.length)}
                       </div>
                       <div className="mt-1 text-xs text-gray-500">
-                        {standingsPicksVisible ? 'Locked picks are visible.' : 'Other entries stay hidden until the deadline.'}
+                        {visiblePickPercent}% visible. {standingsPicksVisible ? 'Locked picks are visible.' : 'Other entries stay hidden.'}
                       </div>
                     </div>
                     <div className="rounded-lg border border-gray-200 bg-white p-4">
@@ -1901,6 +1904,20 @@ function MyPoolsContent() {
                             </div>
                           ))}
                         </div>
+                      )}
+                    </div>
+                    <div className="rounded-lg border border-gray-200 bg-white p-4">
+                      <div className="text-xs uppercase text-gray-500">Most Picked Visible Team</div>
+                      {topExposedTeam ? (
+                        <div className="mt-3 flex items-center justify-between gap-3">
+                          <span className="inline-flex items-center gap-2 text-sm font-semibold">
+                            <TeamLogo team={topExposedTeam.team} size={26} />
+                            {topExposedTeam.team.abbr}
+                          </span>
+                          <span className="rounded-full bg-slate-900 px-2 py-0.5 text-xs font-semibold text-white">{topExposedTeam.count}</span>
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-sm text-gray-500">No visible picks yet.</p>
                       )}
                     </div>
                     <div className="rounded-lg border border-gray-200 bg-white p-4">

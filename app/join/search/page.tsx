@@ -337,7 +337,7 @@ export default function JoinSearchPage() {
           <NextImage src="/survive-sunday-logo.png" alt="Survive Sunday" width={42} height={42} className="object-contain" />
           <div>
             <p className="text-xs font-bold uppercase tracking-wide text-[#c5161d]">Find your league</p>
-            <h1 className="text-2xl font-bold text-slate-950">Join a Pool</h1>
+            <h1 className="text-2xl font-bold text-slate-950">Join a League</h1>
           </div>
         </div>
 
@@ -346,11 +346,11 @@ export default function JoinSearchPage() {
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search public and discoverable private pools"
+          placeholder="Search public and discoverable private leagues"
           className="mb-3 w-full rounded-md border border-slate-300 px-3 py-3 text-base shadow-sm focus:border-[#c5161d] focus:outline-none focus:ring-2 focus:ring-red-100"
         />
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs leading-5 text-gray-500">Public pools can be joined directly. Private pools require the password from the commissioner.</p>
+          <p className="text-xs leading-5 text-gray-500">Public leagues can be joined directly. Private leagues require the password from the commissioner.</p>
           {query.trim() && (
             <button onClick={() => setQuery('')} className="rounded-md bg-gray-100 px-3 py-1 text-xs hover:bg-gray-200">
               Clear search
@@ -365,9 +365,9 @@ export default function JoinSearchPage() {
             <p className="text-sm text-gray-600">Search results</p>
           )
         ) : recentLoading ? (
-          <p className="text-sm text-gray-600">Loading pools...</p>
+            <p className="text-sm text-gray-600">Loading leagues...</p>
         ) : (
-          <p className="text-sm text-gray-600">Newest pools you can join</p>
+          <p className="text-sm text-gray-600">Newest leagues you can join</p>
         )}
 
         <ul className="divide-y overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -400,11 +400,11 @@ export default function JoinSearchPage() {
             </li>
           ))}
 
-          {showEmptySearch && <li className="p-3 text-sm text-gray-600">No pools match &quot;{query}&quot;.</li>}
-          {showEmptyRecent && <li className="p-3 text-sm text-gray-600">No pools are available to join right now.</li>}
+          {showEmptySearch && <li className="p-3 text-sm text-gray-600">No leagues match &quot;{query}&quot;.</li>}
+          {showEmptyRecent && <li className="p-3 text-sm text-gray-600">No leagues are available to join right now.</li>}
         </ul>
 
-        {!authed && <p className="text-xs text-gray-500 mt-3">Tip: you can browse pools without signing in, but you will need to sign in to join.</p>}
+        {!authed && <p className="text-xs text-gray-500 mt-3">Tip: you can browse leagues without signing in, but you will need to sign in to join.</p>}
 
         <AdSlot
           slot={process.env.NEXT_PUBLIC_AD_SLOT_SITE_INLINE}
@@ -423,7 +423,7 @@ export default function JoinSearchPage() {
                 <div>
                   <div className="mb-2 flex flex-wrap gap-2">
                     <span className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${selected.is_public ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-300 bg-slate-100 text-slate-700'}`}>
-                      {selected.is_public ? 'Public pool' : 'Private pool'}
+                      {selected.is_public ? 'Public league' : 'Private league'}
                     </span>
                     {selectedAlreadyJoined && <span className="rounded-full border border-blue-300 bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">Joined</span>}
                     {selectedOwnedByMe && <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">Your pool</span>}
@@ -458,7 +458,7 @@ export default function JoinSearchPage() {
                 </div>
               ) : selectedIsFull ? (
                 <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                  This pool is full.
+                  This league is full.
                 </div>
               ) : selected.is_public ? (
                 <button
@@ -466,11 +466,11 @@ export default function JoinSearchPage() {
                   disabled={joining}
                   className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
                 >
-                  {joining ? 'Joining...' : 'Join Pool'}
+                  {joining ? 'Joining...' : 'Join League'}
                 </button>
               ) : !authed ? (
                 <button onClick={() => router.push(signInToJoinSearch)} className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
-                  Sign in to join private pool
+                  Sign in to join private league
                 </button>
               ) : !showPassword ? (
                 <button onClick={() => setShowPassword(true)} className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">

@@ -161,7 +161,7 @@ export default function JoinPoolPage() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <NextImage src="/survive-sunday-logo.png" alt="Survive Sunday" width={44} height={44} className="object-contain" />
-            <h1 className="text-2xl font-bold">Join Pool</h1>
+            <h1 className="text-2xl font-bold">Join League</h1>
           </div>
 
           {/* Owner shortcut to Admin Panel for convenience */}
@@ -188,7 +188,7 @@ export default function JoinPoolPage() {
                 {' '}Strikes {pool.strikes_allowed} - Tie = {pool.tie_rule === 'win' ? 'Win' : 'Loss'}
               </p>
               <p className="text-sm text-gray-600">
-                Pick Deadline: {pool.deadline_mode === 'rolling' ? 'Rolling: each game locks at kickoff' : (fixedDeadlineLabel || 'Sunday 1 PM ET')}
+                Pick deadline: {pool.deadline_mode === 'rolling' ? 'Rolling, each game locks at kickoff' : (fixedDeadlineLabel || 'Sunday 1 PM ET')}
               </p>
               {pool.notes && <p className="text-sm text-gray-600 mt-1">{pool.notes}</p>}
             </div>
@@ -201,20 +201,20 @@ export default function JoinPoolPage() {
 
             {!isActive && !isOwner && !alreadyMember && (
               <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                This pool is not accepting members yet.
+                This league is not accepting members yet.
               </div>
             )}
 
             {isFull && !isOwner && !alreadyMember && (
               <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                This pool is full.
+                This league is full.
               </div>
             )}
 
             {!authed && (
               <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4">
-                <p className="text-sm font-medium text-slate-900">Sign in or create an account to join this pool.</p>
-                <p className="mt-1 text-sm text-slate-600">After that, we will bring you right back here so you can finish joining.</p>
+                <p className="text-sm font-medium text-slate-900">Sign in or create an account to join {pool.name}.</p>
+                <p className="mt-1 text-sm text-slate-600">You will come right back to this invite page after signing in.</p>
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={signInWithGoogle}
@@ -234,7 +234,7 @@ export default function JoinPoolPage() {
 
             {authed && alreadyMember && (
               <div className="mt-4 flex items-center gap-2">
-                <span className="text-sm text-emerald-700">You&apos;re already a member of this pool.</span>
+                <span className="text-sm text-emerald-700">You&apos;re already in this league.</span>
                 <Link href={`/pools?pool=${pool.id}`} className="px-3 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 text-sm">
                   Open Pool
                 </Link>
@@ -248,7 +248,7 @@ export default function JoinPoolPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full rounded-md border px-3 py-2"
-                    placeholder="Enter pool password"
+                    placeholder="Enter league password"
                     type="password"
                   />
                 )}
@@ -257,7 +257,7 @@ export default function JoinPoolPage() {
                   disabled={joining || (!isActive && !isOwner) || (isFull && !isOwner) || (!pool.is_public && !password.trim())}
                   className="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
                 >
-                  {joining ? 'Joining...' : 'Join Pool'}
+                  {joining ? 'Joining...' : 'Join League'}
                 </button>
                 <Link href="/pools" className="px-4 py-2 rounded-md bg-gray-100 hover:bg-gray-200">
                   Cancel

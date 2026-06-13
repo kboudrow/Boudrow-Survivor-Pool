@@ -217,7 +217,7 @@ export default function CreatePoolPage() {
     <div ref={topRef} className="wrap">
       <div className="intro">
         <p>Commissioner setup</p>
-        <h1>Create a New Pool</h1>
+        <h1>Create a New League</h1>
         <span>Set the rules now. Once the pool starts, the important settings lock for fairness.</span>
       </div>
 
@@ -229,6 +229,18 @@ export default function CreatePoolPage() {
       )}
 
       <form onSubmit={(e) => { e.preventDefault(); handleCreate() }}>
+        <section className="setupSummary">
+          <div>
+            <h2>Pre-launch checklist</h2>
+            <p>Before inviting players, confirm the deadline, privacy, member limit, entry limit, and any double-pick weeks.</p>
+          </div>
+          <div className="summaryGrid">
+            <span>{isPublic ? 'Public discovery' : 'Private password'}</span>
+            <span>{allowMultipleEntries ? `Up to ${maxEntriesPerUser} entries/user` : 'Single entry'}</span>
+            <span>{doubleWeeks.length ? `${doubleWeeks.length} double-pick week${doubleWeeks.length === 1 ? '' : 's'}` : 'No double-pick weeks'}</span>
+          </div>
+        </section>
+
         <div className="field">
           <label htmlFor="poolName">Pool Name</label>
           <input
@@ -307,7 +319,7 @@ export default function CreatePoolPage() {
           </div>
 
           <div className="field">
-            <label>Visibility</label>
+            <label>League Visibility</label>
             <div className="toggleRow">
               <span className={`pill ${isPublic ? 'active' : ''}`}>Public</span>
               <button
@@ -322,7 +334,7 @@ export default function CreatePoolPage() {
               <span className={`pill ${!isPublic ? 'active' : ''}`}>Private</span>
             </div>
             <p className="hint">
-              Public pools may appear in browse/search. Private pools require a password to join.
+              Public leagues may appear in browse/search. Private leagues require a password to join.
             </p>
             {!isPublic && (
               <div className="privatePasswordFields">
@@ -394,7 +406,7 @@ export default function CreatePoolPage() {
               ))}
             </select>
           )}
-          <p className="hint">Entry-specific picks and standings will use this setting once multi-entry gameplay is enabled.</p>
+          <p className="hint">Each entry gets its own picks, used teams, standings row, and elimination status.</p>
         </div>
 
         <div className="field">
@@ -413,7 +425,7 @@ export default function CreatePoolPage() {
               </button>
             ))}
           </div>
-          <p className="hint">Selected weeks require two picks.</p>
+          <p className="hint">Selected weeks require two picks from every active entry.</p>
         </div>
 
         <div className="field">
@@ -428,7 +440,7 @@ export default function CreatePoolPage() {
         </div>
 
         <button className="primary" type="submit" disabled={loading}>
-          {loading ? 'Creating...' : 'Create Draft Pool'}
+          {loading ? 'Creating...' : 'Create Draft League'}
         </button>
       </form>
 
@@ -460,6 +472,28 @@ export default function CreatePoolPage() {
         }
 
         form { display: flex; flex-direction: column; gap: 16px; }
+        .setupSummary {
+          display: grid;
+          grid-template-columns: minmax(0, 1.2fr) minmax(260px, .8fr);
+          gap: 14px;
+          align-items: start;
+          border: 1px solid #d1d5db;
+          border-radius: 12px;
+          background: #fff;
+          padding: 14px;
+        }
+        .setupSummary h2 { margin: 0 0 4px; font-size: 16px; }
+        .setupSummary p { margin: 0; color: #4b5563; font-size: 13px; line-height: 1.5; }
+        .summaryGrid { display: flex; flex-wrap: wrap; gap: 8px; }
+        .summaryGrid span {
+          border: 1px solid #e5e7eb;
+          border-radius: 999px;
+          background: #f9fafb;
+          padding: 6px 9px;
+          font-size: 12px;
+          font-weight: 600;
+          color: #374151;
+        }
         .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
         .field { display: flex; flex-direction: column; gap: 6px; }
         .privatePasswordFields {
@@ -531,7 +565,7 @@ export default function CreatePoolPage() {
         .week.on { background:#c5161d; color:#fff; border-color:#c5161d; }
 
         @media (max-width: 720px){
-          .grid2 { grid-template-columns: 1fr; gap: 12px; }
+          .grid2, .setupSummary { grid-template-columns: 1fr; gap: 12px; }
           .wrap { padding: 14px 12px 28px; }
           .intro { padding: 18px; border-radius: 12px; }
           h1 { font-size: 28px; }

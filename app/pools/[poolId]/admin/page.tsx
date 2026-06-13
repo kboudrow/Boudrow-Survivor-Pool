@@ -133,6 +133,7 @@ export default function PoolAdminPage() {
   const [draftTeams, setDraftTeams] = useState<Record<string, string>>({})
   const [finalTeams, setFinalTeams] = useState<Record<string, string>>({})
   const [inviteOpen, setInviteOpen] = useState(false)
+  const [memberSearch, setMemberSearch] = useState('')
 
   const memberCount = rows.length ? new Set(rows.map((row) => row.entry_id)).size : 0
   const stats = useMemo(() => {
@@ -157,6 +158,15 @@ export default function PoolAdminPage() {
       )
   }, [doubleWeeksText])
   const doubleWeekCount = selectedDoubleWeeks.size
+  const visibleRows = useMemo(() => {
+    const q = memberSearch.trim().toLowerCase()
+    if (!q) return rows
+    return rows.filter((row) => {
+      return [entryLabel(row), row.user_id, row.role, row.draft_team_abbr || '', row.final_team_abbr || ''].some((value) =>
+        value.toLowerCase().includes(q),
+      )
+    })
+  }, [memberSearch, rows])
 
   const loadOverview = async (week = selectedWeek) => {
     if (!poolId) return
@@ -595,7 +605,7 @@ export default function PoolAdminPage() {
           <div>
             <h1 className="text-2xl font-bold">Admin Panel</h1>
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm text-gray-600">{pool ? `${pool.name} - ${pool.season ?? 'Season not set'}` : 'Pool controls'}</p>
+              <p className="text-sm text-gray-600">{pool ? `${pool.name} - ${pool.season ?? 'Season not set'} - League admin` : 'League controls'}</p>
               {isPoolActive && (
                 <span className="rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
                   Active Pool
@@ -626,7 +636,7 @@ export default function PoolAdminPage() {
           <div className="space-y-5">
             <section className="grid gap-3 md:grid-cols-4">
               <div className="rounded-lg border bg-white p-4">
-                <div className="text-xs uppercase text-gray-500">Members</div>
+                <div className="text-xs uppercase text-gray-500">Entries</div>
                 <div className="text-2xl font-bold">{pool.max_members ? `${memberCount}/${pool.max_members}` : memberCount}</div>
               </div>
               <div className="rounded-lg border bg-white p-4">
@@ -868,26 +878,53 @@ export default function PoolAdminPage() {
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="font-semibold">Members & Picks</h2>
-                  <p className="text-sm text-gray-600">Choose a week, then submit or edit each member&apos;s pick for that week.</p>
+                  <p className="text-sm text-gray-600">Choose a week, then submit or edit each entry&apos;s pick for that week.</p>
                 </div>
-                <label className="flex items-center gap-2 text-sm">
-                  Week
-                  <select
-                    value={selectedWeek}
-                    onChange={(e) => {
-                      const week = Number(e.target.value)
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    value={memberSearch}
+                    onChange={(e) => setMemberSearch(e.target.value)}
+                    placeholder="Search entries"
+                    className="rounded-md border px-3 py-1.5 text-sm"
+                  />
+                  <label className="flex items-center gap-2 text-sm">
+                    Week
+                    <select
+                      value={selectedWeek}
+                      onChange={(e) => {
+                        const week = Number(e.target.value)
+                        setSelectedWeek(week)
+                        loadOverview(week)
+                      }}
+                      className="rounded-md border px-2 py-1"
+                    >
+                      {ALL_WEEKS.map((week) => (
+                        <option key={week} value={week}>
+                          {week}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              <div className="mb-3 flex gap-1 overflow-x-auto pb-1">
+                {ALL_WEEKS.map((week) => (
+                  <button
+                    key={week}
+                    type="button"
+                    onClick={() => {
                       setSelectedWeek(week)
                       loadOverview(week)
                     }}
-                    className="rounded-md border px-2 py-1"
+                    className={`shrink-0 rounded-md border px-3 py-1.5 text-xs font-semibold ${
+                      selectedWeek === week ? 'border-slate-950 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
                   >
-                    {ALL_WEEKS.map((week) => (
-                      <option key={week} value={week}>
-                        {week}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                    W{week}
+                    {pool.double_pick_weeks?.includes(week) && <span className="ml-1 text-[10px]">x2</span>}
+                  </button>
+                ))}
               </div>
 
               <div className="overflow-x-auto">
@@ -904,7 +941,7 @@ export default function PoolAdminPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((row) => (
+                    {visibleRows.map((row) => (
                       <tr key={rowKey(row)} className="align-top hover:bg-gray-50">
                         <td className="border p-2">
                           <div className="font-medium">{entryLabel(row)}</div>
@@ -951,14 +988,18 @@ export default function PoolAdminPage() {
                             >
                               Save pick
                             </button>
-                            <button
-                              onClick={() => removeMember(row)}
-                              disabled={!!runningAction || settingsLocked}
-                              title={settingsLocked ? 'Entries cannot be removed after the league starts.' : undefined}
-                              className="rounded-md bg-red-50 px-2 py-1 text-red-700 hover:bg-red-100 disabled:opacity-50"
-                            >
-                              Remove entry
-                            </button>
+                            {row.slot === 1 ? (
+                              <button
+                                onClick={() => removeMember(row)}
+                                disabled={!!runningAction || settingsLocked}
+                                title={settingsLocked ? 'Entries cannot be removed after the league starts.' : undefined}
+                                className="rounded-md bg-red-50 px-2 py-1 text-red-700 hover:bg-red-100 disabled:opacity-50"
+                              >
+                                Remove entry
+                              </button>
+                            ) : (
+                              <span className="text-xs text-gray-500">Entry actions on Pick 1</span>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -966,7 +1007,8 @@ export default function PoolAdminPage() {
                   </tbody>
                 </table>
               </div>
-              {rows.length === 0 && <p className="mt-3 text-sm text-gray-600">No members found.</p>}
+              {rows.length === 0 && <p className="mt-3 text-sm text-gray-600">No entries found.</p>}
+              {rows.length > 0 && visibleRows.length === 0 && <p className="mt-3 text-sm text-gray-600">No entries match that search.</p>}
             </section>
           </div>
         )}
