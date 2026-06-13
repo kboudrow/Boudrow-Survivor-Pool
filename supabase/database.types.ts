@@ -1546,7 +1546,10 @@ export type Database = {
           unique_members_count: number
         }[]
       }
-      superadmin_repair_future_2026_results: { Args: never; Returns: string }
+      superadmin_repair_pool_future_results: {
+        Args: { p_pool_id: string }
+        Returns: string
+      }
       update_my_profile: {
         Args: {
           p_avatar_url?: string

@@ -91,26 +91,26 @@ begin
   left join public.profiles pr on pr.id = p.created_by
   left join (
     select
-      pool_id,
+      pm_counts.pool_id,
       count(*) as entries_count,
-      count(distinct profile_id) as unique_members_count
-    from public.pool_members
-    group by pool_id
+      count(distinct pm_counts.profile_id) as unique_members_count
+    from public.pool_members pm_counts
+    group by pm_counts.pool_id
   ) pm on pm.pool_id = p.id
   left join (
-    select pool_id, count(*) as draft_picks_count
-    from public.pool_pick_drafts
-    group by pool_id
+    select d_counts.pool_id, count(*) as draft_picks_count
+    from public.pool_pick_drafts d_counts
+    group by d_counts.pool_id
   ) d on d.pool_id = p.id
   left join (
-    select pool_id, count(*) as final_picks_count
-    from public.pool_picks
-    group by pool_id
+    select fp_counts.pool_id, count(*) as final_picks_count
+    from public.pool_picks fp_counts
+    group by fp_counts.pool_id
   ) fp on fp.pool_id = p.id
   left join (
-    select pool_id, count(*) as stats_rows_count
-    from public.pool_member_stats
-    group by pool_id
+    select s_counts.pool_id, count(*) as stats_rows_count
+    from public.pool_member_stats s_counts
+    group by s_counts.pool_id
   ) s on s.pool_id = p.id
   order by p.created_at desc nulls last;
 end;
@@ -170,14 +170,14 @@ begin
   from public.pool_members pm
   left join public.profiles pr on pr.id = pm.profile_id
   left join (
-    select pool_id, entry_id, count(*) as draft_picks_count
-    from public.pool_pick_drafts
-    group by pool_id, entry_id
+    select d_counts.pool_id, d_counts.entry_id, count(*) as draft_picks_count
+    from public.pool_pick_drafts d_counts
+    group by d_counts.pool_id, d_counts.entry_id
   ) d on d.pool_id = pm.pool_id and d.entry_id = pm.id
   left join (
-    select pool_id, entry_id, count(*) as final_picks_count
-    from public.pool_picks
-    group by pool_id, entry_id
+    select fp_counts.pool_id, fp_counts.entry_id, count(*) as final_picks_count
+    from public.pool_picks fp_counts
+    group by fp_counts.pool_id, fp_counts.entry_id
   ) fp on fp.pool_id = pm.pool_id and fp.entry_id = pm.id
   left join public.pool_member_stats s
     on s.pool_id = pm.pool_id
@@ -187,48 +187,35 @@ begin
 end;
 $function$;
 
-create or replace function public.superadmin_repair_future_2026_results()
+drop function if exists public.superadmin_repair_future_2026_results();
+
+create or replace function public.superadmin_repair_pool_future_results(p_pool_id uuid)
 returns text
 language plpgsql
 security definer
 set search_path to 'public'
 as $function$
 declare
-  deleted_games integer := 0;
-  reset_games integer := 0;
   deleted_stats integer := 0;
   restored_picks integer := 0;
   deleted_finals integer := 0;
+  v_pool public.pools%rowtype;
 begin
   if not public.is_super_admin() then
     raise exception 'not authorized';
   end if;
 
-  delete from public.nfl_games
-  where season = 2026
-    and coalesce(kickoff_at_utc, game_time) < make_timestamptz(2026, 1, 1, 0, 0, 0, 'UTC');
-  get diagnostics deleted_games = row_count;
+  select *
+  into v_pool
+  from public.pools p
+  where p.id = p_pool_id;
 
-  update public.nfl_games
-  set
-    status = 'scheduled',
-    winner = null,
-    home_score = null,
-    away_score = null
-  where season = 2026
-    and coalesce(kickoff_at_utc, game_time) > now()
-    and (
-      status is distinct from 'scheduled'
-      or winner is not null
-      or home_score is not null
-      or away_score is not null
-    );
-  get diagnostics reset_games = row_count;
+  if not found then
+    raise exception 'League not found.';
+  end if;
 
   delete from public.pool_member_stats s
-  using public.pools p
-  where p.id = s.pool_id
-    and coalesce(p.season, 2026) = 2026;
+  where s.pool_id = p_pool_id;
   get diagnostics deleted_stats = row_count;
 
   with future_picks as (
@@ -240,18 +227,17 @@ begin
       pp.slot,
       pp.team_abbr
     from public.pool_picks pp
-    join public.pools p on p.id = pp.pool_id
     join public.nfl_games g
-      on g.season = coalesce(p.season, 2026)
+      on g.season = coalesce(v_pool.season, extract(year from now())::integer)
      and g.week = pp.week
      and pp.team_abbr in (g.home_team, g.away_team)
-    where coalesce(p.season, 2026) = 2026
+    where pp.pool_id = p_pool_id
       and coalesce(g.kickoff_at_utc, g.game_time) > now()
   ),
   restored as (
     insert into public.pool_pick_drafts (pool_id, user_id, entry_id, week, slot, team_abbr, updated_at)
-    select pool_id, user_id, entry_id, week, slot, team_abbr, now()
-    from future_picks
+    select fp.pool_id, fp.user_id, fp.entry_id, fp.week, fp.slot, fp.team_abbr, now()
+    from future_picks fp
     on conflict (pool_id, entry_id, week, slot) do update
       set team_abbr = excluded.team_abbr,
           user_id = excluded.user_id,
@@ -273,9 +259,8 @@ begin
   into restored_picks, deleted_finals;
 
   return format(
-    'Deleted stale games: %s. Reset future games: %s. Cleared stat rows: %s. Restored draft picks: %s. Removed future finals: %s.',
-    deleted_games,
-    reset_games,
+    'Repaired %s. Cleared stat rows: %s. Restored future draft picks: %s. Removed future final picks: %s.',
+    v_pool.name,
     deleted_stats,
     restored_picks,
     deleted_finals
