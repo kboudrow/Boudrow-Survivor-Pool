@@ -591,6 +591,8 @@ function MyPoolsContent() {
   const [standingsPicksVisible, setStandingsPicksVisible] = useState(false)
   const [standingsResultsVisible, setStandingsResultsVisible] = useState(false)
   const [standingsRevealAt, setStandingsRevealAt] = useState<string | null>(null)
+  const [standingsWeekHasStarted, setStandingsWeekHasStarted] = useState(false)
+  const [standingsGamesForWeek, setStandingsGamesForWeek] = useState<Game[]>([])
   const [statsByUser, setStatsByUser] = useState<Record<string, MemberStats>>({})
   const [aliveCount, setAliveCount] = useState(0)
   const [elimCount, setElimCount] = useState(0)
@@ -887,7 +889,7 @@ function MyPoolsContent() {
       const [{ data: standingsGames }, { data: seasonWeek }] = await Promise.all([
         supabase
           .from('nfl_games')
-          .select('season, week, game_time, kickoff_at_utc, status')
+          .select('id, season, week, game_time, kickoff_at_utc, home_team, away_team, status, winner, home_score, away_score')
           .eq('season', season)
           .eq('week', week),
         supabase
@@ -897,11 +899,14 @@ function MyPoolsContent() {
           .eq('week', week)
           .maybeSingle<SeasonWeek>(),
       ])
-      const kickoffTimes = ((standingsGames || []) as Pick<Game, 'game_time' | 'kickoff_at_utc' | 'status'>[])
+      const weekGames = (standingsGames || []) as Game[]
+      setStandingsGamesForWeek(weekGames)
+      const kickoffTimes = weekGames
         .map((game) => game.kickoff_at_utc || game.game_time)
         .filter(Boolean)
       weekHasStarted = kickoffTimes.some((time) => Date.now() >= Date.parse(time))
-      resultsVisible = weekHasStarted && ((standingsGames || []) as Pick<Game, 'status'>[]).some((game) => game.status === 'final')
+      setStandingsWeekHasStarted(weekHasStarted)
+      resultsVisible = weekHasStarted && weekGames.some((game) => game.status === 'final')
 
       if (pool?.deadline_mode === 'rolling') {
         const earliestKickoff = kickoffTimes.sort()[0]
@@ -1258,6 +1263,23 @@ function MyPoolsContent() {
   const topExposedTeam = teamExposure[0] || null
   const expectedPickCount = memberCount * picksAllowedForWeek(standingsWeek)
   const visiblePickPercent = expectedPickCount > 0 ? Math.round((visiblePicksThisWeek.length / expectedPickCount) * 100) : 0
+  const teamPickChartRows = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const pick of visiblePicksThisWeek) {
+      if (isNoPick(pick.team_abbr)) continue
+      const abbr = toAbbr(pick.team_abbr)
+      counts.set(abbr, (counts.get(abbr) || 0) + 1)
+    }
+    const denominator = Math.max(expectedPickCount, visiblePicksThisWeek.filter((pick) => !isNoPick(pick.team_abbr)).length, 1)
+    return NFL_TEAMS.map((team) => {
+      const count = counts.get(team.abbr) || 0
+      const percentage = Math.round((count / denominator) * 100)
+      const game = standingsGamesForWeek.find((g) => [toAbbr(g.home_team), toAbbr(g.away_team)].includes(team.abbr))
+      const isFinal = game?.status === 'final'
+      const result = isFinal ? (toAbbr(game?.winner || '') === team.abbr ? 'win' : 'loss') : 'pending'
+      return { team, count, percentage, result }
+    }).sort((a, b) => b.count - a.count || a.team.abbr.localeCompare(b.team.abbr))
+  }, [expectedPickCount, standingsGamesForWeek, visiblePicksThisWeek])
   const previousWeekHistory = useMemo(() => {
     const rows = []
     for (const week of availableWeeks.filter((w) => w < standingsWeek)) {
@@ -1878,7 +1900,7 @@ function MyPoolsContent() {
                     </div>
                   </div>
 
-                  <div className="mb-6 grid gap-3 lg:grid-cols-4">
+                  <div className="mb-6 grid gap-3 lg:grid-cols-3">
                     <div className="rounded-lg border border-gray-200 bg-white p-4">
                       <div className="text-xs uppercase text-gray-500">Visible Pick Coverage</div>
                       <div className="mt-2 text-2xl font-bold">
@@ -1887,24 +1909,6 @@ function MyPoolsContent() {
                       <div className="mt-1 text-xs text-gray-500">
                         {visiblePickPercent}% visible. {standingsPicksVisible ? 'Locked picks are visible.' : 'Other entries stay hidden.'}
                       </div>
-                    </div>
-                    <div className="rounded-lg border border-gray-200 bg-white p-4">
-                      <div className="text-xs uppercase text-gray-500">Visible Team Exposure</div>
-                      {teamExposure.length === 0 ? (
-                        <p className="mt-2 text-sm text-gray-500">No public picks yet.</p>
-                      ) : (
-                        <div className="mt-3 space-y-2">
-                          {teamExposure.slice(0, 4).map(({ team, count }) => (
-                            <div key={team.abbr} className="flex items-center justify-between gap-3 text-sm">
-                              <span className="inline-flex items-center gap-2">
-                                <TeamLogo team={team} size={22} />
-                                {team.abbr}
-                              </span>
-                              <span className="font-semibold">{count}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
                     </div>
                     <div className="rounded-lg border border-gray-200 bg-white p-4">
                       <div className="text-xs uppercase text-gray-500">Most Picked Visible Team</div>
@@ -1932,6 +1936,59 @@ function MyPoolsContent() {
                         ))}
                       </div>
                     </div>
+                  </div>
+
+                  <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
+                    <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="text-xs uppercase text-gray-500">Week {standingsWeek} Pick Distribution</div>
+                        <div className="mt-1 text-sm text-gray-600">
+                          Percentage of available entries/picks on each team.
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Gray: pending · Green: won · Red: lost
+                      </div>
+                    </div>
+                    {!standingsWeekHasStarted || !standingsPicksVisible ? (
+                      <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">
+                        This chart goes live when Week {standingsWeek} starts for this league.
+                      </div>
+                    ) : (
+                      <div className="grid gap-2 lg:grid-cols-2">
+                        {teamPickChartRows.map(({ team, count, percentage, result }) => {
+                          const barClass =
+                            result === 'win'
+                              ? 'bg-emerald-500'
+                              : result === 'loss'
+                                ? 'bg-red-500'
+                                : 'bg-slate-300'
+                          const rowClass =
+                            result === 'win'
+                              ? 'border-emerald-100 bg-emerald-50'
+                              : result === 'loss'
+                                ? 'border-red-100 bg-red-50'
+                                : 'border-slate-200 bg-white'
+                          return (
+                            <div key={team.abbr} className={`rounded-md border p-2 ${rowClass}`}>
+                              <div className="mb-1 flex items-center justify-between gap-3 text-sm">
+                                <span className="inline-flex min-w-0 items-center gap-2 font-medium">
+                                  <TeamLogo team={team} size={22} />
+                                  <span className="truncate">{team.name}</span>
+                                  <span className="text-xs text-gray-500">({team.abbr})</span>
+                                </span>
+                                <span className="shrink-0 text-xs font-semibold text-gray-700">
+                                  {percentage}% · {count}
+                                </span>
+                              </div>
+                              <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+                                <div className={`h-full rounded-full ${barClass}`} style={{ width: `${Math.max(percentage, count > 0 ? 3 : 0)}%` }} />
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4">

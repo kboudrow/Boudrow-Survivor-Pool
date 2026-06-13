@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 
 type SupabaseClientModule = typeof import('@/lib/supabaseClient')
@@ -37,12 +37,9 @@ export function AuthNav() {
   const [loaded, setLoaded] = useState(false)
   const [email, setEmail] = useState<string | null>(null)
   const [profile, setProfile] = useState<ProfileBadge | null>(null)
-  const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement | null>(null)
   const isAuthed = !!email
   const isSuperAdmin = email?.toLowerCase() === SUPERADMIN_EMAIL
   const initials = useMemo(() => getInitials(email, profile), [email, profile])
-  const profileName = profile?.display_name?.trim() || profile?.username?.trim() || email || 'Profile'
 
   const loadProfile = async (supabase: SupabaseClientModule['supabase'], userId: string | null) => {
     if (!userId) {
@@ -86,22 +83,6 @@ export function AuthNav() {
       unsubscribe?.()
     }
   }, [])
-
-  useEffect(() => {
-    if (!menuOpen) return
-    const onPointerDown = (event: PointerEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false)
-    }
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMenuOpen(false)
-    }
-    document.addEventListener('pointerdown', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown)
-      document.removeEventListener('keydown', onKeyDown)
-    }
-  }, [menuOpen])
 
   const signOut = async () => {
     const { supabase }: SupabaseClientModule = await import('@/lib/supabaseClient')
@@ -156,44 +137,26 @@ export function AuthNav() {
       <Link href="/pools/new" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
         Create Pool
       </Link>
-      <div className="relative" ref={menuRef}>
-        <button
-          type="button"
-          onClick={() => setMenuOpen((open) => !open)}
-          aria-label="Account menu"
-          aria-expanded={menuOpen}
-          className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-[#c5161d] text-xs font-bold text-white shadow-sm ring-1 ring-white/20 transition hover:bg-[#a91218]"
-        >
-          {profile?.avatar_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
-          ) : (
-            initials
-          )}
-        </button>
-        {menuOpen && (
-          <div className="absolute right-0 top-11 z-50 w-64 overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-950 shadow-xl">
-            <div className="border-b border-slate-100 p-3">
-              <div className="truncate text-sm font-semibold">{profileName}</div>
-              {email && <div className="mt-0.5 truncate text-xs text-slate-500">{email}</div>}
-            </div>
-            <Link href="/profile" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-sm hover:bg-slate-50">
-              Profile settings
-            </Link>
-            <Link href="/pools" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-sm hover:bg-slate-50">
-              My pools
-            </Link>
-            {isSuperAdmin && (
-              <Link href="/admin" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-sm hover:bg-slate-50">
-                Superadmin
-              </Link>
-            )}
-            <button onClick={signOut} className="block w-full border-t border-slate-100 px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50">
-              Sign out
-            </button>
-          </div>
+      <Link
+        href="/profile"
+        aria-label="Profile settings"
+        title="Profile settings"
+        className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-[#c5161d] text-xs font-bold text-white shadow-sm ring-1 ring-white/20 transition hover:bg-[#a91218]"
+      >
+        {profile?.avatar_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
+        ) : (
+          initials
         )}
-      </div>
+      </Link>
+      <button
+        type="button"
+        onClick={signOut}
+        className="rounded-md border border-white/15 px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white"
+      >
+        Sign out
+      </button>
     </div>
   )
 }

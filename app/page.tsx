@@ -131,8 +131,12 @@ export default function Home() {
     setAuthError(null)
     if (!email || !password) return setAuthError('Please enter email and password.')
     const supabase = await getSupabase()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) return setAuthError(error.message)
+    if (data.user) {
+      await runEnsureProfileOnce(data.user.id)
+      router.push(returnToRef.current || '/pools')
+    }
   }
 
   const signUpWithEmail = async () => {
@@ -153,8 +157,15 @@ export default function Home() {
 
     // If no session returned (email confirm disabled / etc.), sign in immediately
     if (!data?.session) {
-      const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password })
+      const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email, password })
       if (signInErr) return setAuthError(signInErr.message)
+      if (signInData.user) {
+        await runEnsureProfileOnce(signInData.user.id)
+        router.push(returnToRef.current || '/pools')
+      }
+    } else {
+      await runEnsureProfileOnce(data.session.user.id)
+      router.push(returnToRef.current || '/pools')
     }
   }
 
