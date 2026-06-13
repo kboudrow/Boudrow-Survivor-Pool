@@ -1313,6 +1313,15 @@ export type Database = {
       }
       auto_archive_completed_pools: { Args: never; Returns: number }
       backfill_eliminated_week: { Args: never; Returns: number }
+      clear_entry_draft_pick: {
+        Args: {
+          p_entry_id: string
+          p_pool_id: string
+          p_slot: number
+          p_week: number
+        }
+        Returns: undefined
+      }
       clone_pool_for_new_season: {
         Args: { p_new_season: number; p_old_pool_id: string }
         Returns: string
@@ -1438,6 +1447,18 @@ export type Database = {
           username: string
         }[]
       }
+      pool_visible_picks: {
+        Args: { p_pool_id: string; p_through_week?: boolean; p_week?: number }
+        Returns: {
+          entry_id: string
+          locked_at: string
+          result: string
+          slot: number
+          team_abbr: string
+          user_id: string
+          week: number
+        }[]
+      }
       pool_week_deadline_at: {
         Args: { p_pool_id: string; p_week: number }
         Returns: string
@@ -1445,6 +1466,16 @@ export type Database = {
       restore_unlocked_picks_for_pool: {
         Args: { p_pool_id: string }
         Returns: number
+      }
+      save_entry_draft_pick: {
+        Args: {
+          p_entry_id: string
+          p_pool_id: string
+          p_slot: number
+          p_team_abbr: string
+          p_week: number
+        }
+        Returns: undefined
       }
       search_pools: {
         Args: { p_term: string }

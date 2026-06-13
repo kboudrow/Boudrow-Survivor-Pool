@@ -605,6 +605,8 @@ function MyPoolsContent() {
   const canInvite = !!pool && pool.activation_status === 'active' && poolStartKnown && !leagueHasStarted
   const myStats = selectedEntryId ? statsByUser[selectedEntryId] : undefined
   const isEliminated = leagueHasStarted && !!myStats?.eliminated
+  const selectedEntry = myEntries.find((entry) => entry.id === selectedEntryId) || null
+  const uniqueMemberCount = useMemo(() => new Set(members.map((member) => member.profile_id || member.id)).size || memberCount, [members, memberCount])
   const canMakePicks = !!pool && !!selectedEntryId && !isEliminated && selectedPickWeek >= pool.start_week
   const deadlineLabel =
     pool?.deadline_mode === 'rolling'
@@ -619,10 +621,10 @@ function MyPoolsContent() {
         ? `Week ${selectedPickWeek} closes ${fmtEtDateTime(fixedLockUtc)}.`
         : 'Week close time unavailable.'
   const standingsPrivacyLabel = standingsPicksVisible
-    ? 'Picks are public for this week.'
+    ? 'Locked picks are public for this week.'
     : standingsRevealAt
-      ? `Other entries' picks unlock ${fmtEtDateTime(standingsRevealAt)}.`
-      : 'Other entries\' picks unlock after the deadline.'
+      ? `Other entries' picks stay private until ${fmtEtDateTime(standingsRevealAt)}.`
+      : 'Other entries\' picks stay private until the deadline.'
 
   const showPickNotice = (notice: PickNotice) => {
     if (pickNoticeTimerRef.current) window.clearTimeout(pickNoticeTimerRef.current)
@@ -913,11 +915,12 @@ function MyPoolsContent() {
         }
       }
       const picksVisible = !!revealAt && Date.now() >= Date.parse(revealAt)
+      const showResults = resultsVisible && picksVisible
       setStandingsRevealAt(revealAt)
       setStandingsPicksVisible(picksVisible)
-      setStandingsResultsVisible(resultsVisible && picksVisible)
+      setStandingsResultsVisible(showResults)
 
-      if (resultsVisible && picksVisible) {
+      if (showResults) {
         await adjudicateCompletedWeeks(season)
       }
       await loadMyPicks(pid, poolStartWeek)
@@ -934,17 +937,20 @@ function MyPoolsContent() {
     for (const s of (stats || []) as MemberStats[]) map[s.entry_id] = s
     setStatsByUser(map)
 
-    const [{ data: picks }, { data: historyPicks }] = await Promise.all([
-      supabase.from('pool_picks').select('user_id, entry_id, week, slot, team_abbr, locked_at, result').eq('pool_id', pid).eq('week', week),
-      supabase.from('pool_picks').select('user_id, entry_id, week, slot, team_abbr, locked_at, result').eq('pool_id', pid).lte('week', week),
+    const [{ data: picks, error: picksErr }, { data: historyPicks, error: historyErr }] = await Promise.all([
+      supabase.rpc('pool_visible_picks', { p_pool_id: pid, p_week: week, p_through_week: false }),
+      supabase.rpc('pool_visible_picks', { p_pool_id: pid, p_week: week, p_through_week: true }),
     ])
+    if (picksErr) throw picksErr
+    if (historyErr) throw historyErr
     setPicksThisWeek((picks || []) as PickRow[])
     setStandingsHistoryPicks((historyPicks || []) as PickRow[])
 
     let alive = 0,
       elim = 0
+    const showCurrentResults = resultsVisible && (!!revealAt && Date.now() >= Date.parse(revealAt))
     for (const m of roster) {
-      const s = leagueHasStarted ? map[m.id] : undefined
+      const s = showCurrentResults ? map[m.id] : undefined
       if (!s) {
         alive += 1
         continue
@@ -1016,42 +1022,27 @@ function MyPoolsContent() {
     setSavingPickKeys((prev) => ({ ...prev, [key]: true }))
     try {
       if (team) {
-        const { data: updatedRows, error: updateErr } = await supabase
-          .from('pool_pick_drafts')
-          .update({ team_abbr: team.abbr, updated_at: new Date().toISOString() })
-          .eq('pool_id', selectedId)
-          .eq('entry_id', selectedEntryId)
-          .eq('week', week)
-          .eq('slot', slot)
-          .select('entry_id')
-        if (updateErr) throw updateErr
-        if (!updatedRows?.length) {
-          const { error } = await supabase.from('pool_pick_drafts').insert({ pool_id: selectedId, user_id: userId, entry_id: selectedEntryId, week, slot, team_abbr: team.abbr })
-          if (error) throw error
-        }
+        const { error } = await supabase.rpc('save_entry_draft_pick', {
+          p_pool_id: selectedId,
+          p_entry_id: selectedEntryId,
+          p_week: week,
+          p_slot: slot,
+          p_team_abbr: team.abbr,
+        })
+        if (error) throw error
       } else {
-        const { error } = await supabase.from('pool_pick_drafts').delete().eq('pool_id', selectedId).eq('entry_id', selectedEntryId).eq('week', week).eq('slot', slot)
+        const { error } = await supabase.rpc('clear_entry_draft_pick', {
+          p_pool_id: selectedId,
+          p_entry_id: selectedEntryId,
+          p_week: week,
+          p_slot: slot,
+        })
         if (error) throw error
       }
       setDraftSavedAt(new Date().toISOString())
       return true
     } catch (e: unknown) {
       const message = getErrorMessage(e, 'Failed to save pick')
-      if (team && message.toLowerCase().includes('maximum of')) {
-        const { data: updatedRows, error: updateErr } = await supabase
-          .from('pool_pick_drafts')
-          .update({ team_abbr: team.abbr, updated_at: new Date().toISOString() })
-          .eq('pool_id', selectedId)
-          .eq('entry_id', selectedEntryId)
-          .eq('week', week)
-          .eq('slot', slot)
-          .select('entry_id')
-        if (!updateErr && updatedRows?.length) {
-          await loadMyPicks(selectedId, pool?.start_week ?? 1)
-          setDraftSavedAt(new Date().toISOString())
-          return true
-        }
-      }
       if (team && message.toLowerCase().includes('already selected for week')) {
         await loadMyPicks(selectedId, pool?.start_week ?? 1)
         setDraftSavedAt(new Date().toISOString())
@@ -1251,10 +1242,9 @@ function MyPoolsContent() {
     return {} as Record<string, MemberStats>
   }, [leagueHasStarted, standingsResultsVisible, statsByUser])
   const visiblePicksThisWeek = useMemo(
-    () => picksThisWeek.filter((pick) => standingsPicksVisible || members.some((m) => m.id === pick.entry_id && m.profile_id === userId)),
-    [members, picksThisWeek, standingsPicksVisible, userId],
+    () => picksThisWeek,
+    [picksThisWeek],
   )
-  const hiddenPickCount = Math.max(0, picksThisWeek.length - visiblePicksThisWeek.length)
   const teamExposure = useMemo(() => {
     const counts = new Map<string, number>()
     for (const pick of visiblePicksThisWeek) {
@@ -1268,14 +1258,14 @@ function MyPoolsContent() {
   const previousWeekHistory = useMemo(() => {
     const rows = []
     for (const week of availableWeeks.filter((w) => w < standingsWeek)) {
-      const weekPicks = standingsHistoryPicks.filter((pick) => pick.week === week && (standingsPicksVisible || members.some((m) => m.id === pick.entry_id && m.profile_id === userId)))
+      const weekPicks = standingsHistoryPicks.filter((pick) => pick.week === week)
       const wins = weekPicks.filter((pick) => pick.result === 'win').length
       const losses = weekPicks.filter((pick) => pick.result === 'loss').length
       const pushes = weekPicks.filter((pick) => pick.result === 'push').length
       rows.push({ week, picks: weekPicks.length, wins, losses, pushes })
     }
     return rows.slice(-5).reverse()
-  }, [availableWeeks, members, standingsHistoryPicks, standingsPicksVisible, standingsWeek, userId])
+  }, [availableWeeks, standingsHistoryPicks, standingsWeek])
   const remainingTeamsForEntry = useMemo(() => {
     const used = new Set(
       standingsHistoryPicks
@@ -1554,15 +1544,18 @@ function MyPoolsContent() {
                           <p className="text-xs text-gray-500">
                             Week {selectedPickWeek} - {deadlineLabel} - {picksAllowedForWeek(selectedPickWeek)} {picksAllowedForWeek(selectedPickWeek) === 1 ? 'pick' : 'picks'} needed
                           </p>
+                          {selectedEntry && (
+                            <p className="mt-1 text-xs font-medium text-slate-700">Editing {entryLabelForMember(selectedEntry)}</p>
+                          )}
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
                           {myEntries.length > 1 && (
-                            <label className="flex items-center gap-2 rounded-lg border border-slate-900 bg-slate-950 px-3 py-2 text-xs font-semibold text-white shadow-sm">
-                              Entry
+                            <label className="flex items-center gap-2 rounded-lg border border-[#c5161d] bg-[#c5161d] px-3 py-2 text-xs font-bold text-white shadow-md shadow-red-900/10">
+                              Switch entry
                               <select
                                 value={selectedEntryId ?? ''}
                                 onChange={(event) => selectEntry(event.target.value)}
-                                className="rounded-md border border-white/30 bg-white px-2 py-1 text-sm font-semibold text-slate-950"
+                                className="min-w-40 rounded-md border border-white/40 bg-white px-2 py-1.5 text-sm font-bold text-slate-950"
                               >
                                 {myEntries.map((entry) => (
                                   <option key={entry.id} value={entry.id}>
@@ -1864,9 +1857,9 @@ function MyPoolsContent() {
 
                   <div className="grid gap-3 md:grid-cols-3 mb-6">
                     <div className="border rounded-lg p-4">
-                      <div className="text-xs uppercase text-gray-500">Members</div>
+                      <div className="text-xs uppercase text-gray-500">Entries</div>
                       <div className="text-2xl font-bold">{memberCount}</div>
-                      <div className="text-xs text-gray-500 mt-1">Total pool participants</div>
+                      <div className="text-xs text-gray-500 mt-1">{uniqueMemberCount} unique {uniqueMemberCount === 1 ? 'member' : 'members'}</div>
                     </div>
                     <div className="border rounded-lg p-4">
                       <div className="text-xs uppercase text-gray-500">Strikes Allowed</div>
@@ -1884,12 +1877,12 @@ function MyPoolsContent() {
 
                   <div className="mb-6 grid gap-3 lg:grid-cols-3">
                     <div className="rounded-lg border border-gray-200 bg-white p-4">
-                      <div className="text-xs uppercase text-gray-500">Pick Coverage</div>
+                      <div className="text-xs uppercase text-gray-500">Visible Pick Coverage</div>
                       <div className="mt-2 text-2xl font-bold">
                         {visiblePicksThisWeek.length}/{Math.max(memberCount * picksAllowedForWeek(standingsWeek), visiblePicksThisWeek.length)}
                       </div>
                       <div className="mt-1 text-xs text-gray-500">
-                        {hiddenPickCount ? `${hiddenPickCount} pick(s) still hidden until deadline.` : 'All currently locked picks are visible.'}
+                        {standingsPicksVisible ? 'Locked picks are visible.' : 'Other entries stay hidden until the deadline.'}
                       </div>
                     </div>
                     <div className="rounded-lg border border-gray-200 bg-white p-4">
@@ -1955,7 +1948,7 @@ function MyPoolsContent() {
                     <table className="min-w-[820px] w-full border border-gray-200 rounded-lg text-sm">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="text-left p-2 border">Member</th>
+                          <th className="text-left p-2 border">Entry</th>
                           <th className="text-left p-2 border">Pick (Week {standingsWeek})</th>
                           <th className="text-left p-2 border">Result</th>
                           <th className="text-left p-2 border">Record to Date</th>

@@ -36,6 +36,12 @@ function deadlineLabel(pool: Pool) {
   return 'Sunday 1 PM ET'
 }
 
+function isMissingAuthSession(error: unknown) {
+  if (!error || typeof error !== 'object') return false
+  const err = error as { name?: string; message?: string }
+  return err.name === 'AuthSessionMissingError' || err.message === 'Auth session missing!' || err.message === 'Auth session missing'
+}
+
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
@@ -80,7 +86,14 @@ export default function JoinSearchPage() {
     const loadAuth = async () => {
       const {
         data: { user },
+        error,
       } = await supabase.auth.getUser()
+      if (error && !isMissingAuthSession(error)) {
+        setError(error.message)
+        setAuthed(false)
+        setUserId(null)
+        return
+      }
 
       if (!alive) return
       setAuthed(!!user)
@@ -112,7 +125,9 @@ export default function JoinSearchPage() {
 
         const {
           data: { user },
+          error: userErr,
         } = await supabase.auth.getUser()
+        if (userErr && !isMissingAuthSession(userErr)) throw userErr
 
         let excludePoolIds: string[] = []
 
@@ -224,7 +239,12 @@ export default function JoinSearchPage() {
   const requireAuth = async (): Promise<boolean> => {
     const {
       data: { user },
+      error,
     } = await supabase.auth.getUser()
+    if (error && !isMissingAuthSession(error)) {
+      setError(error.message)
+      return false
+    }
 
     if (user) return true
     router.push(signInToJoinSearch)
