@@ -209,11 +209,11 @@ export default function Home() {
             </div>
 
             <h1 className="mx-auto max-w-4xl text-4xl font-extrabold tracking-tight text-white sm:text-6xl">
-              Run the pool. Keep the fun. Skip the spreadsheet.
+              Run the pool. Keep the fun.
             </h1>
 
             <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-200 sm:text-lg">
-              Survive Sunday gives commissioners a clean place to set the rules, collect picks, lock games on time, and show everyone where they stand.
+              Everything you need to run an NFL survivor pool without chasing group texts, fixing spreadsheets, or arguing about late picks.
             </p>
 
             {/* HERO CTA: Create/Join + (only when authed) My Pools */}
@@ -243,15 +243,10 @@ export default function Home() {
 
             {!isAuthed && (
               <p className="mt-3 text-sm text-slate-300">
-                You&apos;ll need to{' '}
                 <button type="button" onClick={openSignIn} className="underline text-white hover:text-[#d2ad5b]">
-                  sign in
+                  Sign in
                 </button>{' '}
-                (or{' '}
-                <button type="button" onClick={openSignUp} className="underline text-white hover:text-[#d2ad5b]">
-                  create an account
-                </button>
-                ) to create or join a pool.
+                to create or join a pool.
               </p>
             )}
           </div>
@@ -260,12 +255,12 @@ export default function Home() {
         {/* FEATURES */}
         <section className="bg-white px-4 py-10 sm:px-6">
           <div className="mx-auto max-w-5xl grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Feature title="Picks stay organized" desc="Players make picks in one place. No text chains, lost screenshots, or last-minute confusion." />
-            <Feature title="Deadlines are handled" desc="Use a Sunday 1 PM deadline, wait until Monday night, or let each game lock at kickoff." />
-            <Feature title="Rules are enforced" desc="No repeat teams, custom start weeks, double-pick weeks, strikes, and eliminations are tracked for you." />
-            <Feature title="Public or private" desc="Open a pool for discovery, or keep it private with a password and invite link." />
-            <Feature title="Standings are clear" desc="Everyone can see who is alive, who is out, and which picks are official." />
-            <Feature title="Built for commissioners" desc="Admin tools help you manage members, review picks, finalize locks, and run it back next season." />
+            <Feature title="Automatic locks" desc="Rolling kickoff locks or a fixed weekly deadline, your choice." />
+            <Feature title="Public or private pools" desc="Run public pools or keep things private with password protection." />
+            <Feature title="No repeat teams" desc="Once you pick a team, it is gone. Enforced automatically." />
+            <Feature title="Strikes and elimination" desc="One strike or multiple lives. Your rules." />
+            <Feature title="Standings that make sense" desc="See who is alive, who is out, and who is about to get eliminated." />
+            <Feature title="Run it back" desc="Archive finished pools and restart with the same settings, empty roster." />
           </div>
         </section>
 
@@ -282,9 +277,37 @@ export default function Home() {
         {/* HOW IT WORKS */}
         <section className="bg-slate-50 px-4 py-12 sm:px-6">
           <div className="mx-auto max-w-5xl grid sm:grid-cols-3 gap-6 text-center">
-            <How step="1" title="Set the rules" text="Choose your start week, deadline, strikes, privacy, and any double-pick weeks." />
-            <How step="2" title="Invite your group" text="Share the pool link, let players join, and keep the roster in one place." />
-            <How step="3" title="Pick and survive" text="Players choose teams each week. Survive Sunday keeps the board honest." />
+            <How step="1" title="Create or join" text="Start a pool for your group, or join one with an invite link." />
+            <How step="2" title="Pick weekly" text="Choose one team each week. Used teams are tracked automatically." />
+            <How step="3" title="Survive" text="Stay alive longer than everyone else." />
+          </div>
+        </section>
+
+        <section className="bg-white px-4 py-12 sm:px-6">
+          <div className="mx-auto max-w-5xl rounded-xl border border-slate-200 bg-slate-50 p-6 shadow-sm">
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-[#c5161d]">For commissioners</p>
+                <h2 className="mt-1 text-2xl font-bold text-slate-950">Why commissioners use Survive Sunday</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  The best survivor pool is the one everyone trusts. Survive Sunday keeps the boring admin work out of the way so the league can stay fun.
+                </p>
+              </div>
+              <ul className="grid gap-2 sm:grid-cols-2">
+                {[
+                  'No spreadsheets',
+                  'No text chains',
+                  'Automatic lock enforcement',
+                  'Automatic standings',
+                  'Season history',
+                  'Run it back every year',
+                ].map((item) => (
+                  <li key={item} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800">
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </section>
 
