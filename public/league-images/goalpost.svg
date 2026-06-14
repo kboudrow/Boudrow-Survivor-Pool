@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" role="img" aria-label="Goal post">
+  <rect width="240" height="160" fill="#0b1220"/>
+  <rect y="105" width="240" height="55" fill="#14532d"/>
+  <path d="M52 118c36-18 100-20 136 0" fill="none" stroke="#22c55e" stroke-width="6" opacity=".45"/>
+  <path d="M120 124V38M76 38v42M164 38v42M76 38h88" fill="none" stroke="#facc15" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M28 132h184" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".85"/>
+  <path d="M48 145h144" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".5"/>
+</svg>

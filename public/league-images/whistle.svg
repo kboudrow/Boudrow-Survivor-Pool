@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" role="img" aria-label="Whistle">
+  <rect width="240" height="160" fill="#0f172a"/>
+  <path d="M66 91c0-28 23-51 51-51h54l22 22v29c0 28-23 51-51 51h-25c-28 0-51-23-51-51Z" fill="#e5e7eb"/>
+  <path d="M164 41h30c13 0 24 11 24 24v14h-36V59l-18-18Z" fill="#c5161d"/>
+  <circle cx="117" cy="91" r="22" fill="#0f172a"/>
+  <circle cx="117" cy="91" r="10" fill="#22c55e"/>
+  <path d="M42 48c24 10 39 26 45 48" fill="none" stroke="#d2ad5b" stroke-width="8" stroke-linecap="round"/>
+</svg>

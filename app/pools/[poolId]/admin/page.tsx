@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { InviteModal } from '@/components/InviteModal'
 import { getErrorMessage } from '@/lib/errorMessage'
+import { poolImageUrl } from '@/lib/poolImages'
 import { supabase } from '@/lib/supabaseClient'
 
 type Pool = {
@@ -22,6 +23,7 @@ type Pool = {
   allow_multiple_entries?: boolean | null
   max_entries_per_user?: number | null
   payment_status?: 'unpaid' | 'paid' | 'not_required' | 'waived' | 'refunded' | string | null
+  image_url?: string | null
 }
 
 type AdminRow = {
@@ -128,6 +130,8 @@ export default function PoolAdminPage() {
   const [savingVisibility, setSavingVisibility] = useState(false)
   const [isPublicDraft, setIsPublicDraft] = useState(true)
   const [visibilityPassword, setVisibilityPassword] = useState('')
+  const [savingImage, setSavingImage] = useState(false)
+  const [imageUrlDraft, setImageUrlDraft] = useState('')
   const [confirmingCheckout, setConfirmingCheckout] = useState(false)
   const [runningAction, setRunningAction] = useState<string | null>(null)
   const [draftTeams, setDraftTeams] = useState<Record<string, string>>({})
@@ -174,7 +178,7 @@ export default function PoolAdminPage() {
     setError(null)
     try {
       const [{ data: p, error: pErr }, { data: overview, error: overviewErr }] = await Promise.all([
-        supabase.from('pools').select('id,name,created_by,is_public,visibility,double_pick_weeks,archived,season,start_week,activation_status,max_members,allow_multiple_entries,max_entries_per_user,payment_status').eq('id', poolId).maybeSingle<Pool>(),
+        supabase.from('pools').select('id,name,created_by,is_public,visibility,double_pick_weeks,archived,season,start_week,activation_status,max_members,allow_multiple_entries,max_entries_per_user,payment_status,image_url').eq('id', poolId).maybeSingle<Pool>(),
         supabase.rpc('admin_pool_entry_week_overview', { p_pool_id: poolId, p_week: week }),
       ])
       if (pErr) throw pErr
@@ -196,6 +200,7 @@ export default function PoolAdminPage() {
       setMaxEntriesPerUserDraft(String(p.max_entries_per_user ?? 1))
       setIsPublicDraft(!!p.is_public)
       setVisibilityPassword('')
+      setImageUrlDraft(p.image_url || '')
       setRows((overview || []) as AdminRow[])
 
       const { data: firstStartGame } = await supabase
@@ -451,6 +456,27 @@ export default function PoolAdminPage() {
       setError(getErrorMessage(e, 'Failed to save pool visibility.'))
     } finally {
       setSavingVisibility(false)
+    }
+  }
+
+  const saveImage = async () => {
+    if (!pool) return
+    setSavingImage(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const nextImage = imageUrlDraft.trim()
+      const { error } = await supabase.rpc('admin_update_pool_image', {
+        p_pool_id: pool.id,
+        p_image_url: nextImage,
+      })
+      if (error) throw error
+      setPool({ ...pool, image_url: nextImage || null })
+      setNotice(nextImage ? 'League image saved.' : 'League image reset to a default.')
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to save league image.'))
+    } finally {
+      setSavingImage(false)
     }
   }
 
@@ -732,6 +758,28 @@ export default function PoolAdminPage() {
               )}
 
               <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-[minmax(220px,320px)_minmax(240px,320px)_minmax(260px,360px)_1fr]">
+                <div className="rounded-md border border-gray-200 bg-gray-50 p-3 lg:col-span-2 xl:col-span-4">
+                  <label className="mb-1 block text-sm font-medium">League image</label>
+                  <div className="grid gap-3 md:grid-cols-[120px_1fr_auto] md:items-center">
+                    <div className="h-20 overflow-hidden rounded-md border border-slate-200 bg-white">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={poolImageUrl({ id: pool.id, name: pool.name, image_url: imageUrlDraft })} alt="" className="h-full w-full object-cover" />
+                    </div>
+                    <div>
+                      <input
+                        value={imageUrlDraft}
+                        onChange={(e) => setImageUrlDraft(e.target.value)}
+                        className="w-full rounded-md border px-3 py-2 text-sm"
+                        placeholder="Optional image URL"
+                      />
+                      <p className="mt-1 text-xs text-gray-600">Leave blank to use a default football image.</p>
+                    </div>
+                    <button onClick={saveImage} disabled={savingImage} className="rounded-md bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50">
+                      {savingImage ? 'Saving...' : 'Save image'}
+                    </button>
+                  </div>
+                </div>
+
                 <div className="rounded-md border border-gray-200 bg-gray-50 p-3 lg:col-span-2 xl:col-span-4">
                   <label className="mb-1 block text-sm font-medium">Member limit</label>
                   <div className="flex gap-2">

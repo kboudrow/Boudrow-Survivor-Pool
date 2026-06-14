@@ -52,7 +52,7 @@ export default function ArchivesPage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [pools, setPools] = useState<Pool[]>([])
 
-  // Run-it-back modal
+  // New season modal
   const [modalOpen, setModalOpen] = useState(false)
   const [activePool, setActivePool] = useState<Pool | null>(null)
   const [season, setSeason] = useState<number>(nextSeasonDefault())
@@ -161,7 +161,7 @@ export default function ArchivesPage() {
   const runItBack = async () => {
     if (!activePool) return
     if (!userId || activePool.created_by !== userId) {
-      setModalErr('Only the pool owner can run this back.')
+      setModalErr('Only the pool owner can create next season from this archive.')
       return
     }
 
@@ -180,7 +180,7 @@ export default function ArchivesPage() {
 
       router.push(`/pools/${newPoolId}`)
     } catch (e: unknown) {
-      setModalErr(getErrorMessage(e, 'Failed to run it back.'))
+      setModalErr(getErrorMessage(e, 'Failed to create next season.'))
     } finally {
       setRunning(false)
     }
@@ -235,7 +235,7 @@ export default function ArchivesPage() {
 
                       {canRunBack && (
                         <button onClick={() => openRunBack(p)} className="px-3 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 text-sm">
-                          Run it back
+                          Create next season
                         </button>
                       )}
                     </div>
@@ -247,20 +247,20 @@ export default function ArchivesPage() {
         )}
       </div>
 
-      {/* Run it back modal */}
+      {/* Create next season modal */}
       {modalOpen && activePool && (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/50" onClick={closeModal} />
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(620px,92vw)] bg-white rounded-xl shadow-xl p-5">
             <div className="flex items-center justify-between mb-2">
-              <h2 className="text-lg font-semibold">Run it back</h2>
+              <h2 className="text-lg font-semibold">Create next season</h2>
               <button onClick={closeModal} className="px-3 py-1 rounded-md bg-gray-100 hover:bg-gray-200" disabled={running}>
                 Close
               </button>
             </div>
 
             <p className="text-sm text-gray-700 mb-4">
-              This creates a <b>new</b> pool for a new season with the same settings, but it will start <b>empty</b>.
+              This creates one <b>new</b> league from <b>{activePool.name}</b> with the same settings, but it starts <b>empty</b>.
               You’ll share a fresh invite link with last year’s group.
             </p>
 

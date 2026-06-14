@@ -147,7 +147,7 @@ export default function PoolDetailPage() {
   const joinPool = async () => {
     if (!pool) return
     if (!userId) {
-      setError('Please sign in first.')
+      router.push(signInHref)
       return
     }
     setJoining(true)

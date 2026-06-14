@@ -3,6 +3,7 @@
 import React, { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
+import { defaultPoolImage } from '@/lib/poolImages'
 
 const ALL_WEEKS = Array.from({ length: 18 }, (_, i) => i + 1)
 const DEFAULT_SEASON = 2026
@@ -72,6 +73,7 @@ export default function CreatePoolPage() {
   const [tiebreaker, setTiebreaker] = useState<'Win' | 'Loss'>('Loss')
   const [seasonLength, setSeasonLength] = useState('Regular Season')
   const [notes, setNotes] = useState('')
+  const [imageUrl, setImageUrl] = useState('')
 
   // visibility
   const [isPublic, setIsPublic] = useState(true)
@@ -166,6 +168,7 @@ export default function CreatePoolPage() {
           deadline_mode,
           deadline_fixed,
           notes: notes?.trim() ? notes.trim() : null,
+          image_url: imageUrl.trim() || defaultPoolImage(trimmedName),
           created_by: user.id,
           season: DEFAULT_SEASON,
           double_pick_weeks: validDoubleWeeks,
@@ -437,6 +440,17 @@ export default function CreatePoolPage() {
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Any additional rules or notes"
           />
+        </div>
+
+        <div className="field">
+          <label htmlFor="imageUrl">League Image</label>
+          <input
+            id="imageUrl"
+            value={imageUrl}
+            onChange={(e) => setImageUrl(e.target.value)}
+            placeholder="Optional image URL"
+          />
+          <p className="hint">Optional. Leave blank and we will assign a default league image.</p>
         </div>
 
         <button className="primary" type="submit" disabled={loading}>

@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import { AdSlot } from '@/components/AdSlot'
 import { InviteModal } from '@/components/InviteModal'
 import { getErrorMessage } from '@/lib/errorMessage'
+import { poolImageUrl } from '@/lib/poolImages'
 import { supabase } from '@/lib/supabaseClient'
 
 /** ---------------- Types ---------------- */
@@ -28,6 +29,7 @@ type Pool = {
   max_members?: number | null
   allow_multiple_entries?: boolean | null
   max_entries_per_user?: number | null
+  image_url?: string | null
 }
 
 type Profile = {
@@ -133,7 +135,7 @@ const NFL_TEAMS: Team[] = [
   { abbr: 'WAS', name: 'Washington Commanders', logo: espnLogo('WSH') },
 ]
 
-const POOL_CARD_SELECT = 'id,name,is_public,start_week,strikes_allowed,tie_rule'
+const POOL_CARD_SELECT = 'id,name,is_public,start_week,strikes_allowed,tie_rule,image_url,max_members,allow_multiple_entries,max_entries_per_user,activation_status'
 const teamByAbbr = (abbr?: string | null) => NFL_TEAMS.find((t) => t.abbr === abbr) || null
 const isNoPick = (abbr?: string | null) => !!abbr?.startsWith('NO_PICK')
 const toAbbr = (input: string): string => {
@@ -607,7 +609,6 @@ function MyPoolsContent() {
   const canInvite = !!pool && pool.activation_status === 'active' && poolStartKnown && !leagueHasStarted
   const myStats = selectedEntryId ? statsByUser[selectedEntryId] : undefined
   const isEliminated = leagueHasStarted && !!myStats?.eliminated
-  const selectedEntry = myEntries.find((entry) => entry.id === selectedEntryId) || null
   const uniqueMemberCount = useMemo(() => new Set(members.map((member) => member.profile_id || member.id)).size || memberCount, [members, memberCount])
   const canMakePicks = !!pool && !!selectedEntryId && !isEliminated && selectedPickWeek >= pool.start_week
   const deadlineLabel =
@@ -1447,17 +1448,31 @@ function MyPoolsContent() {
 
       {!loading && !error && pools.length > 0 && (
         <>
-          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {pools.map((p) => (
-              <li key={p.id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                <h2 className="text-lg font-semibold">{p.name}</h2>
-                <p className="text-sm text-gray-600">
-                  {p.is_public ? 'Public' : 'Private'} - Starts week {p.start_week} - Strikes {p.strikes_allowed} - Tie = {p.tie_rule}
-                </p>
+              <li key={p.id} className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                <div className="h-28 bg-slate-100">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={poolImageUrl(p)} alt="" className="h-full w-full object-cover" />
+                </div>
+                <div className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <h2 className="text-lg font-semibold leading-tight text-slate-950">{p.name}</h2>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${p.is_public ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : 'bg-slate-100 text-slate-700 ring-1 ring-slate-200'}`}>
+                      {p.is_public ? 'Public' : 'Private'}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <InfoTile label="Starts" value={`Week ${p.start_week}`} />
+                    <InfoTile label="Strikes" value={String(p.strikes_allowed)} />
+                    <InfoTile label="Tie" value={p.tie_rule === 'win' ? 'Win' : 'Loss'} />
+                    <InfoTile label="Entries" value={p.allow_multiple_entries ? `Up to ${p.max_entries_per_user ?? 1}` : 'Single'} />
+                  </div>
                 <div className="mt-3 flex gap-2">
                   <button onClick={() => openPool(p.id)} className="rounded-md bg-[#111318] px-3 py-2 text-sm font-semibold text-white hover:bg-black">
                     Open
                   </button>
+                </div>
                 </div>
               </li>
             ))}
@@ -1479,15 +1494,6 @@ function MyPoolsContent() {
             <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-xl font-semibold">{pool?.name || 'Pool'}</h2>
-                {pool && (
-                  <p className="text-xs text-gray-600">
-                    {pool.deadline_mode === 'fixed'
-                      ? normalizeTimeTo24h(pool.deadline_fixed) === '20:15'
-                        ? 'Before Monday Night Football: every unstarted game stays available until it kicks off'
-                        : 'Sunday 1 PM ET: all remaining picks lock when the early games begin'
-                      : 'Rolling: each matchup locks at its own kickoff'}
-                  </p>
-                )}
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {canInvite && (
@@ -1564,14 +1570,12 @@ function MyPoolsContent() {
                   <div className="mb-8">
                     <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3">
                       <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <h3 className="font-semibold">Your Picks</h3>
-                          <p className="text-xs text-gray-500">
-                            Week {selectedPickWeek} - {deadlineLabel} - {picksAllowedForWeek(selectedPickWeek)} {picksAllowedForWeek(selectedPickWeek) === 1 ? 'pick' : 'picks'} needed
-                          </p>
-                          {selectedEntry && (
-                            <p className="mt-1 text-xs font-medium text-slate-700">Editing {entryLabelForMember(selectedEntry)}</p>
-                          )}
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                          <span className="rounded-full bg-slate-100 px-2 py-1 font-semibold">Week {selectedPickWeek}</span>
+                          <span className="rounded-full bg-slate-100 px-2 py-1 font-semibold">{deadlineLabel}</span>
+                          <span className="rounded-full bg-slate-100 px-2 py-1 font-semibold">
+                            {picksAllowedForWeek(selectedPickWeek)} {picksAllowedForWeek(selectedPickWeek) === 1 ? 'pick' : 'picks'}
+                          </span>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
                           {myEntries.length > 1 && (
@@ -1685,9 +1689,6 @@ function MyPoolsContent() {
                               </span>
                             )}
                           </div>
-                          <p className="mt-1 text-sm text-gray-600">
-                            Make {picksAllowedForWeek(selectedPickWeek)} {picksAllowedForWeek(selectedPickWeek) === 1 ? 'pick' : 'picks'} for this week.
-                          </p>
                         </div>
                         <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600">
                           {selectedWeekCloseLabel}
@@ -1709,8 +1710,7 @@ function MyPoolsContent() {
                           if (finalPick && finalTeam) {
                             return (
                               <div key={key} className="rounded-md border border-slate-300 bg-slate-50 p-3">
-                                <div className="mb-2 flex items-center justify-between gap-2">
-                                  <span className="text-xs font-medium text-slate-600">{picksAllowedForWeek(selectedPickWeek) > 1 ? `Pick ${slot}` : 'Pick'}</span>
+                                <div className="mb-2 flex items-center justify-end gap-2">
                                   <span className="rounded-full bg-slate-900 px-2 py-0.5 text-xs font-medium text-white">Locked after deadline</span>
                                 </div>
                                 <div className="flex items-center gap-3">
@@ -1730,7 +1730,7 @@ function MyPoolsContent() {
                           return (
                             <div key={key} className="rounded-md border border-red-100 bg-white p-3 shadow-sm">
                               <div className="mb-2 flex items-center justify-between gap-2">
-                                <span className="text-xs font-medium text-slate-600">{picksAllowedForWeek(selectedPickWeek) > 1 ? `Pick ${slot}` : 'Pick'}</span>
+                                {picksAllowedForWeek(selectedPickWeek) > 1 ? <span className="text-xs font-medium text-slate-600">Pick {slot}</span> : <span />}
                                 <span
                                   className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                                     draftPick ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
@@ -1750,9 +1750,7 @@ function MyPoolsContent() {
                                     </div>
                                   </div>
                                 </div>
-                              ) : (
-                                <div className="flex min-h-14 items-center text-sm text-slate-500">Choose a team for Week {selectedPickWeek}.</div>
-                              )}
+                              ) : null}
 
                               <div className="mt-3 flex flex-wrap items-center gap-2">
                                 <button
@@ -1784,9 +1782,14 @@ function MyPoolsContent() {
                         <h5 className="mb-2 text-sm font-semibold">Week {selectedPickWeek} Games</h5>
                         {gamesLoading && <p className="text-sm text-gray-600">Loading games...</p>}
                         {!gamesLoading && weekGames.length === 0 && <p className="text-sm text-gray-600">No games found for this week.</p>}
+                        {!gamesLoading && weekGames.length > 16 && (
+                          <p className="mb-2 rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">
+                            Schedule warning: Week {selectedPickWeek} has {weekGames.length} games loaded. NFL weeks should never show more than 16.
+                          </p>
+                        )}
                         {!gamesLoading && weekGames.length > 0 && (
                           <div className="grid gap-2 md:grid-cols-2">
-                            {weekGames.map((game) => {
+                            {weekGames.slice(0, 16).map((game) => {
                               const away = teamByAbbr(toAbbr(game.away_team)) || { abbr: toAbbr(game.away_team), name: toAbbr(game.away_team) }
                               const home = teamByAbbr(toAbbr(game.home_team)) || { abbr: toAbbr(game.home_team), name: toAbbr(game.home_team) }
                               return (

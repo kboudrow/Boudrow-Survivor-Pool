@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" role="img" aria-label="Football field">
+  <rect width="240" height="160" fill="#14532d"/>
+  <path d="M20 20h200v120H20z" fill="#166534" stroke="#fff" stroke-width="4"/>
+  <path d="M60 22v116M100 22v116M140 22v116M180 22v116M22 80h196" stroke="#fff" stroke-width="3" opacity=".85"/>
+  <path d="M37 32h166M37 128h166" stroke="#fff" stroke-width="2" opacity=".45"/>
+  <path d="M104 80c0-9 7-16 16-16s16 7 16 16-7 16-16 16-16-7-16-16Z" fill="#7f1d1d" stroke="#f8fafc" stroke-width="3"/>
+</svg>
