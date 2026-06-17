@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { defaultPoolImage } from '@/lib/poolImages'
 
 const ALL_WEEKS = Array.from({ length: 18 }, (_, i) => i + 1)
+const START_WEEKS = Array.from({ length: 12 }, (_, i) => i + 1)
 const DEFAULT_SEASON = 2026
 const MEMBER_LIMIT_OPTIONS = [10, 25, 50, 100, 250, 500]
 const ENTRY_LIMIT_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1)
@@ -73,7 +74,8 @@ export default function CreatePoolPage() {
   const [tiebreaker, setTiebreaker] = useState<'Win' | 'Loss'>('Loss')
   const [seasonLength, setSeasonLength] = useState('Regular Season')
   const [notes, setNotes] = useState('')
-  const [imageUrl, setImageUrl] = useState('')
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
 
   // visibility
   const [isPublic, setIsPublic] = useState(true)
@@ -120,6 +122,31 @@ export default function CreatePoolPage() {
     topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
+  const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] || null
+    setImageFile(file)
+    setImagePreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return file ? URL.createObjectURL(file) : null
+    })
+  }
+
+  const uploadLeagueImage = async (file: File, userId: string) => {
+    if (!file.type.startsWith('image/')) throw new Error('Choose an image file for the league image.')
+    if (file.size > 5 * 1024 * 1024) throw new Error('League image must be 5 MB or smaller.')
+
+    const ext = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
+    const path = `${userId}/${Date.now()}.${ext}`
+    const { error: uploadError } = await supabase.storage.from('pool-images').upload(path, file, {
+      cacheControl: '3600',
+      upsert: true,
+    })
+    if (uploadError) throw uploadError
+
+    const { data } = supabase.storage.from('pool-images').getPublicUrl(path)
+    return data.publicUrl
+  }
+
   const handleCreate = async () => {
     setLoading(true)
     setError(null)
@@ -153,6 +180,7 @@ export default function CreatePoolPage() {
       let deadline_fixed: string | null = '13:00'
       if (pickDeadline === 'Before Monday Night Football') deadline_fixed = '20:15'
       if (pickDeadline === 'Rolling: each game locks at kickoff') deadline_mode = 'rolling'
+      const leagueImageUrl = imageFile ? await uploadLeagueImage(imageFile, user.id) : defaultPoolImage(trimmedName)
 
       // 1) create pool
       const { data: pool, error: insErr } = await supabase
@@ -168,7 +196,7 @@ export default function CreatePoolPage() {
           deadline_mode,
           deadline_fixed,
           notes: notes?.trim() ? notes.trim() : null,
-          image_url: imageUrl.trim() || defaultPoolImage(trimmedName),
+          image_url: leagueImageUrl,
           created_by: user.id,
           season: DEFAULT_SEASON,
           double_pick_weeks: validDoubleWeeks,
@@ -219,7 +247,6 @@ export default function CreatePoolPage() {
   return (
     <div ref={topRef} className="wrap">
       <div className="intro">
-        <p>Commissioner setup</p>
         <h1>Create a New League</h1>
         <span>Set the rules now. Once the pool starts, the important settings lock for fairness.</span>
       </div>
@@ -232,18 +259,6 @@ export default function CreatePoolPage() {
       )}
 
       <form onSubmit={(e) => { e.preventDefault(); handleCreate() }}>
-        <section className="setupSummary">
-          <div>
-            <h2>Pre-launch checklist</h2>
-            <p>Before inviting players, confirm the deadline, privacy, member limit, entry limit, and any double-pick weeks.</p>
-          </div>
-          <div className="summaryGrid">
-            <span>{isPublic ? 'Public discovery' : 'Private password'}</span>
-            <span>{allowMultipleEntries ? `Up to ${maxEntriesPerUser} entries/user` : 'Single entry'}</span>
-            <span>{doubleWeeks.length ? `${doubleWeeks.length} double-pick week${doubleWeeks.length === 1 ? '' : 's'}` : 'No double-pick weeks'}</span>
-          </div>
-        </section>
-
         <div className="field">
           <label htmlFor="poolName">Pool Name</label>
           <input
@@ -276,7 +291,7 @@ export default function CreatePoolPage() {
                 setDoubleWeeks((weeks) => weeks.filter((week) => week >= next))
               }}
             >
-              {Array.from({ length: 18 }, (_, i) => `Week ${i + 1}`).map((w) => (
+              {START_WEEKS.map((week) => `Week ${week}`).map((w) => (
                 <option key={w} value={w}>{w}</option>
               ))}
             </select>
@@ -337,7 +352,7 @@ export default function CreatePoolPage() {
               <span className={`pill ${!isPublic ? 'active' : ''}`}>Private</span>
             </div>
             <p className="hint">
-              Public leagues may appear in browse/search. Private leagues require a password to join.
+              Public pools can be discovered in search. Private pools require a password to join.
             </p>
             {!isPublic && (
               <div className="privatePasswordFields">
@@ -382,7 +397,7 @@ export default function CreatePoolPage() {
               placeholder="Enter 2 to 500"
             />
           )}
-          <p className="hint">This protects public pools from unexpected signups. You can adjust it before activation.</p>
+          <p className="hint">Control how many members you want in your pool.</p>
         </div>
 
         <div className="field">
@@ -409,7 +424,7 @@ export default function CreatePoolPage() {
               ))}
             </select>
           )}
-          <p className="hint">Each entry gets its own picks, used teams, standings row, and elimination status.</p>
+          <p className="hint">Allow members to enter the pool multiple times. Each entry plays independently with its own picks, standings, and survival status.</p>
         </div>
 
         <div className="field">
@@ -428,7 +443,7 @@ export default function CreatePoolPage() {
               </button>
             ))}
           </div>
-          <p className="hint">Selected weeks require two picks from every active entry.</p>
+          <p className="hint">Active entries must submit two picks during the selected weeks.</p>
         </div>
 
         <div className="field">
@@ -443,18 +458,30 @@ export default function CreatePoolPage() {
         </div>
 
         <div className="field">
-          <label htmlFor="imageUrl">League Image</label>
-          <input
-            id="imageUrl"
-            value={imageUrl}
-            onChange={(e) => setImageUrl(e.target.value)}
-            placeholder="Optional image URL"
-          />
-          <p className="hint">Optional. Leave blank and we will assign a default league image.</p>
+          <label htmlFor="leagueImage">League Image</label>
+          <div className="imageUpload">
+            <div className="imagePreview">
+              {imagePreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={imagePreview} alt="" />
+              ) : (
+                <span>Default image will be assigned</span>
+              )}
+            </div>
+            <div>
+              <input
+                id="leagueImage"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                onChange={handleImageChange}
+              />
+              <p className="hint">Optional. Upload a logo or league image up to 5 MB.</p>
+            </div>
+          </div>
         </div>
 
         <button className="primary" type="submit" disabled={loading}>
-          {loading ? 'Creating...' : 'Create Draft League'}
+          {loading ? 'Creating...' : 'Create League'}
         </button>
       </form>
 
@@ -486,28 +513,6 @@ export default function CreatePoolPage() {
         }
 
         form { display: flex; flex-direction: column; gap: 16px; }
-        .setupSummary {
-          display: grid;
-          grid-template-columns: minmax(0, 1.2fr) minmax(260px, .8fr);
-          gap: 14px;
-          align-items: start;
-          border: 1px solid #d1d5db;
-          border-radius: 12px;
-          background: #fff;
-          padding: 14px;
-        }
-        .setupSummary h2 { margin: 0 0 4px; font-size: 16px; }
-        .setupSummary p { margin: 0; color: #4b5563; font-size: 13px; line-height: 1.5; }
-        .summaryGrid { display: flex; flex-wrap: wrap; gap: 8px; }
-        .summaryGrid span {
-          border: 1px solid #e5e7eb;
-          border-radius: 999px;
-          background: #f9fafb;
-          padding: 6px 9px;
-          font-size: 12px;
-          font-weight: 600;
-          color: #374151;
-        }
         .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
         .field { display: flex; flex-direction: column; gap: 6px; }
         .privatePasswordFields {
@@ -531,6 +536,26 @@ export default function CreatePoolPage() {
         }
 
         .hint { margin-top: 6px; font-size: 12px; color: #666; }
+        .imageUpload {
+          display: grid;
+          grid-template-columns: 140px 1fr;
+          gap: 12px;
+          align-items: center;
+        }
+        .imagePreview {
+          display: flex;
+          min-height: 92px;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          border: 1px solid #d1d5db;
+          border-radius: 10px;
+          background: #f9fafb;
+          color: #6b7280;
+          font-size: 12px;
+          text-align: center;
+        }
+        .imagePreview img { width: 100%; height: 92px; object-fit: cover; }
 
         .noticeBox {
           border: 1px solid #fed7aa;
@@ -579,7 +604,7 @@ export default function CreatePoolPage() {
         .week.on { background:#c5161d; color:#fff; border-color:#c5161d; }
 
         @media (max-width: 720px){
-          .grid2, .setupSummary { grid-template-columns: 1fr; gap: 12px; }
+          .grid2, .imageUpload { grid-template-columns: 1fr; gap: 12px; }
           .wrap { padding: 14px 12px 28px; }
           .intro { padding: 18px; border-radius: 12px; }
           h1 { font-size: 28px; }

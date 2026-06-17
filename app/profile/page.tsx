@@ -24,7 +24,45 @@ type ProfileUsernameRow = {
   username: string | null
   display_name: string | null
   avatar_url: string | null
+  first_name: string | null
+  last_name: string | null
+  favorite_team: string | null
 }
+
+const FAVORITE_TEAMS = [
+  ['ARI', 'Arizona Cardinals'],
+  ['ATL', 'Atlanta Falcons'],
+  ['BAL', 'Baltimore Ravens'],
+  ['BUF', 'Buffalo Bills'],
+  ['CAR', 'Carolina Panthers'],
+  ['CHI', 'Chicago Bears'],
+  ['CIN', 'Cincinnati Bengals'],
+  ['CLE', 'Cleveland Browns'],
+  ['DAL', 'Dallas Cowboys'],
+  ['DEN', 'Denver Broncos'],
+  ['DET', 'Detroit Lions'],
+  ['GB', 'Green Bay Packers'],
+  ['HOU', 'Houston Texans'],
+  ['IND', 'Indianapolis Colts'],
+  ['JAX', 'Jacksonville Jaguars'],
+  ['KC', 'Kansas City Chiefs'],
+  ['LAC', 'Los Angeles Chargers'],
+  ['LAR', 'Los Angeles Rams'],
+  ['LV', 'Las Vegas Raiders'],
+  ['MIA', 'Miami Dolphins'],
+  ['MIN', 'Minnesota Vikings'],
+  ['NE', 'New England Patriots'],
+  ['NO', 'New Orleans Saints'],
+  ['NYG', 'New York Giants'],
+  ['NYJ', 'New York Jets'],
+  ['PHI', 'Philadelphia Eagles'],
+  ['PIT', 'Pittsburgh Steelers'],
+  ['SEA', 'Seattle Seahawks'],
+  ['SF', 'San Francisco 49ers'],
+  ['TB', 'Tampa Bay Buccaneers'],
+  ['TEN', 'Tennessee Titans'],
+  ['WAS', 'Washington Commanders'],
+]
 
 function isWon(status?: string | null) {
   return (status || '').trim().toLowerCase() === 'won'
@@ -36,6 +74,10 @@ function isEliminated(status?: string | null) {
 
 function n0(v: number | null | undefined) {
   return typeof v === 'number' && Number.isFinite(v) ? v : 0
+}
+
+function isMissingFavoriteTeamColumn(error: unknown) {
+  return getErrorMessage(error, '').toLowerCase().includes('favorite_team')
 }
 
 function computeBestFinish(rows: HistoryRow[]) {
@@ -80,6 +122,9 @@ export default function ProfilePage() {
 
   // username
   const [username, setUsername] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [favoriteTeam, setFavoriteTeam] = useState('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [avatarUploading, setAvatarUploading] = useState(false)
   const [avatarMsg, setAvatarMsg] = useState<string | null>(null)
@@ -119,6 +164,7 @@ export default function ProfilePage() {
 
   const allPwOk = pwChecks.len && pwChecks.upper && pwChecks.lower && pwChecks.num && pwChecks.special && pwChecks.match
   const profileComplete = username.trim().length >= 3
+  const profileTitle = username.trim() || [firstName.trim(), lastName.trim()].filter(Boolean).join(' ') || currentEmail || 'Profile'
 
   const loadHistory = async () => {
     setHistoryLoading(true)
@@ -192,11 +238,29 @@ export default function ProfilePage() {
         setNewEmail(user.email || '')
 
         // load username
-        const { data: prof, error: profErr } = await supabase.from('profiles').select('username, display_name, avatar_url').eq('id', user.id).maybeSingle()
+        const profileWithFavorite = await supabase
+          .from('profiles')
+          .select('username, display_name, avatar_url, first_name, last_name, favorite_team')
+          .eq('id', user.id)
+          .maybeSingle()
+        let prof = profileWithFavorite.data as ProfileUsernameRow | null
+        let profErr = profileWithFavorite.error
+        if (profErr && isMissingFavoriteTeamColumn(profErr)) {
+          const fallback = await supabase
+            .from('profiles')
+            .select('username, display_name, avatar_url, first_name, last_name')
+            .eq('id', user.id)
+            .maybeSingle()
+          prof = fallback.data ? { ...fallback.data, favorite_team: null } as ProfileUsernameRow : null
+          profErr = fallback.error
+        }
         if (profErr) throw profErr
         if (!alive) return
-        const profileRow = prof as ProfileUsernameRow | null
+        const profileRow = prof
         setUsername(profileRow?.display_name || profileRow?.username || '')
+        setFirstName(profileRow?.first_name || '')
+        setLastName(profileRow?.last_name || '')
+        setFavoriteTeam(profileRow?.favorite_team || '')
         setAvatarUrl(profileRow?.avatar_url || null)
 
         await loadHistory()
@@ -226,11 +290,34 @@ export default function ProfilePage() {
       if (cleaned.length < 3) throw new Error('Username must be at least 3 characters.')
       if (cleaned.length > 30) throw new Error('Username must be 30 characters or fewer.')
 
-      const { error } = await supabase.from('profiles').update({ username: cleaned, display_name: cleaned }).eq('id', userId)
+      let { error } = await supabase
+        .from('profiles')
+        .update({
+          username: cleaned,
+          display_name: cleaned,
+          first_name: firstName.trim() || null,
+          last_name: lastName.trim() || null,
+          favorite_team: favoriteTeam || null,
+        })
+        .eq('id', userId)
+      if (error && isMissingFavoriteTeamColumn(error)) {
+        const fallback = await supabase
+          .from('profiles')
+          .update({
+            username: cleaned,
+            display_name: cleaned,
+            first_name: firstName.trim() || null,
+            last_name: lastName.trim() || null,
+          })
+          .eq('id', userId)
+        error = fallback.error
+      }
       if (error) throw error
 
       setUsername(cleaned)
-      setUsernameMsg('Saved.')
+      setFirstName(firstName.trim())
+      setLastName(lastName.trim())
+      setUsernameMsg('Profile saved.')
     } catch (e: unknown) {
       setErr(getErrorMessage(e, 'Failed to save username.'))
     } finally {
@@ -373,12 +460,9 @@ export default function ProfilePage() {
                   </div>
                   <div>
                     <div className="mb-1 flex flex-wrap items-center gap-2">
-                      <h2 className="text-lg font-semibold">Player Identity</h2>
+                      <h2 className="text-lg font-semibold">{profileTitle}</h2>
                       <StatusBadge complete={profileComplete} />
                     </div>
-                    <p className={`text-sm ${profileComplete ? 'text-emerald-800' : 'text-amber-900'}`}>
-                      {profileComplete ? 'This is the name other players see in member lists and standings.' : 'Add a display name so other players can identify you in member lists and standings.'}
-                    </p>
                   </div>
                 </div>
                 <div className="rounded-md bg-white px-3 py-2 text-sm shadow-sm">
@@ -391,8 +475,7 @@ export default function ProfilePage() {
             <section className="border rounded-lg p-4 bg-white">
               <div className="flex items-center justify-between gap-3 mb-3">
                 <div>
-                  <h2 className="text-lg font-semibold">Your Stats</h2>
-                  <p className="text-xs text-gray-500">Based on your pool history. No one can see your email.</p>
+                  <h2 className="text-lg font-semibold">Stats</h2>
                 </div>
                 <button
                   onClick={loadHistory}
@@ -414,11 +497,11 @@ export default function ProfilePage() {
               </div>
             </section>
 
-            {/* Display name */}
+            {/* Profile details */}
             <section className="border rounded-lg p-4 bg-white">
-              <h2 className="text-lg font-semibold mb-2">Display Name</h2>
+              <h2 className="text-lg font-semibold mb-2">Profile Details</h2>
               <div className="grid sm:grid-cols-3 gap-3">
-                <div className="sm:col-span-2">
+                <div>
                   <label className="block text-sm font-medium mb-1">Display name</label>
                   <input
                     value={username}
@@ -426,7 +509,39 @@ export default function ProfilePage() {
                     className="w-full border rounded-md px-3 py-2"
                     placeholder="e.g. Kev, SundayCrew, etc."
                   />
-                  <p className="text-xs text-gray-500 mt-2">This is what others see in standings. (No emails are shown.)</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">First name</label>
+                  <input
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className="w-full border rounded-md px-3 py-2"
+                    placeholder="First name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Last name</label>
+                  <input
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className="w-full border rounded-md px-3 py-2"
+                    placeholder="Last name"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium mb-1">Favorite team</label>
+                  <select
+                    value={favoriteTeam}
+                    onChange={(e) => setFavoriteTeam(e.target.value)}
+                    className="w-full border rounded-md px-3 py-2"
+                  >
+                    <option value="">Choose a team</option>
+                    {FAVORITE_TEAMS.map(([abbr, name]) => (
+                      <option key={abbr} value={abbr}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
                   {usernameMsg && <div className="text-sm text-emerald-700 mt-2">{usernameMsg}</div>}
                 </div>
                 <div className="flex items-end">
@@ -457,7 +572,6 @@ export default function ProfilePage() {
                     disabled={avatarUploading}
                     className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white disabled:opacity-50"
                   />
-                  <p className="mt-2 text-xs text-gray-500">Shown in pool member lists and standings. Max 5 MB.</p>
                   {avatarMsg && <div className="mt-2 text-sm text-emerald-700">{avatarMsg}</div>}
                 </div>
               </div>
@@ -467,7 +581,7 @@ export default function ProfilePage() {
             <section className="border rounded-lg p-4 bg-white">
               <h2 className="text-lg font-semibold mb-2">Account & Security</h2>
               <div className="mb-4 rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
-                <span className="text-gray-500">Current email:</span> <span className="font-medium">{currentEmail || '-'}</span>
+                <span className="text-gray-500">Email:</span> <span className="font-medium">{currentEmail || '-'}</span>
               </div>
 
               <div className="mb-5 grid sm:grid-cols-3 gap-3">
@@ -517,12 +631,12 @@ export default function ProfilePage() {
               </div>
 
               <ul className="text-xs text-gray-600 mt-3 list-disc pl-5">
-                <li className={pwChecks.len ? 'text-green-700' : ''}>At least 8 chars</li>
-                <li className={pwChecks.upper ? 'text-green-700' : ''}>Uppercase</li>
-                <li className={pwChecks.lower ? 'text-green-700' : ''}>Lowercase</li>
-                <li className={pwChecks.num ? 'text-green-700' : ''}>Number</li>
-                <li className={pwChecks.special ? 'text-green-700' : ''}>Special</li>
-                <li className={pwChecks.match ? 'text-green-700' : ''}>Match</li>
+                <li className={pwChecks.len ? 'text-green-700' : ''}>At least 8 characters</li>
+                <li className={pwChecks.upper ? 'text-green-700' : ''}>One uppercase letter</li>
+                <li className={pwChecks.lower ? 'text-green-700' : ''}>One lowercase letter</li>
+                <li className={pwChecks.num ? 'text-green-700' : ''}>One number</li>
+                <li className={pwChecks.special ? 'text-green-700' : ''}>One special character</li>
+                <li className={pwChecks.match ? 'text-green-700' : ''}>Passwords match</li>
               </ul>
 
               {pwMsg && <div className="text-sm text-emerald-700 mt-2">{pwMsg}</div>}
@@ -558,7 +672,7 @@ export default function ProfilePage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Link href="/archives" className="px-3 py-2 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 text-sm">
-                    Run it back
+                    View archives
                   </Link>
                   <button
                     onClick={loadHistory}
@@ -607,7 +721,6 @@ export default function ProfilePage() {
                 </div>
               )}
 
-              <p className="text-xs text-gray-500 mt-2">This page only shows <b>your</b> account data and <b>your</b> pool history.</p>
             </section>
           </div>
         )}

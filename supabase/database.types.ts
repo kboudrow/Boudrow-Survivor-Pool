@@ -973,6 +973,7 @@ export type Database = {
           avatar_url: string | null
           created_at: string | null
           display_name: string | null
+          favorite_team: string | null
           first_name: string | null
           id: string
           last_name: string | null
@@ -984,6 +985,7 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string | null
           display_name?: string | null
+          favorite_team?: string | null
           first_name?: string | null
           id: string
           last_name?: string | null
@@ -995,6 +997,7 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string | null
           display_name?: string | null
+          favorite_team?: string | null
           first_name?: string | null
           id?: string
           last_name?: string | null

@@ -1,5 +1,6 @@
 'use client'
 
+import type { ChangeEvent } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
@@ -132,6 +133,8 @@ export default function PoolAdminPage() {
   const [visibilityPassword, setVisibilityPassword] = useState('')
   const [savingImage, setSavingImage] = useState(false)
   const [imageUrlDraft, setImageUrlDraft] = useState('')
+  const [imageFileDraft, setImageFileDraft] = useState<File | null>(null)
+  const [imagePreviewDraft, setImagePreviewDraft] = useState<string | null>(null)
   const [confirmingCheckout, setConfirmingCheckout] = useState(false)
   const [runningAction, setRunningAction] = useState<string | null>(null)
   const [draftTeams, setDraftTeams] = useState<Record<string, string>>({})
@@ -201,6 +204,11 @@ export default function PoolAdminPage() {
       setIsPublicDraft(!!p.is_public)
       setVisibilityPassword('')
       setImageUrlDraft(p.image_url || '')
+      setImageFileDraft(null)
+      setImagePreviewDraft((prev) => {
+        if (prev) URL.revokeObjectURL(prev)
+        return null
+      })
       setRows((overview || []) as AdminRow[])
 
       const { data: firstStartGame } = await supabase
@@ -459,20 +467,81 @@ export default function PoolAdminPage() {
     }
   }
 
+  const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] || null
+    setImageFileDraft(file)
+    setImagePreviewDraft((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return file ? URL.createObjectURL(file) : null
+    })
+  }
+
+  const uploadLeagueImage = async (file: File, poolIdValue: string) => {
+    if (!file.type.startsWith('image/')) throw new Error('Choose an image file for the league image.')
+    if (file.size > 5 * 1024 * 1024) throw new Error('League image must be 5 MB or smaller.')
+
+    const ext = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
+    const path = `${poolIdValue}/${Date.now()}.${ext}`
+    const { error: uploadError } = await supabase.storage.from('pool-images').upload(path, file, {
+      cacheControl: '3600',
+      upsert: true,
+    })
+    if (uploadError) throw uploadError
+
+    const { data } = supabase.storage.from('pool-images').getPublicUrl(path)
+    return data.publicUrl
+  }
+
   const saveImage = async () => {
     if (!pool) return
+    if (!imageFileDraft) {
+      setError('Choose an image file before saving.')
+      return
+    }
     setSavingImage(true)
     setError(null)
     setNotice(null)
     try {
-      const nextImage = imageUrlDraft.trim()
+      const nextImage = await uploadLeagueImage(imageFileDraft, pool.id)
       const { error } = await supabase.rpc('admin_update_pool_image', {
         p_pool_id: pool.id,
         p_image_url: nextImage,
       })
       if (error) throw error
       setPool({ ...pool, image_url: nextImage || null })
-      setNotice(nextImage ? 'League image saved.' : 'League image reset to a default.')
+      setImageUrlDraft(nextImage)
+      setImageFileDraft(null)
+      setImagePreviewDraft((prev) => {
+        if (prev) URL.revokeObjectURL(prev)
+        return null
+      })
+      setNotice('League image saved.')
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to save league image.'))
+    } finally {
+      setSavingImage(false)
+    }
+  }
+
+  const resetImage = async () => {
+    if (!pool) return
+    setSavingImage(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const { error } = await supabase.rpc('admin_update_pool_image', {
+        p_pool_id: pool.id,
+        p_image_url: '',
+      })
+      if (error) throw error
+      setPool({ ...pool, image_url: null })
+      setImageUrlDraft('')
+      setImageFileDraft(null)
+      setImagePreviewDraft((prev) => {
+        if (prev) URL.revokeObjectURL(prev)
+        return null
+      })
+      setNotice('League image reset to a default.')
     } catch (e: unknown) {
       setError(getErrorMessage(e, 'Failed to save league image.'))
     } finally {
@@ -763,20 +832,26 @@ export default function PoolAdminPage() {
                   <div className="grid gap-3 md:grid-cols-[120px_1fr_auto] md:items-center">
                     <div className="h-20 overflow-hidden rounded-md border border-slate-200 bg-white">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={poolImageUrl({ id: pool.id, name: pool.name, image_url: imageUrlDraft })} alt="" className="h-full w-full object-cover" />
+                      <img src={imagePreviewDraft || poolImageUrl({ id: pool.id, name: pool.name, image_url: imageUrlDraft })} alt="" className="h-full w-full object-cover" />
                     </div>
                     <div>
                       <input
-                        value={imageUrlDraft}
-                        onChange={(e) => setImageUrlDraft(e.target.value)}
-                        className="w-full rounded-md border px-3 py-2 text-sm"
-                        placeholder="Optional image URL"
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        onChange={handleImageChange}
+                        disabled={savingImage}
+                        className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white disabled:opacity-50"
                       />
-                      <p className="mt-1 text-xs text-gray-600">Leave blank to use a default football image.</p>
+                      <p className="mt-1 text-xs text-gray-600">Upload a logo or league image up to 5 MB.</p>
                     </div>
-                    <button onClick={saveImage} disabled={savingImage} className="rounded-md bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50">
-                      {savingImage ? 'Saving...' : 'Save image'}
-                    </button>
+                    <div className="flex flex-wrap gap-2 md:flex-col">
+                      <button onClick={saveImage} disabled={savingImage || !imageFileDraft} className="rounded-md bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50">
+                        {savingImage ? 'Saving...' : 'Save image'}
+                      </button>
+                      <button onClick={resetImage} disabled={savingImage} className="rounded-md bg-gray-100 px-4 py-2 text-sm text-gray-800 hover:bg-gray-200 disabled:opacity-50">
+                        Use default
+                      </button>
+                    </div>
                   </div>
                 </div>
 

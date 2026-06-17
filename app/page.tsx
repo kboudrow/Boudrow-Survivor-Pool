@@ -257,6 +257,10 @@ export default function Home() {
                 <button type="button" onClick={openSignIn} className="underline text-white hover:text-[#d2ad5b]">
                   Sign in
                 </button>{' '}
+                or{' '}
+                <button type="button" onClick={openSignUp} className="underline text-white hover:text-[#d2ad5b]">
+                  create a profile
+                </button>{' '}
                 to create or join a pool.
               </p>
             )}
@@ -435,12 +439,12 @@ export default function Home() {
                   </label>
 
                   <ul className="text-xs text-gray-600 mt-2 list-disc pl-5">
-                    <li className={pw.len ? 'text-green-700' : ''}>At least 8 chars</li>
-                    <li className={pw.upper ? 'text-green-700' : ''}>Uppercase</li>
-                    <li className={pw.lower ? 'text-green-700' : ''}>Lowercase</li>
-                    <li className={pw.num ? 'text-green-700' : ''}>Number</li>
-                    <li className={pw.special ? 'text-green-700' : ''}>Special</li>
-                    <li className={pw.match ? 'text-green-700' : ''}>Match</li>
+                    <li className={pw.len ? 'text-green-700' : ''}>At least 8 characters</li>
+                    <li className={pw.upper ? 'text-green-700' : ''}>One uppercase letter</li>
+                    <li className={pw.lower ? 'text-green-700' : ''}>One lowercase letter</li>
+                    <li className={pw.num ? 'text-green-700' : ''}>One number</li>
+                    <li className={pw.special ? 'text-green-700' : ''}>One special character</li>
+                    <li className={pw.match ? 'text-green-700' : ''}>Passwords match</li>
                   </ul>
 
                   {authError && <p className="text-red-600 mt-2">{authError}</p>}

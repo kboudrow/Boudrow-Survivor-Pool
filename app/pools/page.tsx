@@ -1782,11 +1782,6 @@ function MyPoolsContent() {
                         <h5 className="mb-2 text-sm font-semibold">Week {selectedPickWeek} Games</h5>
                         {gamesLoading && <p className="text-sm text-gray-600">Loading games...</p>}
                         {!gamesLoading && weekGames.length === 0 && <p className="text-sm text-gray-600">No games found for this week.</p>}
-                        {!gamesLoading && weekGames.length > 16 && (
-                          <p className="mb-2 rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">
-                            Schedule warning: Week {selectedPickWeek} has {weekGames.length} games loaded. NFL weeks should never show more than 16.
-                          </p>
-                        )}
                         {!gamesLoading && weekGames.length > 0 && (
                           <div className="grid gap-2 md:grid-cols-2">
                             {weekGames.slice(0, 16).map((game) => {
