@@ -83,7 +83,7 @@ export default function ResetPage() {
       <div className="w-full max-w-md border border-gray-200 rounded-lg p-4">
         <h1 className="text-2xl font-bold mb-2">Reset your password</h1>
 
-        {!ready && <p>Loading…</p>}
+        {!ready && <p>Loading...</p>}
 
         {ready && exchangeError && (
           <>
@@ -91,7 +91,7 @@ export default function ResetPage() {
             <ol className="list-decimal ml-5 text-sm mb-3">
               <li>Go to <Link href="/forgot" className="underline">Forgot Password</Link> and request a new link.</li>
               <li>Open the email <b>on the same device & browser</b> you used to request it.</li>
-              <li>Click the link — it should open this page with a code or tokens.</li>
+              <li>Click the link. It should open this page with a code or tokens.</li>
             </ol>
             <Link href="/" className="px-4 py-2 rounded-md bg-gray-600 text-white inline-block">Home</Link>
           </>
@@ -124,10 +124,10 @@ export default function ResetPage() {
 
             <ul className="text-xs text-gray-700 mb-3 list-disc pl-5">
               <li className={pwChecks.len ? 'text-green-700' : ''}>At least 8 characters</li>
-              <li className={pwChecks.upper ? 'text-green-700' : ''}>Contains an uppercase letter</li>
-              <li className={pwChecks.lower ? 'text-green-700' : ''}>Contains a lowercase letter</li>
-              <li className={pwChecks.num ? 'text-green-700' : ''}>Contains a number</li>
-              <li className={pwChecks.special ? 'text-green-700' : ''}>Contains a special character</li>
+              <li className={pwChecks.upper ? 'text-green-700' : ''}>One uppercase letter</li>
+              <li className={pwChecks.lower ? 'text-green-700' : ''}>One lowercase letter</li>
+              <li className={pwChecks.num ? 'text-green-700' : ''}>One number</li>
+              <li className={pwChecks.special ? 'text-green-700' : ''}>One special character</li>
               <li className={pwChecks.match ? 'text-green-700' : ''}>Passwords match</li>
             </ul>
 
@@ -140,7 +140,7 @@ export default function ResetPage() {
                 disabled={!allPwOk || saving}
                 className="px-4 py-2 rounded-md bg-green-600 text-white disabled:opacity-50"
               >
-                {saving ? 'Saving…' : 'Set new password'}
+                {saving ? 'Saving...' : 'Set new password'}
               </button>
               <Link href="/" className="px-4 py-2 rounded-md bg-gray-600 text-white text-center">Home</Link>
             </div>

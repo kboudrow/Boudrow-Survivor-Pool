@@ -626,8 +626,8 @@ function MyPoolsContent() {
   const standingsPrivacyLabel = standingsPicksVisible
     ? 'Locked picks are public for this week.'
     : standingsRevealAt
-      ? `Other entries' picks stay private until ${fmtEtDateTime(standingsRevealAt)}.`
-      : 'Other entries\' picks stay private until the deadline.'
+      ? `Other entries' picks stay private until the league deadline: ${fmtEtDateTime(standingsRevealAt)}.`
+      : 'Other entries\' picks stay private until this week opens for the league.'
 
   const showPickNotice = (notice: PickNotice) => {
     if (pickNoticeTimerRef.current) window.clearTimeout(pickNoticeTimerRef.current)
@@ -1905,7 +1905,7 @@ function MyPoolsContent() {
                         {visiblePicksThisWeek.length}/{Math.max(expectedPickCount, visiblePicksThisWeek.length)}
                       </div>
                       <div className="mt-1 text-xs text-gray-500">
-                        {visiblePickPercent}% visible. {standingsPicksVisible ? 'Locked picks are visible.' : 'Other entries stay hidden.'}
+                        {visiblePickPercent}% visible. {standingsPicksVisible ? 'Locked picks are visible.' : 'Other entries stay hidden until the deadline.'}
                       </div>
                     </div>
                     <div className="rounded-lg border border-gray-200 bg-white p-4">
@@ -1941,16 +1941,16 @@ function MyPoolsContent() {
                       <div>
                         <div className="text-xs uppercase text-gray-500">Week {standingsWeek} Pick Distribution</div>
                         <div className="mt-1 text-sm text-gray-600">
-                          Percentage of available entries/picks on each team.
+                          Percentage of active entry picks on each team. This stays private until the league deadline.
                         </div>
                       </div>
                       <div className="text-xs text-gray-500">
-                        Gray: pending · Green: won · Red: lost
+                        Gray: pending / Green: won / Red: lost
                       </div>
                     </div>
                     {!standingsWeekHasStarted || !standingsPicksVisible ? (
                       <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">
-                        This chart goes live when Week {standingsWeek} starts for this league.
+                        This chart goes live after the Week {standingsWeek} deadline passes.
                       </div>
                     ) : (
                       <div className="grid gap-2 lg:grid-cols-2">
@@ -1976,7 +1976,7 @@ function MyPoolsContent() {
                                   <span className="text-xs text-gray-500">({team.abbr})</span>
                                 </span>
                                 <span className="shrink-0 text-xs font-semibold text-gray-700">
-                                  {percentage}% · {count}
+                                  {percentage}% / {count}
                                 </span>
                               </div>
                               <div className="h-2 overflow-hidden rounded-full bg-gray-100">

@@ -796,23 +796,7 @@ export default function PoolAdminPage() {
               <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
                 <div>
                   <h2 className="font-semibold">League Settings</h2>
-                  <p className="text-sm text-gray-600">These rules stay editable until the pool reaches its configured start week.</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button onClick={finalizeLocked} disabled={!!runningAction} className="rounded-md bg-indigo-600 px-3 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">
-                    Finalize due picks
-                  </button>
-                  <button onClick={adjudicate} disabled={!!runningAction} className="rounded-md bg-emerald-600 px-3 py-2 text-sm text-white hover:bg-emerald-700 disabled:opacity-50">
-                    Adjudicate results
-                  </button>
-                  <button
-                    onClick={toggleArchive}
-                    disabled={archiving || settingsLocked || isPaidPool}
-                    title={isPaidPool ? 'Paid or active pools cannot be archived.' : settingsLocked ? 'League settings are locked after the league starts.' : undefined}
-                    className="rounded-md bg-amber-600 px-3 py-2 text-sm text-white hover:bg-amber-700 disabled:opacity-50"
-                  >
-                    {archiving ? 'Updating...' : pool.archived ? 'Unarchive pool' : 'Archive pool'}
-                  </button>
+                  <p className="text-sm text-gray-600">Edit league setup before the first game in the start week kicks off.</p>
                 </div>
               </div>
               {settingsLocked && (
@@ -998,10 +982,33 @@ export default function PoolAdminPage() {
             </section>
 
             <section className="rounded-lg border bg-white p-4">
+              <div className="mb-3">
+                <h2 className="font-semibold">Scoring Tools</h2>
+                <p className="text-sm text-gray-600">Use these after deadlines or final scores. They do not change league rules.</p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                <button onClick={finalizeLocked} disabled={!!runningAction} className="rounded-md bg-indigo-600 px-3 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">
+                  Lock due picks
+                </button>
+                <button onClick={adjudicate} disabled={!!runningAction} className="rounded-md bg-emerald-600 px-3 py-2 text-sm text-white hover:bg-emerald-700 disabled:opacity-50">
+                  Score final games
+                </button>
+                <button
+                  onClick={toggleArchive}
+                  disabled={archiving || settingsLocked || isPaidPool}
+                  title={isPaidPool ? 'Paid or active leagues cannot be archived.' : settingsLocked ? 'League settings are locked after the league starts.' : undefined}
+                  className="rounded-md bg-amber-600 px-3 py-2 text-sm text-white hover:bg-amber-700 disabled:opacity-50"
+                >
+                  {archiving ? 'Updating...' : pool.archived ? 'Unarchive league' : 'Archive league'}
+                </button>
+              </div>
+            </section>
+
+            <section className="rounded-lg border bg-white p-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="font-semibold">Members & Picks</h2>
-                  <p className="text-sm text-gray-600">Choose a week, then submit or edit each entry&apos;s pick for that week.</p>
+                  <p className="text-sm text-gray-600">Choose a week, then submit, edit, or remove an entry before the league starts.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <input
@@ -1055,7 +1062,7 @@ export default function PoolAdminPage() {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="border p-2 text-left">Member</th>
-                      <th className="border p-2 text-left">Slot</th>
+                      <th className="border p-2 text-left">Pick slot</th>
                       <th className="border p-2 text-left">Pick</th>
                       <th className="border p-2 text-left">Result</th>
                       <th className="border p-2 text-left">Record</th>
@@ -1118,7 +1125,7 @@ export default function PoolAdminPage() {
                                 title={settingsLocked ? 'Entries cannot be removed after the league starts.' : undefined}
                                 className="rounded-md bg-red-50 px-2 py-1 text-red-700 hover:bg-red-100 disabled:opacity-50"
                               >
-                                Remove entry
+                                Remove from league
                               </button>
                             ) : (
                               <span className="text-xs text-gray-500">Entry actions on Pick 1</span>
