@@ -400,8 +400,18 @@ export default function JoinSearchPage() {
             </li>
           ))}
 
-          {showEmptySearch && <li className="p-3 text-sm text-gray-600">No leagues match &quot;{query}&quot;.</li>}
-          {showEmptyRecent && <li className="p-3 text-sm text-gray-600">No leagues are available to join right now.</li>}
+          {showEmptySearch && (
+            <li className="p-5 text-sm text-gray-600">
+              <div className="font-semibold text-slate-900">No leagues match &quot;{query}&quot;.</div>
+              <p className="mt-1">Check the spelling, ask the commissioner for an invite link, or try a broader search.</p>
+            </li>
+          )}
+          {showEmptyRecent && (
+            <li className="p-5 text-sm text-gray-600">
+              <div className="font-semibold text-slate-900">No public leagues are open right now.</div>
+              <p className="mt-1">Private leagues can still be joined from an invite link or with the password from the commissioner.</p>
+            </li>
+          )}
         </ul>
 
         {!authed && <p className="text-xs text-gray-500 mt-3">Tip: you can browse leagues without signing in, but you will need to sign in to join.</p>}

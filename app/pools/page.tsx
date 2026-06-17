@@ -1264,6 +1264,8 @@ function MyPoolsContent() {
   const topExposedTeam = teamExposure[0] || null
   const expectedPickCount = memberCount * picksAllowedForWeek(standingsWeek)
   const visiblePickPercent = expectedPickCount > 0 ? Math.round((visiblePicksThisWeek.length / expectedPickCount) * 100) : 0
+  const visiblePickedCount = visiblePicksThisWeek.filter((pick) => !isNoPick(pick.team_abbr)).length
+  const visibleNoPickCount = visiblePicksThisWeek.length - visiblePickedCount
   const teamPickChartRows = useMemo(() => {
     const counts = new Map<string, number>()
     for (const pick of visiblePicksThisWeek) {
@@ -1281,6 +1283,26 @@ function MyPoolsContent() {
       return { team, count, percentage, result }
     }).sort((a, b) => b.count - a.count || a.team.abbr.localeCompare(b.team.abbr))
   }, [expectedPickCount, standingsGamesForWeek, visiblePicksThisWeek])
+  const leagueAvailableTeams = useMemo(() => {
+    const usedByEntry = new Map<string, Set<string>>()
+    for (const pick of standingsHistoryPicks) {
+      if (isNoPick(pick.team_abbr)) continue
+      const entryUsed = usedByEntry.get(pick.entry_id) || new Set<string>()
+      entryUsed.add(toAbbr(pick.team_abbr))
+      usedByEntry.set(pick.entry_id, entryUsed)
+    }
+    const denominator = Math.max(members.length, 1)
+    return NFL_TEAMS.map((team) => {
+      const available = members.filter((member) => !usedByEntry.get(member.id)?.has(team.abbr)).length
+      const used = members.length - available
+      return {
+        team,
+        available,
+        used,
+        percentage: Math.round((available / denominator) * 100),
+      }
+    }).sort((a, b) => b.available - a.available || a.team.abbr.localeCompare(b.team.abbr))
+  }, [members, standingsHistoryPicks])
   const previousWeekHistory = useMemo(() => {
     const rows = []
     for (const week of availableWeeks.filter((w) => w < standingsWeek)) {
@@ -1437,13 +1459,21 @@ function MyPoolsContent() {
       {error && <p className="text-red-600">{error}</p>}
 
       {!loading && !error && pools.length === 0 && (
-        <p>
-          You&apos;re not in any pools yet.{' '}
-          <Link href="/pools/new" className="underline">
-            Create one
-          </Link>{' '}
-          or join by invite.
-        </p>
+        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-wide text-[#c5161d]">Start here</p>
+          <h2 className="mt-1 text-2xl font-bold text-slate-950">No leagues yet</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+            Create a league for your group, search public leagues, or use an invite link from a commissioner. Once you join, your picks and standings will show here.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link href="/pools/new" className="rounded-md bg-[#c5161d] px-4 py-2 text-sm font-semibold text-white hover:bg-[#a91218]">
+              Create League
+            </Link>
+            <Link href="/join/search" className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50">
+              Find a League
+            </Link>
+          </div>
+        </section>
       )}
 
       {!loading && !error && pools.length > 0 && (
@@ -1909,6 +1939,11 @@ function MyPoolsContent() {
                       </div>
                     </div>
                     <div className="rounded-lg border border-gray-200 bg-white p-4">
+                      <div className="text-xs uppercase text-gray-500">Visible Picks Submitted</div>
+                      <div className="mt-2 text-2xl font-bold">{visiblePickedCount}</div>
+                      <div className="mt-1 text-xs text-gray-500">{visibleNoPickCount} visible no-pick slot{visibleNoPickCount === 1 ? '' : 's'}.</div>
+                    </div>
+                    <div className="rounded-lg border border-gray-200 bg-white p-4">
                       <div className="text-xs uppercase text-gray-500">Most Picked Visible Team</div>
                       {topExposedTeam ? (
                         <div className="mt-3 flex items-center justify-between gap-3">
@@ -1934,6 +1969,37 @@ function MyPoolsContent() {
                         ))}
                       </div>
                     </div>
+                  </div>
+
+                  <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
+                    <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="text-xs uppercase text-gray-500">Teams Still Available</div>
+                        <div className="mt-1 text-sm text-gray-600">How many entries can still use each team based on visible locked pick history.</div>
+                      </div>
+                      <div className="text-xs text-gray-500">{members.length} active {members.length === 1 ? 'entry' : 'entries'} counted</div>
+                    </div>
+                    {members.length === 0 ? (
+                      <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">No entries to analyze yet.</div>
+                    ) : (
+                      <div className="grid gap-2 md:grid-cols-2">
+                        {leagueAvailableTeams.slice(0, 12).map(({ team, available, percentage }) => (
+                          <div key={team.abbr} className="rounded-md border border-slate-200 bg-white p-2">
+                            <div className="mb-1 flex items-center justify-between gap-3 text-sm">
+                              <span className="inline-flex min-w-0 items-center gap-2 font-medium">
+                                <TeamLogo team={team} size={22} />
+                                <span className="truncate">{team.name}</span>
+                                <span className="text-xs text-gray-500">({team.abbr})</span>
+                              </span>
+                              <span className="shrink-0 text-xs font-semibold text-gray-700">{available}/{members.length}</span>
+                            </div>
+                            <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+                              <div className="h-full rounded-full bg-slate-500" style={{ width: `${Math.max(percentage, available > 0 ? 3 : 0)}%` }} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4">

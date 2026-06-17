@@ -48,6 +48,17 @@ type PoolEntry = {
   eliminated_week: number | null
 }
 
+type ScheduleAuditRow = {
+  season: number
+  week: number
+  game_count: number
+  duplicate_event_count: number
+  future_result_count: number
+  final_missing_winner_count: number
+  team_appearance_count: number
+  issue_count: number
+}
+
 function fmt(value?: string | null) {
   if (!value) return '-'
   return new Date(value).toLocaleString()
@@ -73,6 +84,8 @@ export default function SuperAdminPage() {
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [runningAction, setRunningAction] = useState<string | null>(null)
+  const [scheduleAudit, setScheduleAudit] = useState<ScheduleAuditRow[]>([])
+  const [auditSeason, setAuditSeason] = useState('2026')
 
   const selectedPool = pools.find((pool) => pool.pool_id === selectedPoolId) || null
 
@@ -100,6 +113,7 @@ export default function SuperAdminPage() {
       { pools: 0, entries: 0, members: 0, active: 0, archived: 0 },
     )
   }, [pools])
+  const auditIssues = useMemo(() => scheduleAudit.filter((row) => row.issue_count > 0), [scheduleAudit])
 
   const loadPools = async () => {
     setError(null)
@@ -108,6 +122,15 @@ export default function SuperAdminPage() {
     const nextPools = (data || []) as PoolOverview[]
     setPools(nextPools)
     setSelectedPoolId((current) => current || nextPools[0]?.pool_id || null)
+  }
+
+  const loadScheduleAudit = async (seasonText = auditSeason) => {
+    const season = parseInt(seasonText, 10)
+    const { data, error: auditErr } = await supabase.rpc('superadmin_schedule_integrity_audit', {
+      p_season: Number.isFinite(season) ? season : null,
+    })
+    if (auditErr) throw auditErr
+    setScheduleAudit((data || []) as ScheduleAuditRow[])
   }
 
   const loadEntries = async (poolId: string) => {
@@ -142,7 +165,7 @@ export default function SuperAdminPage() {
         const canAccess = userEmail === SUPERADMIN_EMAIL
         setAuthorized(canAccess)
         if (!canAccess) return
-        await loadPools()
+        await Promise.all([loadPools(), loadScheduleAudit()])
       } catch (e: unknown) {
         if (!alive) return
         setError(getErrorMessage(e, 'Failed to load superadmin dashboard.'))
@@ -155,6 +178,7 @@ export default function SuperAdminPage() {
     return () => {
       alive = false
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -253,6 +277,69 @@ export default function SuperAdminPage() {
           <Stat label="Archived" value={totals.archived} />
           <Stat label="Unique Members" value={totals.members} />
           <Stat label="Entries" value={totals.entries} />
+        </section>
+
+        <section className="mb-5 rounded-lg border border-slate-200 bg-white p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-slate-950">Schedule & Result Integrity</h2>
+              <p className="text-sm text-slate-600">Flags duplicate games, impossible future results, missing winners, and unusual weekly game counts.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <input
+                value={auditSeason}
+                onChange={(event) => setAuditSeason(event.target.value)}
+                className="w-24 rounded-md border border-slate-300 px-3 py-2 text-sm"
+                inputMode="numeric"
+              />
+              <button
+                onClick={() => loadScheduleAudit().catch((e) => setError(getErrorMessage(e, 'Schedule audit failed.')))}
+                className="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white"
+              >
+                Run audit
+              </button>
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-4">
+            <Info label="Weeks Audited" value={String(scheduleAudit.length)} />
+            <Info label="Weeks With Issues" value={String(auditIssues.length)} />
+            <Info label="Future Result Rows" value={String(scheduleAudit.reduce((sum, row) => sum + row.future_result_count, 0))} />
+            <Info label="Duplicate IDs" value={String(scheduleAudit.reduce((sum, row) => sum + row.duplicate_event_count, 0))} />
+          </div>
+          {auditIssues.length === 0 ? (
+            <p className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+              No schedule or result integrity issues found for {auditSeason || 'all seasons'}.
+            </p>
+          ) : (
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full min-w-[760px] border text-sm">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="border p-2 text-left">Season</th>
+                    <th className="border p-2 text-left">Week</th>
+                    <th className="border p-2 text-left">Games</th>
+                    <th className="border p-2 text-left">Duplicate IDs</th>
+                    <th className="border p-2 text-left">Future Results</th>
+                    <th className="border p-2 text-left">Final Missing Winner</th>
+                    <th className="border p-2 text-left">Team Appearances</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {auditIssues.map((row) => (
+                    <tr key={`${row.season}:${row.week}`} className="hover:bg-slate-50">
+                      <td className="border p-2">{row.season}</td>
+                      <td className="border p-2">Week {row.week}</td>
+                      <td className={`border p-2 ${row.game_count > 16 || row.game_count < 12 ? 'font-semibold text-red-700' : ''}`}>{row.game_count}</td>
+                      <td className="border p-2">{row.duplicate_event_count}</td>
+                      <td className="border p-2">{row.future_result_count}</td>
+                      <td className="border p-2">{row.final_missing_winner_count}</td>
+                      <td className="border p-2">{row.team_appearance_count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
 
         <div className="grid gap-5 lg:grid-cols-[minmax(360px,460px)_1fr]">
