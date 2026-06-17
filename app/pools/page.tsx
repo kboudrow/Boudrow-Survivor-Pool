@@ -1627,8 +1627,8 @@ function MyPoolsContent() {
                       </details>
                     </div>
 
-                    <div className="mb-4 overflow-x-auto">
-                      <div className="flex min-w-max gap-2 pb-1">
+                    <div className="mb-4">
+                      <div className="grid grid-cols-[repeat(auto-fit,minmax(44px,1fr))] gap-1.5">
                         {availableWeeks.map((w) => {
                           const selected = selectedPickWeek === w
                           const required = picksAllowedForWeek(w)
@@ -1646,7 +1646,7 @@ function MyPoolsContent() {
                                 setTeamPickerTarget(null)
                                 setTeamSearch('')
                               }}
-                              className={`rounded-md border px-3 py-2 text-sm font-semibold ${
+                              className={`min-h-9 rounded-md border px-1.5 py-1.5 text-xs font-semibold ${
                                 selected
                                   ? 'border-slate-950 bg-slate-950 text-white'
                                   : hasLoss
@@ -1661,7 +1661,7 @@ function MyPoolsContent() {
                               }`}
                             >
                               W{w}
-                              {required > 1 && <span className="ml-1 text-[10px]">x2</span>}
+                              {required > 1 && <span className="ml-0.5 text-[9px]">x2</span>}
                             </button>
                           )
                         })}
@@ -1670,9 +1670,9 @@ function MyPoolsContent() {
                             type="button"
                             disabled
                             title="Playoff picks will be enabled after playoff schedule support is added."
-                            className="rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm font-semibold text-gray-400"
+                            className="min-h-9 rounded-md border border-gray-300 bg-gray-100 px-1.5 py-1.5 text-xs font-semibold text-gray-400"
                           >
-                            Playoffs
+                            PO
                           </button>
                         )}
                       </div>

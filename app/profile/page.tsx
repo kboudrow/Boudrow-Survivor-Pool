@@ -550,7 +550,7 @@ export default function ProfilePage() {
                     disabled={savingUsername}
                     className="w-full px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
                   >
-                    {savingUsername ? 'Saving...' : 'Save display name'}
+                    {savingUsername ? 'Saving...' : 'Save profile'}
                   </button>
                 </div>
               </div>

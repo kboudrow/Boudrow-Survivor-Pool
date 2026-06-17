@@ -474,7 +474,12 @@ export default function CreatePoolPage() {
                 type="file"
                 accept="image/png,image/jpeg,image/webp,image/gif"
                 onChange={handleImageChange}
+                className="fileInput"
               />
+              <label htmlFor="leagueImage" className="fileButton">
+                Choose image
+              </label>
+              <span className="fileName">{imageFile ? imageFile.name : 'No image selected'}</span>
               <p className="hint">Optional. Upload a logo or league image up to 5 MB.</p>
             </div>
           </div>
@@ -556,6 +561,39 @@ export default function CreatePoolPage() {
           text-align: center;
         }
         .imagePreview img { width: 100%; height: 92px; object-fit: cover; }
+        .fileInput {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          opacity: 0;
+          pointer-events: none;
+        }
+        .fileButton {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 38px;
+          padding: 8px 12px;
+          border-radius: 8px;
+          border: 1px solid #111827;
+          background: #111827;
+          color: #fff;
+          font-size: 14px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+        .fileButton:hover { background: #1f2937; }
+        .fileName {
+          display: inline-block;
+          max-width: min(100%, 360px);
+          margin-left: 10px;
+          color: #4b5563;
+          font-size: 13px;
+          vertical-align: middle;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
 
         .noticeBox {
           border: 1px solid #fed7aa;
