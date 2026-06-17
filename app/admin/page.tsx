@@ -207,7 +207,10 @@ export default function SuperAdminPage() {
 
   const removeEntry = async (entry: PoolEntry) => {
     if (!selectedPool) return
-    const confirmed = window.confirm(`Remove ${entry.display_name}${entry.entry_number > 1 ? ` (${entry.entry_number})` : ''} from ${selectedPool.name}?`)
+    const label = `${entry.display_name}${entry.entry_number > 1 ? ` (${entry.entry_number})` : ''}`
+    const confirmed = window.confirm(
+      `Remove ${label} from ${selectedPool.name}?\n\nEntry ID: ${entry.entry_id.slice(0, 8)}\n\nThis removes that entry and all of its picks.`,
+    )
     if (!confirmed) return
     setRunningAction(entry.entry_id)
     setError(null)
@@ -218,7 +221,7 @@ export default function SuperAdminPage() {
         p_entry_id: entry.entry_id,
       })
       if (removeErr) throw removeErr
-      setNotice('Entry removed.')
+      setNotice(`${label} removed.`)
       await loadPools()
       await loadEntries(selectedPool.pool_id)
     } catch (e: unknown) {

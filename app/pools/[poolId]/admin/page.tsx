@@ -142,12 +142,15 @@ export default function PoolAdminPage() {
   const [inviteOpen, setInviteOpen] = useState(false)
   const [memberSearch, setMemberSearch] = useState('')
 
-  const memberCount = rows.length ? new Set(rows.map((row) => row.entry_id)).size : 0
-  const stats = useMemo(() => {
-    const uniqueMembers = Array.from(new Map(rows.map((row) => [row.entry_id, row])).values())
-    const alive = uniqueMembers.filter((row) => !row.eliminated).length
-    return { alive, eliminated: uniqueMembers.length - alive }
+  const entryRows = useMemo(() => {
+    const uniqueRows = Array.from(new Map(rows.map((row) => [row.entry_id, row])).values())
+    return uniqueRows.sort((a, b) => entryLabel(a).localeCompare(entryLabel(b)) || (a.entry_number ?? 1) - (b.entry_number ?? 1))
   }, [rows])
+  const memberCount = entryRows.length
+  const stats = useMemo(() => {
+    const alive = entryRows.filter((row) => !row.eliminated).length
+    return { alive, eliminated: entryRows.length - alive }
+  }, [entryRows])
   const isPoolActive = pool?.activation_status === 'active'
   const isPaidPool = pool?.payment_status === 'paid' || pool?.activation_status === 'active'
   const poolStartMs = poolStartAt ? Date.parse(poolStartAt) : null
@@ -174,6 +177,13 @@ export default function PoolAdminPage() {
       )
     })
   }, [memberSearch, rows])
+  const visibleEntryRows = useMemo(() => {
+    const q = memberSearch.trim().toLowerCase()
+    if (!q) return entryRows
+    return entryRows.filter((row) => {
+      return [entryLabel(row), row.user_id, row.role, row.entry_id].some((value) => value.toLowerCase().includes(q))
+    })
+  }, [entryRows, memberSearch])
 
   const loadOverview = async (week = selectedWeek) => {
     if (!poolId) return
@@ -682,7 +692,11 @@ export default function PoolAdminPage() {
       if (settingsLocked) {
         throw new Error('Entries cannot be removed after the league has started.')
       }
-      const confirmed = window.confirm(`Remove ${entryLabel(row)} from this pool? This cannot be undone from this screen.`)
+      const label = entryLabel(row)
+      const shortEntryId = row.entry_id.slice(0, 8)
+      const confirmed = window.confirm(
+        `Remove ${label} from ${pool.name}?\n\nEntry ID: ${shortEntryId}\n\nThis removes that entry and all of its picks. It cannot be undone from this screen.`,
+      )
       if (!confirmed) return 'Remove entry canceled.'
 
       const { error } = await supabase.rpc('admin_remove_pool_entry', {
@@ -690,7 +704,7 @@ export default function PoolAdminPage() {
         p_entry_id: row.entry_id,
       })
       if (error) throw error
-      return `${entryLabel(row)} removed.`
+      return `${label} removed.`
     })
 
   return (
@@ -1038,6 +1052,61 @@ export default function PoolAdminPage() {
                 </div>
               </div>
 
+              <div className="mb-5 rounded-md border border-slate-200 bg-slate-50">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-3 py-2">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-950">Entry Management</h3>
+                    <p className="text-xs text-slate-600">Remove a full entry before the league starts. Pick edits stay in the weekly table below.</p>
+                  </div>
+                  <span className="rounded-full bg-white px-2 py-1 text-xs text-slate-600">
+                    {visibleEntryRows.length} {visibleEntryRows.length === 1 ? 'entry' : 'entries'}
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-sm">
+                    <thead className="bg-white text-xs uppercase text-slate-500">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Entry</th>
+                        <th className="px-3 py-2 text-left">Role</th>
+                        <th className="px-3 py-2 text-left">Joined</th>
+                        <th className="px-3 py-2 text-left">Status</th>
+                        <th className="px-3 py-2 text-left">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 bg-white">
+                      {visibleEntryRows.map((row) => (
+                        <tr key={row.entry_id}>
+                          <td className="px-3 py-2">
+                            <div className="font-medium text-slate-950">{entryLabel(row)}</div>
+                            <div className="text-xs text-slate-500">Entry {row.entry_number ?? 1} - {row.entry_id.slice(0, 8)}</div>
+                          </td>
+                          <td className="px-3 py-2 capitalize text-slate-700">{row.role}</td>
+                          <td className="px-3 py-2 text-slate-700">{fmt(row.joined_at)}</td>
+                          <td className="px-3 py-2">
+                            {row.eliminated ? (
+                              <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">Eliminated{row.eliminated_week ? ` W${row.eliminated_week}` : ''}</span>
+                            ) : (
+                              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">Alive</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2">
+                            <button
+                              onClick={() => removeMember(row)}
+                              disabled={!!runningAction || settingsLocked}
+                              title={settingsLocked ? 'Entries cannot be removed after the league starts.' : undefined}
+                              className="rounded-md bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
+                            >
+                              Remove entry
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {entryRows.length > 0 && visibleEntryRows.length === 0 && <p className="px-3 py-3 text-sm text-slate-600">No entries match that search.</p>}
+              </div>
+
               <div className="mb-3 flex gap-1 overflow-x-auto pb-1">
                 {ALL_WEEKS.map((week) => (
                   <button
@@ -1118,18 +1187,6 @@ export default function PoolAdminPage() {
                             >
                               Save pick
                             </button>
-                            {row.slot === 1 ? (
-                              <button
-                                onClick={() => removeMember(row)}
-                                disabled={!!runningAction || settingsLocked}
-                                title={settingsLocked ? 'Entries cannot be removed after the league starts.' : undefined}
-                                className="rounded-md bg-red-50 px-2 py-1 text-red-700 hover:bg-red-100 disabled:opacity-50"
-                              >
-                                Remove from league
-                              </button>
-                            ) : (
-                              <span className="text-xs text-gray-500">Entry actions on Pick 1</span>
-                            )}
                           </div>
                         </td>
                       </tr>

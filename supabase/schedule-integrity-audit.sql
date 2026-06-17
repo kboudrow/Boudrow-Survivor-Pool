@@ -24,7 +24,7 @@ begin
       g.season,
       g.week,
       g.id,
-      g.espn_game_id,
+      g.espn_event_id,
       g.home_team,
       g.away_team,
       g.status,
@@ -38,7 +38,7 @@ begin
       g.season,
       g.week,
       count(*)::integer as game_count,
-      count(distinct nullif(g.espn_game_id, ''))::integer as distinct_event_count,
+      count(distinct nullif(g.espn_event_id, ''))::integer as distinct_event_count,
       count(*) filter (
         where g.kickoff_at > now()
           and (
