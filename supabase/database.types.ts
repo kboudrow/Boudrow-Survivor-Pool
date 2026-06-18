@@ -1272,6 +1272,10 @@ export type Database = {
         Args: { p_entry_id: string; p_pool_id: string }
         Returns: undefined
       }
+      admin_remove_pool_member: {
+        Args: { p_pool_id: string; p_profile_id: string }
+        Returns: number
+      }
       admin_set_double_weeks: {
         Args: { p_pool_id: string; p_weeks: number[] }
         Returns: undefined

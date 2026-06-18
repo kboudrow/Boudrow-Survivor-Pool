@@ -126,6 +126,8 @@ export default function ProfilePage() {
   const [lastName, setLastName] = useState('')
   const [favoriteTeam, setFavoriteTeam] = useState('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [editingAvatar, setEditingAvatar] = useState(false)
   const [avatarUploading, setAvatarUploading] = useState(false)
   const [avatarMsg, setAvatarMsg] = useState<string | null>(null)
   const [savingUsername, setSavingUsername] = useState(false)
@@ -325,22 +327,29 @@ export default function ProfilePage() {
     }
   }
 
-  const uploadAvatar = async (event: ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarFile = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] || null
+    setAvatarFile(file)
+    setAvatarMsg(null)
+  }
+
+  const saveAvatar = async () => {
     if (!userId) return
-    const file = event.target.files?.[0]
-    event.target.value = ''
-    if (!file) return
+    if (!avatarFile) {
+      setAvatarMsg('Choose a photo first.')
+      return
+    }
 
     setAvatarUploading(true)
     setAvatarMsg(null)
     setErr(null)
     try {
-      if (!file.type.startsWith('image/')) throw new Error('Choose an image file.')
-      if (file.size > 5 * 1024 * 1024) throw new Error('Profile picture must be 5 MB or smaller.')
+      if (!avatarFile.type.startsWith('image/')) throw new Error('Choose an image file.')
+      if (avatarFile.size > 5 * 1024 * 1024) throw new Error('Profile picture must be 5 MB or smaller.')
 
-      const ext = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
+      const ext = avatarFile.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
       const path = `${userId}/${Date.now()}.${ext}`
-      const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, {
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(path, avatarFile, {
         cacheControl: '3600',
         upsert: true,
       })
@@ -352,6 +361,8 @@ export default function ProfilePage() {
       if (profileError) throw profileError
 
       setAvatarUrl(publicUrl)
+      setAvatarFile(null)
+      setEditingAvatar(false)
       setAvatarMsg('Profile picture saved.')
     } catch (e: unknown) {
       setErr(getErrorMessage(e, 'Failed to upload profile picture.'))
@@ -450,19 +461,50 @@ export default function ProfilePage() {
             <section className={`rounded-lg border p-4 ${profileComplete ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex min-w-0 items-start gap-3">
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white bg-white text-lg font-bold text-slate-700 shadow-sm">
-                    {avatarUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <span>{(username.trim() || currentEmail || '?').slice(0, 1).toUpperCase()}</span>
-                    )}
+                  <div className="relative">
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white bg-white text-lg font-bold text-slate-700 shadow-sm">
+                      {avatarUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <span>{(username.trim() || currentEmail || '?').slice(0, 1).toUpperCase()}</span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEditingAvatar((value) => !value)}
+                      className="absolute -bottom-1 -right-1 rounded-full border border-slate-200 bg-white px-1.5 py-1 text-xs shadow-sm hover:bg-slate-50"
+                      aria-label="Edit profile photo"
+                      title="Edit profile photo"
+                    >
+                      Edit
+                    </button>
                   </div>
                   <div>
                     <div className="mb-1 flex flex-wrap items-center gap-2">
                       <h2 className="text-lg font-semibold">{profileTitle}</h2>
                       <StatusBadge complete={profileComplete} />
                     </div>
+                    {editingAvatar && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp,image/gif"
+                          onChange={handleAvatarFile}
+                          disabled={avatarUploading}
+                          className="block text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white disabled:opacity-50"
+                        />
+                        <button
+                          type="button"
+                          onClick={saveAvatar}
+                          disabled={avatarUploading || !avatarFile}
+                          className="rounded-md bg-indigo-600 px-3 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
+                        >
+                          {avatarUploading ? 'Saving...' : 'Save photo'}
+                        </button>
+                        {avatarMsg && <div className="text-sm text-emerald-700">{avatarMsg}</div>}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="rounded-md bg-white px-3 py-2 text-sm shadow-sm">
@@ -552,27 +594,6 @@ export default function ProfilePage() {
                   >
                     {savingUsername ? 'Saving...' : 'Save profile'}
                   </button>
-                </div>
-              </div>
-              <div className="mt-5 grid gap-3 border-t pt-4 sm:grid-cols-[auto,1fr] sm:items-center">
-                <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border bg-gray-50 text-xl font-bold text-slate-600">
-                  {avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <span>{(username.trim() || currentEmail || '?').slice(0, 1).toUpperCase()}</span>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Profile picture</label>
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,image/gif"
-                    onChange={uploadAvatar}
-                    disabled={avatarUploading}
-                    className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white disabled:opacity-50"
-                  />
-                  {avatarMsg && <div className="mt-2 text-sm text-emerald-700">{avatarMsg}</div>}
                 </div>
               </div>
             </section>

@@ -71,6 +71,7 @@ type PickRow = { user_id: string; entry_id: string; week: number; slot: number; 
 type DraftPickRow = { entry_id: string; week: number; slot: number; team_abbr: string; updated_at: string | null }
 type FinalPickRow = { entry_id: string; week: number; slot: number; team_abbr: string; locked_at: string; result: 'win' | 'loss' | 'push' | null }
 type PickNotice = { team: Team; week: number; slot: number; action: 'saved' | 'cleared' }
+type PoolPickStatus = { week: number; made: number; needed: number }
 
 type MemberStats = {
   pool_id: string
@@ -135,7 +136,7 @@ const NFL_TEAMS: Team[] = [
   { abbr: 'WAS', name: 'Washington Commanders', logo: espnLogo('WSH') },
 ]
 
-const POOL_CARD_SELECT = 'id,name,is_public,start_week,strikes_allowed,tie_rule,image_url,max_members,allow_multiple_entries,max_entries_per_user,activation_status'
+const POOL_CARD_SELECT = 'id,name,season,is_public,start_week,strikes_allowed,tie_rule,image_url,max_members,allow_multiple_entries,max_entries_per_user,activation_status,double_pick_weeks'
 const teamByAbbr = (abbr?: string | null) => NFL_TEAMS.find((t) => t.abbr === abbr) || null
 const isNoPick = (abbr?: string | null) => !!abbr?.startsWith('NO_PICK')
 const toAbbr = (input: string): string => {
@@ -544,6 +545,7 @@ function MyPoolsContent() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pools, setPools] = useState<Pool[]>([])
+  const [poolPickStatuses, setPoolPickStatuses] = useState<Record<string, PoolPickStatus>>({})
   const [userId, setUserId] = useState<string | null>(null)
 
   // modal + selection
@@ -557,6 +559,7 @@ function MyPoolsContent() {
   const backgroundRefreshRef = useRef<string | null>(null)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [poolStartAt, setPoolStartAt] = useState<string | null>(null)
+  const [canManagePool, setCanManagePool] = useState(false)
 
   // members
   const [members, setMembers] = useState<Profile[]>([])
@@ -593,7 +596,6 @@ function MyPoolsContent() {
   const [standingsPicksVisible, setStandingsPicksVisible] = useState(false)
   const [standingsResultsVisible, setStandingsResultsVisible] = useState(false)
   const [standingsRevealAt, setStandingsRevealAt] = useState<string | null>(null)
-  const [standingsWeekHasStarted, setStandingsWeekHasStarted] = useState(false)
   const [standingsGamesForWeek, setStandingsGamesForWeek] = useState<Game[]>([])
   const [statsByUser, setStatsByUser] = useState<Record<string, MemberStats>>({})
   const [aliveCount, setAliveCount] = useState(0)
@@ -624,10 +626,10 @@ function MyPoolsContent() {
         ? `Week ${selectedPickWeek} closes ${fmtEtDateTime(fixedLockUtc)}.`
         : 'Week close time unavailable.'
   const standingsPrivacyLabel = standingsPicksVisible
-    ? 'Locked picks are public for this week.'
+    ? 'Week distribution is live for this week.'
     : standingsRevealAt
-      ? `Other entries' picks stay private until the league deadline: ${fmtEtDateTime(standingsRevealAt)}.`
-      : 'Other entries\' picks stay private until this week opens for the league.'
+      ? `Week distribution goes live when this week opens: ${fmtEtDateTime(standingsRevealAt)}.`
+      : 'Week distribution goes live when this week opens for the league.'
 
   const showPickNotice = (notice: PickNotice) => {
     if (pickNoticeTimerRef.current) window.clearTimeout(pickNoticeTimerRef.current)
@@ -718,6 +720,7 @@ function MyPoolsContent() {
     const clearSignedOutState = () => {
       setUserId(null)
       setPools([])
+      setPoolPickStatuses({})
       setPool(null)
       setMembers([])
       setMembersLoadedFor(null)
@@ -728,6 +731,7 @@ function MyPoolsContent() {
       setMyDraftPicks({})
       setMyFinalPicks({})
       setError(null)
+      setCanManagePool(false)
       setLoading(false)
       if (typeof window !== 'undefined' && window.location.pathname === '/pools') {
         window.location.href = '/?auth=signin'
@@ -758,7 +762,7 @@ function MyPoolsContent() {
           .order('created_at', { ascending: false })
         if (createdErr) throw createdErr
 
-        const { data: memberships, error: memErr } = await supabase.from('pool_members').select('pool_id').eq('profile_id', user.id)
+        const { data: memberships, error: memErr } = await supabase.from('pool_members').select('id,pool_id').eq('profile_id', user.id)
         if (memErr) throw memErr
 
         let memberPools: Pool[] = []
@@ -779,8 +783,55 @@ function MyPoolsContent() {
         for (const p of (createdPools || []) as Pool[]) map.set(p.id, p)
         for (const p of memberPools) map.set(p.id, p)
 
+        const nextPools = Array.from(map.values())
+        const seasons = Array.from(new Set(nextPools.map((pool) => pool.season ?? new Date().getFullYear())))
+        const [{ data: seasonRows }, { data: draftRows }, { data: finalRows }] = await Promise.all([
+          seasons.length
+            ? supabase.from('season_weeks').select('season, week, week_sunday_date').in('season', seasons)
+            : Promise.resolve({ data: [] }),
+          memberships?.length
+            ? supabase.from('pool_pick_drafts').select('pool_id,entry_id,week,slot').in('entry_id', memberships.map((m) => m.id))
+            : Promise.resolve({ data: [] }),
+          memberships?.length
+            ? supabase.from('pool_picks').select('pool_id,entry_id,week,slot').in('entry_id', memberships.map((m) => m.id))
+            : Promise.resolve({ data: [] }),
+        ])
+
+        const weeksBySeason = new Map<number, SeasonWeek[]>()
+        for (const row of ((seasonRows || []) as SeasonWeek[]).filter((week) => week.week >= 1 && week.week <= 18)) {
+          const list = weeksBySeason.get(row.season) || []
+          list.push(row)
+          weeksBySeason.set(row.season, list)
+        }
+        const entriesByPool = new Map<string, string[]>()
+        for (const membership of memberships || []) {
+          const list = entriesByPool.get(membership.pool_id) || []
+          list.push(membership.id)
+          entriesByPool.set(membership.pool_id, list)
+        }
+        const pickedSlots = new Set<string>()
+        for (const pick of [...((draftRows || []) as Array<{ pool_id: string; entry_id: string; week: number; slot: number }>), ...((finalRows || []) as Array<{ pool_id: string; entry_id: string; week: number; slot: number }>)]) {
+          pickedSlots.add(`${pick.pool_id}:${pick.entry_id}:${pick.week}:${pick.slot}`)
+        }
+        const statuses: Record<string, PoolPickStatus> = {}
+        for (const pool of nextPools) {
+          const season = pool.season ?? new Date().getFullYear()
+          const targetWeek = Math.max(pool.start_week, currentPickWeek(weeksBySeason.get(season) || []))
+          const entryIds = entriesByPool.get(pool.id) || []
+          const required = pool.double_pick_weeks?.includes(targetWeek) ? 2 : 1
+          const needed = entryIds.length * required
+          let made = 0
+          for (const entryId of entryIds) {
+            for (let slot = 1; slot <= required; slot += 1) {
+              if (pickedSlots.has(`${pool.id}:${entryId}:${targetWeek}:${slot}`)) made += 1
+            }
+          }
+          statuses[pool.id] = { week: targetWeek, made, needed }
+        }
+
         if (!alive) return
-        setPools(Array.from(map.values()))
+        setPools(nextPools)
+        setPoolPickStatuses(statuses)
       } catch (e: unknown) {
         if (!alive) return
         setError(getErrorMessage(e, 'Failed to load pools.'))
@@ -906,7 +957,6 @@ function MyPoolsContent() {
         .map((game) => game.kickoff_at_utc || game.game_time)
         .filter(Boolean)
       weekHasStarted = kickoffTimes.some((time) => Date.now() >= Date.parse(time))
-      setStandingsWeekHasStarted(weekHasStarted)
       resultsVisible = weekHasStarted && weekGames.some((game) => game.status === 'final')
 
       if (pool?.deadline_mode === 'rolling') {
@@ -920,9 +970,10 @@ function MyPoolsContent() {
           revealAt = etLocalToUtcISO(seasonWeek.week_sunday_date, t24)
         }
       }
-      const picksVisible = !!revealAt && Date.now() >= Date.parse(revealAt)
+      const weekOpenAt = seasonWeek?.week_sunday_date ? etLocalToUtcISO(addDaysYmd(seasonWeek.week_sunday_date, -5), '06:00') : revealAt
+      const picksVisible = !!weekOpenAt && Date.now() >= Date.parse(weekOpenAt)
       const showResults = resultsVisible && picksVisible
-      setStandingsRevealAt(revealAt)
+      setStandingsRevealAt(weekOpenAt)
       setStandingsPicksVisible(picksVisible)
       setStandingsResultsVisible(showResults)
 
@@ -1324,7 +1375,7 @@ function MyPoolsContent() {
     return NFL_TEAMS.filter((team) => !used.has(team.abbr))
   }, [selectedEntryId, standingsHistoryPicks, usedTeamAbbrs])
 
-  /** ---------- OWNER CHECK (for Admin Panel button) ---------- */
+  /** ---------- OWNER CHECK ---------- */
   const amOwner = useMemo(() => !!pool && !!userId && pool.created_by === userId, [pool, userId])
 
   /** ---------- Open / close modal ---------- */
@@ -1350,6 +1401,7 @@ function MyPoolsContent() {
     setTeamSearch('')
     setWeekGames([])
     setPoolStartAt(null)
+    setCanManagePool(false)
     setSelectedPickWeek(1)
     setGamesLoading(false)
     setFixedLockUtc(null)
@@ -1377,7 +1429,7 @@ function MyPoolsContent() {
       setSelectedEntryId(nextEntryId)
 
       const season = poolRow.season ?? new Date().getFullYear()
-      const [{ data: weekRows }, { data: firstStartGame }, { data: memberTotal }, { data: myStat }] = await Promise.all([
+      const [{ data: weekRows }, { data: firstStartGame }, { data: myStat }, { data: canManage }] = await Promise.all([
         supabase
           .from('season_weeks')
           .select('season, week, week_sunday_date')
@@ -1392,19 +1444,22 @@ function MyPoolsContent() {
           .order('game_time', { ascending: true })
           .limit(1)
           .maybeSingle<{ game_time: string; kickoff_at_utc: string | null }>(),
-        supabase.rpc('count_pool_members', { p_pool_id: id }),
         nextEntryId
           ? supabase.from('pool_member_stats').select('pool_id, user_id, entry_id, wins, losses, pushes, strikes_used, eliminated').eq('pool_id', id).eq('entry_id', nextEntryId).maybeSingle<MemberStats>()
           : Promise.resolve({ data: null }),
+        supabase.rpc('admin_can_manage', { p_pool_id: id }),
       ])
+      setCanManagePool(!!canManage)
 
       const nextSeasonWeeks = ((weekRows || []) as SeasonWeek[]).filter((row) => row.week >= 1 && row.week <= 18)
-      setSelectedPickWeek(Math.max(poolRow.start_week, currentPickWeek(nextSeasonWeeks)))
+      const currentWeek = Math.max(poolRow.start_week, currentPickWeek(nextSeasonWeeks))
+      setSelectedPickWeek(currentWeek)
+      setStandingsWeek(currentWeek)
 
       const startWeekFallback = nextSeasonWeeks.find((row) => row.week === poolRow.start_week)?.week_sunday_date
       setPoolStartAt(firstStartGame?.kickoff_at_utc || firstStartGame?.game_time || (startWeekFallback ? `${startWeekFallback}T00:00:00` : null))
 
-      setMemberCount(typeof memberTotal === 'number' ? memberTotal : 0)
+      setMemberCount(roster.length)
       setStatsByUser(myStat ? { [myStat.entry_id]: myStat } : {})
       if (nextEntryId) await loadMyPicks(id, poolRow.start_week, nextEntryId)
     } catch (e: unknown) {
@@ -1420,6 +1475,7 @@ function MyPoolsContent() {
     setPool(null)
     setInviteOpen(false)
     setPoolStartAt(null)
+    setCanManagePool(false)
     setDetailError(null)
     setLeavingPool(false)
   }
@@ -1498,6 +1554,25 @@ function MyPoolsContent() {
                     <InfoTile label="Tie" value={p.tie_rule === 'win' ? 'Win' : 'Loss'} />
                     <InfoTile label="Entries" value={p.allow_multiple_entries ? `Up to ${p.max_entries_per_user ?? 1}` : 'Single'} />
                   </div>
+                  {poolPickStatuses[p.id] && (
+                    <div
+                      className={`mt-3 rounded-md border px-3 py-2 text-sm font-semibold ${
+                        poolPickStatuses[p.id].needed > 0 && poolPickStatuses[p.id].made >= poolPickStatuses[p.id].needed
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                          : 'border-red-200 bg-red-50 text-red-700'
+                      }`}
+                    >
+                      Week {poolPickStatuses[p.id].week}:{' '}
+                      {poolPickStatuses[p.id].needed > 0 && poolPickStatuses[p.id].made >= poolPickStatuses[p.id].needed
+                        ? 'Pick made'
+                        : 'No pick made'}
+                      {poolPickStatuses[p.id].needed > 1 && (
+                        <span className="ml-1 text-xs font-medium">
+                          ({Math.min(poolPickStatuses[p.id].made, poolPickStatuses[p.id].needed)}/{poolPickStatuses[p.id].needed})
+                        </span>
+                      )}
+                    </div>
+                  )}
                 <div className="mt-3 flex gap-2">
                   <button onClick={() => openPool(p.id)} className="rounded-md bg-[#111318] px-3 py-2 text-sm font-semibold text-white hover:bg-black">
                     Open
@@ -1534,7 +1609,7 @@ function MyPoolsContent() {
                 <button onClick={exportCsv} className="px-3 py-1 rounded-md bg-gray-800 text-white hover:bg-black">
                   Export CSV
                 </button>
-                {amOwner && pool && (
+                {canManagePool && pool && (
                   <Link href={`/pools/${pool.id}/admin`} className="px-3 py-1 rounded-md bg-amber-600 text-white hover:bg-amber-700">
                     Admin Panel
                   </Link>
@@ -1974,49 +2049,18 @@ function MyPoolsContent() {
                   <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
                     <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <div className="text-xs uppercase text-gray-500">Teams Still Available</div>
-                        <div className="mt-1 text-sm text-gray-600">How many entries can still use each team based on visible locked pick history.</div>
-                      </div>
-                      <div className="text-xs text-gray-500">{members.length} active {members.length === 1 ? 'entry' : 'entries'} counted</div>
-                    </div>
-                    {members.length === 0 ? (
-                      <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">No entries to analyze yet.</div>
-                    ) : (
-                      <div className="grid gap-2 md:grid-cols-2">
-                        {leagueAvailableTeams.slice(0, 12).map(({ team, available, percentage }) => (
-                          <div key={team.abbr} className="rounded-md border border-slate-200 bg-white p-2">
-                            <div className="mb-1 flex items-center justify-between gap-3 text-sm">
-                              <span className="inline-flex min-w-0 items-center gap-2 font-medium">
-                                <TeamLogo team={team} size={22} />
-                                <span className="truncate">{team.name}</span>
-                                <span className="text-xs text-gray-500">({team.abbr})</span>
-                              </span>
-                              <span className="shrink-0 text-xs font-semibold text-gray-700">{available}/{members.length}</span>
-                            </div>
-                            <div className="h-2 overflow-hidden rounded-full bg-gray-100">
-                              <div className="h-full rounded-full bg-slate-500" style={{ width: `${Math.max(percentage, available > 0 ? 3 : 0)}%` }} />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
-                    <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-                      <div>
                         <div className="text-xs uppercase text-gray-500">Week {standingsWeek} Pick Distribution</div>
                         <div className="mt-1 text-sm text-gray-600">
-                          Percentage of active entry picks on each team. This stays private until the league deadline.
+                          Percentage of active entry picks on each team. This goes live when the league week opens.
                         </div>
                       </div>
                       <div className="text-xs text-gray-500">
                         Gray: pending / Green: won / Red: lost
                       </div>
                     </div>
-                    {!standingsWeekHasStarted || !standingsPicksVisible ? (
+                    {!standingsPicksVisible ? (
                       <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">
-                        This chart goes live after the Week {standingsWeek} deadline passes.
+                        This chart goes live when Week {standingsWeek} opens.
                       </div>
                     ) : (
                       <div className="grid gap-2 lg:grid-cols-2">
@@ -2054,6 +2098,33 @@ function MyPoolsContent() {
                       </div>
                     )}
                   </div>
+
+                  <details className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
+                    <summary className="cursor-pointer text-sm font-semibold text-slate-900">Teams Still Available</summary>
+                    <div className="mt-2 text-sm text-gray-600">How many entries can still use each team based on visible locked pick history.</div>
+                    <div className="mt-1 text-xs text-gray-500">{members.length} active {members.length === 1 ? 'entry' : 'entries'} counted</div>
+                    {members.length === 0 ? (
+                      <div className="mt-3 rounded-md border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">No entries to analyze yet.</div>
+                    ) : (
+                      <div className="mt-3 grid gap-2 md:grid-cols-2">
+                        {leagueAvailableTeams.map(({ team, available, percentage }) => (
+                          <div key={team.abbr} className="rounded-md border border-slate-200 bg-white p-2">
+                            <div className="mb-1 flex items-center justify-between gap-3 text-sm">
+                              <span className="inline-flex min-w-0 items-center gap-2 font-medium">
+                                <TeamLogo team={team} size={22} />
+                                <span className="truncate">{team.name}</span>
+                                <span className="text-xs text-gray-500">({team.abbr})</span>
+                              </span>
+                              <span className="shrink-0 text-xs font-semibold text-gray-700">{available}/{members.length}</span>
+                            </div>
+                            <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+                              <div className="h-full rounded-full bg-slate-500" style={{ width: `${Math.max(percentage, available > 0 ? 3 : 0)}%` }} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </details>
 
                   <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
                     <div className="mb-3 text-xs uppercase text-gray-500">Previous Week History</div>

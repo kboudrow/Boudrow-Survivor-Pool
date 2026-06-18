@@ -94,6 +94,7 @@ function fmt(value?: string | null) {
 const rowKey = (row: AdminRow) => `${row.entry_id}:${row.slot}`
 const hasFinalPick = (row: AdminRow) => !!row.final_team_abbr || !!row.locked_at
 const entryLabel = (row: AdminRow) => (row.entry_number && row.entry_number > 1 ? `${row.display_name} (${row.entry_number})` : row.display_name)
+const memberLabel = (row: AdminRow) => row.display_name || row.user_id.slice(0, 8)
 const fmtShort = (value?: string | null) =>
   value
     ? new Date(value).toLocaleString(undefined, {
@@ -146,6 +147,18 @@ export default function PoolAdminPage() {
     const uniqueRows = Array.from(new Map(rows.map((row) => [row.entry_id, row])).values())
     return uniqueRows.sort((a, b) => entryLabel(a).localeCompare(entryLabel(b)) || (a.entry_number ?? 1) - (b.entry_number ?? 1))
   }, [rows])
+  const memberRows = useMemo(() => {
+    const grouped = new Map<string, { row: AdminRow; entries: AdminRow[] }>()
+    for (const row of entryRows) {
+      const current = grouped.get(row.user_id)
+      if (current) {
+        current.entries.push(row)
+      } else {
+        grouped.set(row.user_id, { row, entries: [row] })
+      }
+    }
+    return Array.from(grouped.values()).sort((a, b) => memberLabel(a.row).localeCompare(memberLabel(b.row)))
+  }, [entryRows])
   const memberCount = entryRows.length
   const stats = useMemo(() => {
     const alive = entryRows.filter((row) => !row.eliminated).length
@@ -177,13 +190,13 @@ export default function PoolAdminPage() {
       )
     })
   }, [memberSearch, rows])
-  const visibleEntryRows = useMemo(() => {
+  const visibleMemberRows = useMemo(() => {
     const q = memberSearch.trim().toLowerCase()
-    if (!q) return entryRows
-    return entryRows.filter((row) => {
-      return [entryLabel(row), row.user_id, row.role, row.entry_id].some((value) => value.toLowerCase().includes(q))
+    if (!q) return memberRows
+    return memberRows.filter(({ row, entries }) => {
+      return [memberLabel(row), row.user_id, row.role, ...entries.map((entry) => entry.entry_id)].some((value) => value.toLowerCase().includes(q))
     })
-  }, [entryRows, memberSearch])
+  }, [memberRows, memberSearch])
 
   const loadOverview = async (week = selectedWeek) => {
     if (!poolId) return
@@ -686,22 +699,22 @@ export default function PoolAdminPage() {
       return `Pick saved as ${team}.`
     })
 
-  const removeMember = (row: AdminRow) =>
-    runAction('Remove entry', async () => {
+  const removeMember = (row: AdminRow, entryCount = 1) =>
+    runAction('Remove member', async () => {
       if (!pool) return
       if (settingsLocked) {
-        throw new Error('Entries cannot be removed after the league has started.')
+        throw new Error('Members cannot be removed after the league has started.')
       }
-      const label = entryLabel(row)
-      const shortEntryId = row.entry_id.slice(0, 8)
+      const label = memberLabel(row)
+      const shortProfileId = row.user_id.slice(0, 8)
       const confirmed = window.confirm(
-        `Remove ${label} from ${pool.name}?\n\nEntry ID: ${shortEntryId}\n\nThis removes that entry and all of its picks. It cannot be undone from this screen.`,
+        `Remove ${label} from ${pool.name}?\n\nProfile ID: ${shortProfileId}\nEntries removed: ${entryCount}\n\nThis removes that member's entries and all of their picks. It cannot be undone from this screen.`,
       )
-      if (!confirmed) return 'Remove entry canceled.'
+      if (!confirmed) return 'Remove member canceled.'
 
-      const { error } = await supabase.rpc('admin_remove_pool_entry', {
+      const { error } = await supabase.rpc('admin_remove_pool_member', {
         p_pool_id: pool.id,
-        p_entry_id: row.entry_id,
+        p_profile_id: row.user_id,
       })
       if (error) throw error
       return `${label} removed.`
@@ -731,7 +744,14 @@ export default function PoolAdminPage() {
             <Link href={`/pools?pool=${poolId}`} className="rounded-md bg-gray-100 px-3 py-1.5 text-sm hover:bg-gray-200">
               Back to Pool
             </Link>
-            <button onClick={() => loadOverview(selectedWeek)} disabled={refreshing} className="rounded-md bg-gray-900 px-3 py-1.5 text-sm text-white disabled:opacity-50">
+            <button
+              onClick={async () => {
+                await loadOverview(selectedWeek)
+                setNotice('Admin data refreshed.')
+              }}
+              disabled={refreshing}
+              className="rounded-md bg-gray-900 px-3 py-1.5 text-sm text-white disabled:opacity-50"
+            >
               {refreshing ? 'Refreshing...' : 'Refresh'}
             </button>
           </div>
@@ -1059,14 +1079,15 @@ export default function PoolAdminPage() {
                     <p className="text-xs text-slate-600">Remove a full entry before the league starts. Pick edits stay in the weekly table below.</p>
                   </div>
                   <span className="rounded-full bg-white px-2 py-1 text-xs text-slate-600">
-                    {visibleEntryRows.length} {visibleEntryRows.length === 1 ? 'entry' : 'entries'}
+                    {visibleMemberRows.length} {visibleMemberRows.length === 1 ? 'member' : 'members'}
                   </span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[760px] text-sm">
                     <thead className="bg-white text-xs uppercase text-slate-500">
                       <tr>
-                        <th className="px-3 py-2 text-left">Entry</th>
+                        <th className="px-3 py-2 text-left">Member</th>
+                        <th className="px-3 py-2 text-left">Entries</th>
                         <th className="px-3 py-2 text-left">Role</th>
                         <th className="px-3 py-2 text-left">Joined</th>
                         <th className="px-3 py-2 text-left">Status</th>
@@ -1074,11 +1095,17 @@ export default function PoolAdminPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 bg-white">
-                      {visibleEntryRows.map((row) => (
-                        <tr key={row.entry_id}>
+                      {visibleMemberRows.map(({ row, entries }) => (
+                        <tr key={row.user_id}>
                           <td className="px-3 py-2">
-                            <div className="font-medium text-slate-950">{entryLabel(row)}</div>
-                            <div className="text-xs text-slate-500">Entry {row.entry_number ?? 1} - {row.entry_id.slice(0, 8)}</div>
+                            <div className="font-medium text-slate-950">{memberLabel(row)}</div>
+                            <div className="text-xs text-slate-500">Profile {row.user_id.slice(0, 8)}</div>
+                          </td>
+                          <td className="px-3 py-2 text-slate-700">
+                            {entries.length}
+                            <div className="text-xs text-slate-500">
+                              {entries.map((entry) => `#${entry.entry_number ?? 1}`).join(', ')}
+                            </div>
                           </td>
                           <td className="px-3 py-2 capitalize text-slate-700">{row.role}</td>
                           <td className="px-3 py-2 text-slate-700">{fmt(row.joined_at)}</td>
@@ -1091,12 +1118,12 @@ export default function PoolAdminPage() {
                           </td>
                           <td className="px-3 py-2">
                             <button
-                              onClick={() => removeMember(row)}
+                              onClick={() => removeMember(row, entries.length)}
                               disabled={!!runningAction || settingsLocked}
-                              title={settingsLocked ? 'Entries cannot be removed after the league starts.' : undefined}
+                              title={settingsLocked ? 'Members cannot be removed after the league starts.' : undefined}
                               className="rounded-md bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
                             >
-                              Remove entry
+                              Remove member
                             </button>
                           </td>
                         </tr>
@@ -1104,7 +1131,7 @@ export default function PoolAdminPage() {
                     </tbody>
                   </table>
                 </div>
-                {entryRows.length > 0 && visibleEntryRows.length === 0 && <p className="px-3 py-3 text-sm text-slate-600">No entries match that search.</p>}
+                {memberRows.length > 0 && visibleMemberRows.length === 0 && <p className="px-3 py-3 text-sm text-slate-600">No members match that search.</p>}
               </div>
 
               <div className="mb-3 flex gap-1 overflow-x-auto pb-1">

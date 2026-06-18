@@ -285,8 +285,9 @@ export default function SuperAdminPage() {
           <Stat label="Entries" value={totals.entries} />
         </section>
 
-        <section className="mb-5 rounded-lg border border-slate-200 bg-white p-4">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <details className="mb-5 rounded-lg border border-slate-200 bg-white p-4">
+          <summary className="cursor-pointer font-semibold text-slate-950">Data health tools</summary>
+          <div className="mt-3 mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="font-semibold text-slate-950">Schedule & Result Integrity</h2>
               <p className="text-sm text-slate-600">Flags duplicate games, impossible future results, missing winners, and unusual weekly game counts.</p>
@@ -353,7 +354,7 @@ export default function SuperAdminPage() {
               </table>
             </div>
           )}
-        </section>
+        </details>
 
         <div className="grid gap-5 lg:grid-cols-[minmax(360px,460px)_1fr]">
           <section className="rounded-lg border border-slate-200 bg-white">
