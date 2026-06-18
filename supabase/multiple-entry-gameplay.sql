@@ -421,6 +421,7 @@ begin
       on g.season = ps.season
      and g.week = d.week
      and d.team_abbr in (g.home_team, g.away_team)
+     and coalesce(g.kickoff_at_utc, g.game_time) >= make_timestamptz(ps.season, 1, 1, 0, 0, 0, 'UTC')
     where d.pool_id = p_pool_id
       and d.week = p_week
   ),

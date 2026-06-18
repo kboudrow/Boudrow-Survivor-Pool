@@ -71,7 +71,7 @@ type PickRow = { user_id: string; entry_id: string; week: number; slot: number; 
 type DraftPickRow = { entry_id: string; week: number; slot: number; team_abbr: string; updated_at: string | null }
 type FinalPickRow = { entry_id: string; week: number; slot: number; team_abbr: string; locked_at: string; result: 'win' | 'loss' | 'push' | null }
 type PickNotice = { team: Team; week: number; slot: number; action: 'saved' | 'cleared' }
-type PoolPickStatus = { week: number; made: number; needed: number }
+type PoolPickStatus = { week: number; made: number; needed: number; entries: number }
 
 type MemberStats = {
   pool_id: string
@@ -826,7 +826,7 @@ function MyPoolsContent() {
               if (pickedSlots.has(`${pool.id}:${entryId}:${targetWeek}:${slot}`)) made += 1
             }
           }
-          statuses[pool.id] = { week: targetWeek, made, needed }
+          statuses[pool.id] = { week: targetWeek, made, needed, entries: entryIds.length }
         }
 
         if (!alive) return
@@ -1552,7 +1552,7 @@ function MyPoolsContent() {
                     <InfoTile label="Starts" value={`Week ${p.start_week}`} />
                     <InfoTile label="Strikes" value={String(p.strikes_allowed)} />
                     <InfoTile label="Tie" value={p.tie_rule === 'win' ? 'Win' : 'Loss'} />
-                    <InfoTile label="Entries" value={p.allow_multiple_entries ? `Up to ${p.max_entries_per_user ?? 1}` : 'Single'} />
+                    <InfoTile label="Your Entries" value={String(poolPickStatuses[p.id]?.entries ?? 0)} />
                   </div>
                   {poolPickStatuses[p.id] && (
                     <div
@@ -1564,13 +1564,10 @@ function MyPoolsContent() {
                     >
                       Week {poolPickStatuses[p.id].week}:{' '}
                       {poolPickStatuses[p.id].needed > 0 && poolPickStatuses[p.id].made >= poolPickStatuses[p.id].needed
-                        ? 'Pick made'
-                        : 'No pick made'}
-                      {poolPickStatuses[p.id].needed > 1 && (
-                        <span className="ml-1 text-xs font-medium">
-                          ({Math.min(poolPickStatuses[p.id].made, poolPickStatuses[p.id].needed)}/{poolPickStatuses[p.id].needed})
-                        </span>
-                      )}
+                        ? `${poolPickStatuses[p.id].made}/${poolPickStatuses[p.id].needed} picks made`
+                        : poolPickStatuses[p.id].made > 0
+                          ? `${poolPickStatuses[p.id].made}/${poolPickStatuses[p.id].needed} picks made - finish making picks`
+                          : 'Make picks'}
                     </div>
                   )}
                 <div className="mt-3 flex gap-2">

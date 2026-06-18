@@ -210,18 +210,19 @@ export default function SuperAdminPage() {
 
   const removeEntry = async (entry: PoolEntry) => {
     if (!selectedPool) return
-    const label = `${entry.display_name}${entry.entry_number > 1 ? ` (${entry.entry_number})` : ''}`
+    const label = entry.display_name
+    const entryCount = entries.filter((candidate) => candidate.profile_id === entry.profile_id).length
     const confirmed = window.confirm(
-      `Remove ${label} from ${selectedPool.name}?\n\nEntry ID: ${entry.entry_id.slice(0, 8)}\n\nThis removes that entry and all of its picks.`,
+      `Remove ${label} from ${selectedPool.name}?\n\nProfile ID: ${entry.profile_id.slice(0, 8)}\nEntries removed: ${entryCount}\n\nThis removes that member's entries and all of their picks.`,
     )
     if (!confirmed) return
-    setRunningAction(entry.entry_id)
+    setRunningAction(entry.profile_id)
     setError(null)
     setNotice(null)
     try {
-      const { error: removeErr } = await supabase.rpc('admin_remove_pool_entry', {
+      const { error: removeErr } = await supabase.rpc('admin_remove_pool_member', {
         p_pool_id: selectedPool.pool_id,
-        p_entry_id: entry.entry_id,
+        p_profile_id: entry.profile_id,
       })
       if (removeErr) throw removeErr
       setNotice(`${label} removed.`)
