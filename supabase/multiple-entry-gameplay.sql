@@ -539,6 +539,11 @@ begin
     where g.season = p_season
       and g.week = p_week
       and g.status = 'final'
+      and coalesce(g.kickoff_at_utc, g.game_time) <= now()
+      and (
+        g.winner is null
+        or g.winner in (g.home_team, g.away_team)
+      )
   ),
   graded as (
     select

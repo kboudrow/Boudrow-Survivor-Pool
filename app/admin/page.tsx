@@ -55,6 +55,9 @@ type ScheduleAuditRow = {
   duplicate_event_count: number
   future_result_count: number
   final_missing_winner_count: number
+  invalid_winner_count: number
+  duplicate_team_count: number
+  future_pick_result_count: number
   team_appearance_count: number
   issue_count: number
 }
@@ -306,7 +309,8 @@ export default function SuperAdminPage() {
           <div className="grid gap-3 md:grid-cols-4">
             <Info label="Weeks Audited" value={String(scheduleAudit.length)} />
             <Info label="Weeks With Issues" value={String(auditIssues.length)} />
-            <Info label="Future Result Rows" value={String(scheduleAudit.reduce((sum, row) => sum + row.future_result_count, 0))} />
+            <Info label="Future Game Results" value={String(scheduleAudit.reduce((sum, row) => sum + row.future_result_count, 0))} />
+            <Info label="Future Pick Results" value={String(scheduleAudit.reduce((sum, row) => sum + row.future_pick_result_count, 0))} />
             <Info label="Duplicate IDs" value={String(scheduleAudit.reduce((sum, row) => sum + row.duplicate_event_count, 0))} />
           </div>
           {auditIssues.length === 0 ? (
@@ -322,8 +326,11 @@ export default function SuperAdminPage() {
                     <th className="border p-2 text-left">Week</th>
                     <th className="border p-2 text-left">Games</th>
                     <th className="border p-2 text-left">Duplicate IDs</th>
-                    <th className="border p-2 text-left">Future Results</th>
+                    <th className="border p-2 text-left">Future Game Results</th>
+                    <th className="border p-2 text-left">Future Pick Results</th>
                     <th className="border p-2 text-left">Final Missing Winner</th>
+                    <th className="border p-2 text-left">Invalid Winner</th>
+                    <th className="border p-2 text-left">Duplicate Teams</th>
                     <th className="border p-2 text-left">Team Appearances</th>
                   </tr>
                 </thead>
@@ -335,7 +342,10 @@ export default function SuperAdminPage() {
                       <td className={`border p-2 ${row.game_count > 16 || row.game_count < 12 ? 'font-semibold text-red-700' : ''}`}>{row.game_count}</td>
                       <td className="border p-2">{row.duplicate_event_count}</td>
                       <td className="border p-2">{row.future_result_count}</td>
+                      <td className="border p-2">{row.future_pick_result_count}</td>
                       <td className="border p-2">{row.final_missing_winner_count}</td>
+                      <td className="border p-2">{row.invalid_winner_count}</td>
+                      <td className="border p-2">{row.duplicate_team_count}</td>
                       <td className="border p-2">{row.team_appearance_count}</td>
                     </tr>
                   ))}
