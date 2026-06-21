@@ -3,6 +3,7 @@ import Script from "next/script";
 import "./globals.css";
 import { AppHeader } from "@/components/AppHeader";
 
+const enableAdsense = process.env.NEXT_PUBLIC_ENABLE_ADSENSE === "true";
 const adsenseClient = (process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT || process.env.NEXT_PUBLIC_ADSENSE_CLIENT || "ca-pub-7635962482487315")
   .replace(/\uFEFF/g, "")
   .trim();
@@ -30,9 +31,6 @@ export const metadata: Metadata = {
     images: ["/survive-sunday-logo.png"],
     type: "website",
   },
-  other: {
-    "google-adsense-account": "ca-pub-7635962482487315",
-  },
 };
 
 export default function RootLayout({
@@ -43,12 +41,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen bg-slate-50 text-slate-950 antialiased">
-        <Script
-          async
-          src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsenseClient}`}
-          crossOrigin="anonymous"
-          strategy="beforeInteractive"
-        />
+        {enableAdsense && (
+          <Script
+            async
+            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsenseClient}`}
+            crossOrigin="anonymous"
+            strategy="beforeInteractive"
+          />
+        )}
         <AppHeader />
         <div>{children}</div>
       </body>

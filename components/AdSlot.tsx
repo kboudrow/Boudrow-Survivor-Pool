@@ -22,8 +22,9 @@ const adsenseClient = cleanAdValue(process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT
 const showPreview = process.env.NODE_ENV !== 'production'
 
 export function AdSlot({ slot, label = 'Advertisement', format = 'auto', layout, className = '', minHeight = '90px' }: AdSlotProps) {
+  const allowAds = process.env.NEXT_PUBLIC_ENABLE_ADSENSE === 'true'
   const cleanSlot = cleanAdValue(slot)
-  const enabled = Boolean(adsenseClient && cleanSlot)
+  const enabled = Boolean(allowAds && adsenseClient && cleanSlot)
   const adAttributes = layout
     ? { 'data-ad-layout': layout }
     : {}
@@ -37,6 +38,8 @@ export function AdSlot({ slot, label = 'Advertisement', format = 'auto', layout,
       // Ad blockers and preview environments can block AdSense. The page should keep working.
     }
   }, [enabled])
+
+  if (!allowAds) return null
 
   if (!enabled) {
     if (!showPreview) return null

@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { AdSlot } from '@/components/AdSlot'
 import { blogPosts } from '@/lib/blogPosts'
 
 export const metadata: Metadata = {
@@ -25,18 +24,11 @@ export default function BlogPage() {
           </p>
         </div>
 
-        <AdSlot
-          slot={process.env.NEXT_PUBLIC_AD_SLOT_BLOG_TOP}
-          label="Blog top advertisement"
-          className="mb-8"
-          minHeight="110px"
-        />
-
         <div className="grid gap-4 md:grid-cols-3">
           {posts.map((post) => (
             <article key={post.slug} className={`rounded-lg border bg-white p-5 shadow-sm ${post.pinned ? 'border-blue-200 ring-1 ring-blue-100 md:col-span-3' : 'border-slate-200'}`}>
               <div className="mb-3 text-xs font-medium uppercase tracking-wide text-slate-500">
-                {post.pinned ? 'Pinned / ' : ''}{post.category} / {post.publishedAt} / {post.readTime}
+                {post.pinned ? 'Pinned / ' : ''}{post.category} / Updated {post.publishedAt} / {post.readTime}
               </div>
               <h2 className="text-xl font-bold text-slate-950">
                 <Link href={`/blog/${post.slug}`} className="hover:text-[#c5161d]">
@@ -51,12 +43,10 @@ export default function BlogPage() {
           ))}
         </div>
 
-        <AdSlot
-          slot={process.env.NEXT_PUBLIC_AD_SLOT_BLOG_BOTTOM}
-          label="Blog bottom advertisement"
-          className="mt-8"
-          minHeight="120px"
-        />
+        <div className="mt-8 rounded-lg border border-slate-200 bg-white p-5 text-sm leading-6 text-slate-700">
+          These guides are written for survivor-pool commissioners and players. For a live example of how the product presents picks and standings, visit the{' '}
+          <Link href="/demo-league" className="font-semibold text-[#c5161d] hover:text-[#a91218]">public demo league</Link>.
+        </div>
       </div>
     </main>
   )

@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import NextImage from 'next/image'
 import { useRouter } from 'next/navigation'
-import { AdSlot } from '@/components/AdSlot'
 
 type Mode = 'idle' | 'signin' | 'signup'
 type SupabaseClientModule = typeof import('@/lib/supabaseClient')
@@ -279,16 +278,6 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="bg-white px-6 pb-10">
-          <div className="mx-auto max-w-5xl">
-            <AdSlot
-              slot={process.env.NEXT_PUBLIC_AD_SLOT_SITE_INLINE}
-              label="Homepage advertisement"
-              minHeight="100px"
-            />
-          </div>
-        </section>
-
         {/* HOW IT WORKS */}
         <section className="bg-slate-50 px-4 py-12 sm:px-6">
           <div className="mx-auto max-w-5xl grid sm:grid-cols-3 gap-6 text-center">
@@ -323,6 +312,26 @@ export default function Home() {
                 ))}
               </ul>
             </div>
+          </div>
+        </section>
+
+        <section className="bg-white px-4 pb-12 sm:px-6">
+          <div className="mx-auto grid max-w-5xl gap-4 md:grid-cols-3">
+            <PublicLink
+              title="Try the public demo"
+              text="See a sample league with picks, standings, distribution, and commissioner-style context."
+              href="/demo-league"
+            />
+            <PublicLink
+              title="Read commissioner guides"
+              text="Rules, deadlines, double-pick weeks, private pools, and strategy notes for running a cleaner league."
+              href="/blog"
+            />
+            <PublicLink
+              title="Why we built it"
+              text="Learn what Survive Sunday handles, what it does not do, and how support works."
+              href="/about"
+            />
           </div>
         </section>
 
@@ -480,6 +489,8 @@ export default function Home() {
             <div className="font-semibold mb-2">Product</div>
             <ul className="space-y-1">
               <li><Link href="/how-it-works" className="underline">How it works</Link></li>
+              <li><Link href="/demo-league" className="underline">Demo league</Link></li>
+              <li><Link href="/about" className="underline">About</Link></li>
               <li><Link href="/faq" className="underline">FAQ</Link></li>
               <li><Link href="/blog" className="underline">Blog</Link></li>
               <li><Link href="/contact" className="underline">Contact</Link></li>
@@ -522,5 +533,15 @@ function How({ step, title, text }: { step: string; title: string; text: string 
       <div className="text-lg font-semibold">{title}</div>
       <p className="text-sm text-gray-600 mt-1">{text}</p>
     </div>
+  )
+}
+
+function PublicLink({ title, text, href }: { title: string; text: string; href: string }) {
+  return (
+    <Link href={href} className="rounded-lg border border-slate-200 bg-slate-50 p-5 shadow-sm transition hover:border-[#c5161d]/40 hover:bg-white">
+      <div className="font-semibold text-slate-950">{title}</div>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{text}</p>
+      <span className="mt-4 inline-flex text-sm font-semibold text-[#c5161d]">Learn more</span>
+    </Link>
   )
 }

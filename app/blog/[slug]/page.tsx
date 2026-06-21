@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import { AdSlot } from '@/components/AdSlot'
 import { blogPosts, getBlogPost } from '@/lib/blogPosts'
 
 type Props = {
@@ -45,6 +44,19 @@ export default async function BlogPostPage({ params }: Props) {
     datePublished: post.updatedAt,
     dateModified: post.updatedAt,
     mainEntityOfPage: `${siteUrl}/blog/${post.slug}`,
+    author: {
+      '@type': 'Organization',
+      name: 'Survive Sunday',
+      url: siteUrl,
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: 'Survive Sunday',
+      logo: {
+        '@type': 'ImageObject',
+        url: `${siteUrl}/survive-sunday-logo.png`,
+      },
+    },
   }
 
   return (
@@ -57,21 +69,17 @@ export default async function BlogPostPage({ params }: Props) {
 
         <header className="mt-5 border-b border-slate-200 pb-6">
           <div className="text-sm font-medium text-slate-500">
-            {post.category} / {post.publishedAt} / {post.readTime}
+            {post.category} / Updated {post.publishedAt} / {post.readTime}
           </div>
           <h1 className="mt-3 text-4xl font-extrabold tracking-normal text-slate-950">{post.title}</h1>
           <p className="mt-4 text-lg text-slate-600">{post.description}</p>
+          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+            Written by Survive Sunday for commissioners and players who want cleaner rules, fewer spreadsheet mistakes, and less Sunday-morning chasing.
+          </div>
         </header>
 
-        <AdSlot
-          slot={process.env.NEXT_PUBLIC_AD_SLOT_ARTICLE_TOP}
-          label="Article top advertisement"
-          className="mt-8"
-          minHeight="110px"
-        />
-
         <div className="mt-8 space-y-8">
-          {post.sections.map((section, index) => (
+          {post.sections.map((section) => (
             <div key={section.heading} className="space-y-8">
               <section>
                 <h2 className="text-2xl font-bold text-slate-950">{section.heading}</h2>
@@ -81,26 +89,9 @@ export default async function BlogPostPage({ params }: Props) {
                   ))}
                 </div>
               </section>
-              {index === 1 && (
-                <AdSlot
-                  slot={process.env.NEXT_PUBLIC_AD_SLOT_ARTICLE_INLINE}
-                  label="Article in-content advertisement"
-                  format="fluid"
-                  layout="in-article"
-                  className="my-2"
-                  minHeight="250px"
-                />
-              )}
             </div>
           ))}
         </div>
-
-        <AdSlot
-          slot={process.env.NEXT_PUBLIC_AD_SLOT_ARTICLE_BOTTOM}
-          label="Article bottom advertisement"
-          className="mt-10"
-          minHeight="120px"
-        />
 
         <div className="mt-10 rounded-lg border border-[#d2ad5b]/40 bg-[#fffaf0] p-5">
           <h2 className="text-lg font-bold text-slate-950">Ready to run a cleaner pool?</h2>

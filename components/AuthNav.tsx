@@ -99,6 +99,12 @@ export function AuthNav() {
   if (!loaded || !isAuthed) {
     return (
       <div className="flex shrink-0 items-center gap-1">
+        <Link href="/demo-league" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
+          Demo
+        </Link>
+        <Link href="/about" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
+          About
+        </Link>
         <Link href="/blog" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
           Blog
         </Link>
@@ -120,6 +126,9 @@ export function AuthNav() {
 
   return (
     <div className="flex shrink-0 items-center gap-1">
+      <Link href="/demo-league" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
+        Demo
+      </Link>
       <Link href="/blog" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
         Blog
       </Link>
