@@ -13,12 +13,21 @@ export type BlogPost = {
   }[]
 }
 
+export const blogCategories = [
+  'Commissioner Guides',
+  'Rules & Settings',
+  'Survivor Strategy',
+  'NFL Guide',
+  'Templates',
+  'Product Updates',
+] as const
+
 export const blogPosts: BlogPost[] = [
   {
     slug: 'how-nfl-survivor-pools-work',
     title: 'How NFL Survivor Pools Work',
     description: 'A simple guide to survivor pool rules, weekly picks, eliminations, strikes, and no-repeat team strategy.',
-    category: 'Rules',
+    category: 'Rules & Settings',
     publishedAt: 'June 6, 2026',
     updatedAt: '2026-06-06',
     readTime: '4 min read',
@@ -50,7 +59,7 @@ export const blogPosts: BlogPost[] = [
     slug: 'survivor-pool-strategy-for-beginners',
     title: 'Survivor Pool Strategy For Beginners',
     description: 'Beginner-friendly survivor pool strategy: avoid burning every favorite early, think about future weeks, and manage risk.',
-    category: 'Strategy',
+    category: 'Survivor Strategy',
     publishedAt: 'June 6, 2026',
     updatedAt: '2026-06-06',
     readTime: '5 min read',
@@ -82,7 +91,7 @@ export const blogPosts: BlogPost[] = [
     slug: 'how-to-run-a-survivor-pool',
     title: 'Commissioner Checklist: How To Run A Survivor Pool',
     description: 'A commissioner checklist for setting rules, collecting players, locking picks, and keeping standings clean.',
-    category: 'Commissioner',
+    category: 'Commissioner Guides',
     publishedAt: 'June 6, 2026',
     updatedAt: '2026-06-06',
     readTime: '6 min read',
@@ -115,7 +124,7 @@ export const blogPosts: BlogPost[] = [
     slug: 'survivor-pool-pick-deadlines',
     title: 'Survivor Pool Pick Deadlines: Fixed vs Rolling Locks',
     description: 'How fixed deadlines, rolling kickoff locks, and hybrid lock rules change the way players make survivor pool picks.',
-    category: 'Rules',
+    category: 'Rules & Settings',
     publishedAt: 'June 11, 2026',
     updatedAt: '2026-06-11',
     readTime: '5 min read',
@@ -147,7 +156,7 @@ export const blogPosts: BlogPost[] = [
     slug: 'private-vs-public-survivor-pools',
     title: 'Private vs Public Survivor Pools',
     description: 'A practical guide to choosing public discovery, private invite links, passwords, and member limits for an NFL survivor pool.',
-    category: 'Commissioner',
+    category: 'Commissioner Guides',
     publishedAt: 'June 11, 2026',
     updatedAt: '2026-06-11',
     readTime: '4 min read',
@@ -179,7 +188,7 @@ export const blogPosts: BlogPost[] = [
     slug: 'nfl-survivor-pool-rules-template',
     title: 'NFL Survivor Pool Rules Template',
     description: 'A copy-ready survivor pool rules template commissioners can send to their group before the season starts.',
-    category: 'Commissioner',
+    category: 'Templates',
     publishedAt: 'June 22, 2026',
     updatedAt: '2026-06-22',
     readTime: '5 min read',
@@ -238,7 +247,7 @@ export const blogPosts: BlogPost[] = [
     slug: 'fixed-deadline-vs-rolling-kickoff-locks',
     title: 'Fixed Deadline vs Rolling Kickoff Locks',
     description: 'A commissioner guide to choosing fixed weekly deadlines, rolling kickoff locks, or a hybrid approach for survivor pool picks.',
-    category: 'Rules',
+    category: 'Rules & Settings',
     publishedAt: 'June 22, 2026',
     updatedAt: '2026-06-22',
     readTime: '4 min read',
@@ -291,7 +300,7 @@ export const blogPosts: BlogPost[] = [
     slug: 'what-to-do-when-someone-forgets-a-pick',
     title: 'What To Do When Someone Forgets To Submit Their Survivor Pool Pick',
     description: 'How commissioners can handle forgotten survivor pool picks without creating weekly arguments or special exceptions.',
-    category: 'Commissioner',
+    category: 'Commissioner Guides',
     publishedAt: 'June 22, 2026',
     updatedAt: '2026-06-22',
     readTime: '6 min read',
@@ -349,6 +358,30 @@ export const blogPosts: BlogPost[] = [
   },
 ]
 
+export function sortBlogPosts(posts = blogPosts) {
+  return [...posts].sort((a, b) => {
+    const pinnedSort = Number(Boolean(b.pinned)) - Number(Boolean(a.pinned))
+    if (pinnedSort) return pinnedSort
+    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  })
+}
+
 export function getBlogPost(slug: string) {
   return blogPosts.find((post) => post.slug === slug)
+}
+
+export function getFeaturedBlogPost() {
+  return blogPosts.find((post) => post.pinned) || sortBlogPosts(blogPosts)[0]
+}
+
+export function getRelatedBlogPosts(post: BlogPost, limit = 3) {
+  return sortBlogPosts(blogPosts)
+    .filter((candidate) => candidate.slug !== post.slug)
+    .sort((a, b) => {
+      const aScore = a.category === post.category ? 1 : 0
+      const bScore = b.category === post.category ? 1 : 0
+      if (aScore !== bScore) return bScore - aScore
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    })
+    .slice(0, limit)
 }

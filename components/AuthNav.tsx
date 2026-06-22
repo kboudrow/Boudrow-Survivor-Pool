@@ -139,9 +139,14 @@ export function AuthNav() {
         Join Pool
       </Link>
       {isSuperAdmin && (
-        <Link href="/admin" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
-          Admin
-        </Link>
+        <>
+          <Link href="/admin/blog" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
+            Blog Admin
+          </Link>
+          <Link href="/admin" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
+            Admin
+          </Link>
+        </>
       )}
       <Link href="/pools/new" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
         Create Pool
