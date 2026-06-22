@@ -175,6 +175,178 @@ export const blogPosts: BlogPost[] = [
       },
     ],
   },
+  {
+    slug: 'nfl-survivor-pool-rules-template',
+    title: 'NFL Survivor Pool Rules Template',
+    description: 'A copy-ready survivor pool rules template commissioners can send to their group before the season starts.',
+    category: 'Commissioner',
+    publishedAt: 'June 22, 2026',
+    updatedAt: '2026-06-22',
+    readTime: '5 min read',
+    sections: [
+      {
+        heading: 'Use this before invites go out',
+        body: [
+          'Need a set of survivor pool rules you can send to your group? Use this template as-is or customize it for your league.',
+          'The most important thing is to make the rules clear before players join. Once picks start, changing rules can create trust problems fast.',
+        ],
+      },
+      {
+        heading: 'Basic rules',
+        body: [
+          'Each participant selects one NFL team to win its game each week. If the selected team wins, that entry advances to the next week.',
+          'If the selected team loses, that entry receives a strike or is eliminated, depending on league settings. Teams may only be used once during the season. The last remaining entry wins the pool.',
+        ],
+      },
+      {
+        heading: 'Pick deadlines',
+        body: [
+          'All picks must be submitted before the weekly deadline. Commissioners can choose fixed weekly deadlines, such as Sunday at 1:00 PM ET, or rolling kickoff locks where each game locks at kickoff.',
+          'Late picks should not be accepted unless your rules clearly say otherwise. The cleaner rule is to decide the deadline format up front and apply it the same way for every entry.',
+        ],
+      },
+      {
+        heading: 'Tie games',
+        body: [
+          'Commissioners should decide before the season whether a tie counts as a win, a loss, or a push. Whatever you choose should apply to all participants for the full season.',
+          'Tie rules seem minor until one actually happens. Put the rule in writing before Week 1 so there is no argument later.',
+        ],
+      },
+      {
+        heading: 'Multiple entries and double-pick weeks',
+        body: [
+          'If your league allows multiple entries, each participant may have up to the number of entries set by the commissioner. Each entry should be treated independently with its own picks, standings position, and elimination status.',
+          'During designated double-pick weeks, each active entry must submit two different teams. Unless the commissioner states otherwise, both picks must win for the entry to survive the week.',
+        ],
+      },
+      {
+        heading: 'Missed picks and winner rules',
+        body: [
+          'If a participant fails to submit a pick before the deadline, choose one rule: automatic elimination, automatic strike, or a commissioner-assigned pick such as the highest remaining favorite. Pick one rule and apply it consistently.',
+          'The last remaining active entry is declared the winner. If multiple entries remain after the final week, the commissioner can declare co-winners or use a predetermined tiebreaker.',
+        ],
+      },
+      {
+        heading: 'Make the rules easier to enforce',
+        body: [
+          'Want these rules enforced automatically? Create your pool on Survive Sunday and let the platform handle locks, standings, used teams, and elimination tracking.',
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'fixed-deadline-vs-rolling-kickoff-locks',
+    title: 'Fixed Deadline vs Rolling Kickoff Locks',
+    description: 'A commissioner guide to choosing fixed weekly deadlines, rolling kickoff locks, or a hybrid approach for survivor pool picks.',
+    category: 'Rules',
+    publishedAt: 'June 22, 2026',
+    updatedAt: '2026-06-22',
+    readTime: '4 min read',
+    sections: [
+      {
+        heading: 'Why lock rules matter',
+        body: [
+          'One of the most important decisions a commissioner makes is how picks lock each week. Survive Sunday supports both fixed deadlines and rolling kickoff locks, but each format creates a different experience.',
+          'The right choice depends on your group. A casual office pool may value simplicity. A more competitive pool may want flexibility around injury news, weather, and primetime games.',
+        ],
+      },
+      {
+        heading: 'Fixed deadline locks',
+        body: [
+          'With a fixed deadline, all picks lock at a single time each week. A common example is Sunday at 1:00 PM ET. Once the deadline passes, nobody can make changes.',
+          'Fixed deadlines are easy for commissioners to manage, simple for participants to understand, and good for creating a consistent weekly routine. They work especially well for office pools and casual leagues.',
+        ],
+      },
+      {
+        heading: 'Fixed deadline tradeoffs',
+        body: [
+          'The downside is that early-week games can create complications. Thursday games, international games, and late injury news may all affect how players feel about their picks.',
+          'A fixed deadline also gives participants less strategic flexibility. If your group likes waiting on late information, fixed locks may feel restrictive.',
+        ],
+      },
+      {
+        heading: 'Rolling kickoff locks',
+        body: [
+          'With rolling locks, each game locks individually at kickoff. A participant can wait until Sunday night or Monday night if they have not selected a team yet.',
+          'Rolling locks offer maximum flexibility, let participants react to late-breaking news, and handle Thursday games naturally. They also create more strategic decision-making.',
+        ],
+      },
+      {
+        heading: 'Rolling lock tradeoffs',
+        body: [
+          'Rolling locks are slightly more complex for new players. They also require automated tracking to manage properly because each matchup has its own lock time.',
+          'Trying to run rolling locks manually in a spreadsheet can get messy. If you choose this format, software should handle the clocks.',
+        ],
+      },
+      {
+        heading: 'Which option should you choose?',
+        body: [
+          'For most office pools and casual groups, fixed deadlines are easier. For competitive pools and experienced players, rolling kickoff locks typically provide the better experience.',
+          'The good news is that Survive Sunday supports both formats, so commissioners can choose the rules that best fit their group.',
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'what-to-do-when-someone-forgets-a-pick',
+    title: 'What To Do When Someone Forgets To Submit Their Survivor Pool Pick',
+    description: 'How commissioners can handle forgotten survivor pool picks without creating weekly arguments or special exceptions.',
+    category: 'Commissioner',
+    publishedAt: 'June 22, 2026',
+    updatedAt: '2026-06-22',
+    readTime: '6 min read',
+    sections: [
+      {
+        heading: 'The text every commissioner gets',
+        body: [
+          'Every survivor pool commissioner eventually gets the same text message: "Wait, did I submit my pick?" The games are about to start, the participant forgot, and now everyone is looking to the commissioner for a ruling.',
+          'How you handle missed picks can determine whether your league stays fun or becomes a weekly argument.',
+        ],
+      },
+      {
+        heading: 'The biggest mistake commissioners make',
+        body: [
+          'The most common mistake is making decisions on the fly. You let one person submit a pick five minutes late. Then someone else asks for the same favor in Week 7.',
+          'Before long, everyone has a different opinion about what is fair. The solution is simple: decide how missed picks will be handled before the season starts.',
+        ],
+      },
+      {
+        heading: 'Option 1: automatic elimination',
+        body: [
+          'Automatic elimination is the most common rule in traditional survivor pools. If a participant fails to submit a pick before the deadline, they are immediately eliminated.',
+          'This rule is simple, easy to enforce, requires no commissioner judgment, and encourages participants to submit picks on time. It can feel harsh early in the season, but it works best in classic one-loss-and-you-are-out pools.',
+        ],
+      },
+      {
+        heading: 'Option 2: use a mulligan or strike',
+        body: [
+          'If your pool allows multiple lives, a missed pick can count as a strike instead of an immediate elimination. For example, if the pool allows two strikes and a participant forgets to submit a pick, one strike is added to their entry and they remain active until they reach the strike limit.',
+          'This is more forgiving and keeps participants engaged. It only makes sense if your pool is already using strikes or mulligans, and it still needs to be written into the rules before the season begins.',
+        ],
+      },
+      {
+        heading: 'Option 3: assign an automatic pick',
+        body: [
+          'Some commissioners automatically assign a team when a participant forgets. Common approaches include the highest remaining betting favorite, the home favorite with the largest spread, or the best available team not already used.',
+          'This can prevent accidental eliminations and keep casual players involved, but it requires commissioner involvement and can create arguments about which team should have been assigned. If you use this rule, define the process before Week 1.',
+        ],
+      },
+      {
+        heading: 'Avoid special exceptions',
+        body: [
+          'Regardless of which rule you choose, consistency matters. If the rule is elimination, it should apply to everyone. If the rule is a strike, it should apply to everyone. If the rule is an automatic pick, it should apply to everyone.',
+          'The commissioner should never have to make a judgment call based on who forgot. Good survivor pools run on clear rules, not commissioner discretion.',
+        ],
+      },
+      {
+        heading: 'The best approach',
+        body: [
+          'The easiest way to avoid disputes is to establish the rule before the season starts and enforce it automatically.',
+          'Whether your league uses traditional eliminations, mulligans, or automatic picks, participants should know exactly what happens when they miss a deadline. That is why many commissioners choose platforms like Survive Sunday, where deadlines, locks, standings, and elimination tracking are handled automatically throughout the season.',
+        ],
+      },
+    ],
+  },
 ]
 
 export function getBlogPost(slug: string) {

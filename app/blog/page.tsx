@@ -11,7 +11,11 @@ export const metadata: Metadata = {
 }
 
 export default function BlogPage() {
-  const posts = [...blogPosts].sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)))
+  const posts = [...blogPosts].sort((a, b) => {
+    const pinnedSort = Number(Boolean(b.pinned)) - Number(Boolean(a.pinned))
+    if (pinnedSort) return pinnedSort
+    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  })
 
   return (
     <main className="min-h-[70vh] bg-slate-50 px-4 py-10">
