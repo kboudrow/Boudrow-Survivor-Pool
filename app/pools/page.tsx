@@ -679,6 +679,60 @@ function MyPoolsContent() {
     setDraftSavedAt(latest)
   }
 
+  const refreshPoolPickStatus = async (poolToRefresh = pool, entriesOverride?: Profile[]) => {
+    if (!userId || !poolToRefresh) return
+
+    try {
+      const entryIds = entriesOverride?.length
+        ? entriesOverride.map((entry) => entry.id).filter(Boolean)
+        : ((await supabase
+            .from('pool_members')
+            .select('id')
+            .eq('pool_id', poolToRefresh.id)
+            .eq('profile_id', userId)).data || []).map((entry) => entry.id)
+
+      if (entryIds.length === 0) {
+        setPoolPickStatuses((prev) => ({
+          ...prev,
+          [poolToRefresh.id]: { week: poolToRefresh.start_week, made: 0, needed: 0, entries: 0 },
+        }))
+        return
+      }
+
+      const season = poolToRefresh.season ?? new Date().getFullYear()
+      const [{ data: seasonRows }, { data: draftRows }, { data: finalRows }] = await Promise.all([
+        supabase.from('season_weeks').select('season, week, week_sunday_date').eq('season', season),
+        supabase.from('pool_pick_drafts').select('pool_id,entry_id,week,slot').eq('pool_id', poolToRefresh.id).in('entry_id', entryIds),
+        supabase.from('pool_picks').select('pool_id,entry_id,week,slot').eq('pool_id', poolToRefresh.id).in('entry_id', entryIds),
+      ])
+
+      const targetWeek = Math.max(poolToRefresh.start_week, currentPickWeek(((seasonRows || []) as SeasonWeek[]).filter((week) => week.week >= 1 && week.week <= 18)))
+      const required = poolToRefresh.double_pick_weeks?.includes(targetWeek) ? 2 : 1
+      const needed = entryIds.length * required
+      const pickedSlots = new Set<string>()
+      for (const pick of [
+        ...((draftRows || []) as Array<{ pool_id: string; entry_id: string; week: number; slot: number }>),
+        ...((finalRows || []) as Array<{ pool_id: string; entry_id: string; week: number; slot: number }>),
+      ]) {
+        pickedSlots.add(`${pick.pool_id}:${pick.entry_id}:${pick.week}:${pick.slot}`)
+      }
+
+      let made = 0
+      for (const entryId of entryIds) {
+        for (let slot = 1; slot <= required; slot += 1) {
+          if (pickedSlots.has(`${poolToRefresh.id}:${entryId}:${targetWeek}:${slot}`)) made += 1
+        }
+      }
+
+      setPoolPickStatuses((prev) => ({
+        ...prev,
+        [poolToRefresh.id]: { week: targetWeek, made, needed, entries: entryIds.length },
+      }))
+    } catch (e) {
+      console.warn('Pool pick status refresh failed', e)
+    }
+  }
+
   const loadMembers = async (poolId: string) => {
     const { data: rosterRows, error: rosterErr } = await supabase.rpc('pool_entry_roster', { p_pool_id: poolId })
     if (rosterErr) throw rosterErr
@@ -1097,12 +1151,14 @@ function MyPoolsContent() {
         if (error) throw error
       }
       setDraftSavedAt(new Date().toISOString())
+      await refreshPoolPickStatus()
       return true
     } catch (e: unknown) {
       const message = getErrorMessage(e, 'Failed to save pick')
       if (team && message.toLowerCase().includes('already selected for week')) {
         await loadMyPicks(selectedId, pool?.start_week ?? 1)
         setDraftSavedAt(new Date().toISOString())
+        await refreshPoolPickStatus()
         return true
       }
       alert(message)
@@ -1184,6 +1240,7 @@ function MyPoolsContent() {
       const { error } = await supabase.from('pool_pick_drafts').delete().eq('pool_id', selectedId).eq('entry_id', selectedEntryId)
       if (error) throw error
       setDraftSavedAt(new Date().toISOString())
+      await refreshPoolPickStatus()
     } catch (e: unknown) {
       alert(getErrorMessage(e, 'Failed to clear picks'))
     }
@@ -1225,6 +1282,7 @@ function MyPoolsContent() {
       const newEntryId = typeof data === 'string' ? data : roster.filter((m) => m.profile_id === userId).at(-1)?.id
       if (newEntryId) await selectEntry(newEntryId)
       setMemberCount(roster.length)
+      await refreshPoolPickStatus(pool, roster.filter((member) => member.profile_id === userId))
     } catch (e: unknown) {
       alert(getErrorMessage(e, 'Failed to add entry.'))
     } finally {
