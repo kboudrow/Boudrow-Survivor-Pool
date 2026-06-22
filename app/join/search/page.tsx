@@ -144,8 +144,6 @@ export default function JoinSearchPage() {
           .from('pools')
           .select('id, name, is_public, allow_discovery, start_week, include_playoffs, strikes_allowed, tie_rule, deadline_mode, deadline_fixed, notes, created_by, created_at, activation_status, max_members')
           .eq('archived', false)
-          .eq('activation_status', 'active')
-          .eq('allow_discovery', true)
           .order('created_at', { ascending: false })
           .limit(30)
 

@@ -1,12 +1,12 @@
 begin;
 
--- Private leagues still require their password to join, but they should be
--- findable when commissioners want testers or invited players to search by name.
+-- Private leagues still require their password to join, but every non-archived
+-- league should be findable by name whether or not it has been paid for.
 update public.pools
 set allow_discovery = true
-where coalesce(archived, false) = false
-  and coalesce(activation_status, 'draft') = 'active'
-  and is_public = false;
+where coalesce(archived, false) = false;
+
+drop function if exists public.search_pools(text);
 
 create or replace function public.search_pools(p_term text)
 returns table (
@@ -22,7 +22,9 @@ returns table (
   deadline_fixed text,
   notes text,
   created_by uuid,
-  created_at timestamptz
+  created_at timestamptz,
+  activation_status text,
+  max_members integer
 )
 language sql
 security definer
@@ -41,12 +43,13 @@ as $function$
     p.deadline_fixed,
     p.notes,
     p.created_by,
-    p.created_at
+    p.created_at,
+    coalesce(p.activation_status, 'draft')::text as activation_status,
+    p.max_members
   from public.pools p
   where
     coalesce(p.archived, false) = false
-    and coalesce(p.activation_status, 'draft') = 'active'
-    and p.allow_discovery = true
+    and coalesce(p.activation_status, 'draft') <> 'cancelled'
     and (
       p_term is null
       or btrim(p_term) = ''
@@ -55,5 +58,7 @@ as $function$
   order by p.created_at desc
   limit 50;
 $function$;
+
+grant execute on function public.search_pools(text) to anon, authenticated;
 
 commit;

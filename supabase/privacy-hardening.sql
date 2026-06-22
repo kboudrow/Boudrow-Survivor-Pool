@@ -70,7 +70,9 @@ returns table (
   deadline_fixed text,
   notes text,
   created_by uuid,
-  created_at timestamptz
+  created_at timestamptz,
+  activation_status text,
+  max_members integer
 )
 language sql
 security definer
@@ -89,11 +91,13 @@ as $function$
     p.deadline_fixed,
     p.notes,
     p.created_by,
-    p.created_at
+    p.created_at,
+    coalesce(p.activation_status, 'draft')::text as activation_status,
+    p.max_members
   from public.pools p
   where
     coalesce(p.archived, false) = false
-    and p.allow_discovery = true
+    and coalesce(p.activation_status, 'draft') <> 'cancelled'
     and (
       p_term is null
       or btrim(p_term) = ''

@@ -184,10 +184,6 @@ begin
     raise exception 'This pool is archived.';
   end if;
 
-  if not v_is_owner and coalesce(v_pool.activation_status, 'draft') <> 'active' then
-    raise exception 'This pool is not accepting members yet.';
-  end if;
-
   if exists (
     select 1
     from public.pool_members pm
