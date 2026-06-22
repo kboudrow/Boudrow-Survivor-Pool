@@ -188,7 +188,7 @@ export default function CreatePoolPage() {
         .insert({
           name: trimmedName,
           is_public: isPublic,
-          allow_discovery: isPublic ? true : false,
+          allow_discovery: true,
           start_week,
           include_playoffs,
           strikes_allowed,

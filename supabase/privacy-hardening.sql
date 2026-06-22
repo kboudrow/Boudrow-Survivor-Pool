@@ -95,10 +95,6 @@ as $function$
     coalesce(p.archived, false) = false
     and p.allow_discovery = true
     and (
-      p.is_public = true
-      or (p.is_public = false and auth.uid() is not null)
-    )
-    and (
       p_term is null
       or btrim(p_term) = ''
       or p.name ilike ('%' || btrim(p_term) || '%')
