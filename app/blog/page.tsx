@@ -37,7 +37,6 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
     return categoryMatch && queryMatch
   })
   const latestPosts = featured ? filteredPosts.filter((post) => post.slug !== featured.slug) : filteredPosts
-  const totalReadMinutes = allPosts.reduce((sum, post) => sum + Number.parseInt(post.readTime, 10), 0)
 
   return (
     <main className="min-h-[70vh] bg-slate-50 px-4 py-10 sm:px-6">
@@ -56,7 +55,7 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
             <div className="grid grid-cols-3 gap-2 rounded-lg border border-white/10 bg-white/5 p-3 text-center">
               <Stat value={String(allPosts.length)} label="Articles" />
               <Stat value={String(visibleCategories.length)} label="Topics" />
-              <Stat value={`${totalReadMinutes}+`} label="Minutes" />
+              <Stat value="2026" label="Season" />
             </div>
           </div>
         </section>
@@ -66,10 +65,15 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-[#c5161d] px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-white">Featured</span>
               {featured && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">{featured.category}</span>}
-              {featured && <span className="text-xs font-medium text-slate-500">Updated {featured.publishedAt} / {featured.readTime}</span>}
+              {featured && <span className="text-xs font-medium text-slate-500">Updated {featured.publishedAt}</span>}
             </div>
             {featured ? (
               <>
+                {featured.heroImageUrl && (
+                  <div className="mb-5 overflow-hidden rounded-lg border border-slate-200">
+                    <img src={featured.heroImageUrl} alt="" className="h-64 w-full object-cover" />
+                  </div>
+                )}
                 <h2 className="text-3xl font-extrabold tracking-normal text-slate-950">
                   <Link href={`/blog/${featured.slug}`} className="hover:text-[#c5161d]">
                     {featured.title}
@@ -198,10 +202,14 @@ function CategoryLink({ label, active, query }: { label: string; active: boolean
 function BlogCard({ post }: { post: PublicBlogPost }) {
   return (
     <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition hover:border-[#c5161d]/40">
+      {post.heroImageUrl && (
+        <div className="mb-4 overflow-hidden rounded-md border border-slate-200">
+          <img src={post.heroImageUrl} alt="" className="h-36 w-full object-cover" />
+        </div>
+      )}
       <div className="mb-3 flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
         <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-700">{post.category}</span>
         <span>Updated {post.publishedAt}</span>
-        <span>{post.readTime}</span>
       </div>
       <h3 className="text-xl font-bold text-slate-950">
         <Link href={`/blog/${post.slug}`} className="hover:text-[#c5161d]">

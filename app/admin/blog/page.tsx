@@ -7,6 +7,8 @@ import { getErrorMessage } from '@/lib/errorMessage'
 import { supabase } from '@/lib/supabaseClient'
 
 type BlogRole = '' | 'contributor' | 'editor' | 'admin'
+type Tab = 'posts' | 'new' | 'access'
+type Status = 'draft' | 'published' | 'archived'
 
 type BlogPostRow = {
   id: string
@@ -14,7 +16,7 @@ type BlogPostRow = {
   title: string
   description: string
   category: string
-  status: 'draft' | 'published' | 'archived'
+  status: Status
   author_id: string | null
   author_name: string
   read_time: string
@@ -40,26 +42,26 @@ type FormState = {
   slug: string
   description: string
   category: string
-  status: 'draft' | 'published' | 'archived'
+  status: Status
   authorName: string
-  readTime: string
   pinned: boolean
   heroImageUrl: string
-  sections: BlogPost['sections']
+  body: string
 }
+
+const SUPERADMIN_EMAIL = 'survivesunday1@gmail.com'
 
 const emptyForm: FormState = {
   id: null,
   title: '',
   slug: '',
   description: '',
-  category: 'NFL Guide',
+  category: 'Survivor Pools',
   status: 'draft',
   authorName: 'Survive Sunday',
-  readTime: '4 min read',
   pinned: false,
   heroImageUrl: '',
-  sections: [{ heading: 'Main idea', body: [''] }],
+  body: '',
 }
 
 function slugify(value: string) {
@@ -70,18 +72,36 @@ function slugify(value: string) {
     .replace(/(^-|-$)/g, '')
 }
 
-function cleanSections(sections: BlogPost['sections']) {
-  return sections
-    .map((section) => ({
-      heading: section.heading.trim(),
-      body: section.body.map((paragraph) => paragraph.trim()).filter(Boolean),
-    }))
-    .filter((section) => section.heading && section.body.length > 0)
+function paragraphsFromBody(body: string) {
+  return body
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
 }
 
-function estimateReadTime(sections: BlogPost['sections']) {
-  const words = sections.flatMap((section) => [section.heading, ...section.body]).join(' ').trim().split(/\s+/).filter(Boolean).length
+function sectionsFromBody(body: string): BlogPost['sections'] {
+  return [{ heading: 'Article', body: paragraphsFromBody(body) }]
+}
+
+function bodyFromSections(sections: BlogPost['sections']) {
+  return (Array.isArray(sections) ? sections : [])
+    .flatMap((section) => section.body || [])
+    .filter(Boolean)
+    .join('\n\n')
+}
+
+function estimateReadTime(body: string) {
+  const words = body.trim().split(/\s+/).filter(Boolean).length
   return `${Math.max(1, Math.ceil(words / 220))} min read`
+}
+
+function prettyDate(value: string | null) {
+  if (!value) return 'Not published'
+  return new Date(value).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
 }
 
 function formFromPost(post: BlogPostRow): FormState {
@@ -90,13 +110,12 @@ function formFromPost(post: BlogPostRow): FormState {
     title: post.title,
     slug: post.slug,
     description: post.description,
-    category: post.category,
+    category: blogCategories.includes(post.category as (typeof blogCategories)[number]) ? post.category : 'Survivor Pools',
     status: post.status,
     authorName: post.author_name || 'Survive Sunday',
-    readTime: post.read_time || '4 min read',
     pinned: Boolean(post.pinned),
     heroImageUrl: post.hero_image_url || '',
-    sections: Array.isArray(post.sections) && post.sections.length ? post.sections : [{ heading: 'Main idea', body: [''] }],
+    body: bodyFromSections(post.sections),
   }
 }
 
@@ -104,30 +123,32 @@ export default function BlogAdminPage() {
   const [loading, setLoading] = useState(true)
   const [role, setRole] = useState<BlogRole>('')
   const [userId, setUserId] = useState<string | null>(null)
+  const [userEmail, setUserEmail] = useState<string | null>(null)
   const [posts, setPosts] = useState<BlogPostRow[]>([])
   const [permissions, setPermissions] = useState<PermissionRow[]>([])
-  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm)
+  const [activeTab, setActiveTab] = useState<Tab>('posts')
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [grantEmail, setGrantEmail] = useState('')
-  const [grantRole, setGrantRole] = useState<BlogRole>('contributor')
 
-  const canPublish = role === 'admin' || role === 'editor'
-  const canManageAccess = role === 'admin'
+  const isSuperAdmin = userEmail?.toLowerCase() === SUPERADMIN_EMAIL
+  const canPublish = isSuperAdmin
+  const canManageAccess = isSuperAdmin
   const canEditSelected = useMemo(() => {
     if (!form.id) return true
+    if (isSuperAdmin) return true
     const selected = posts.find((post) => post.id === form.id)
-    if (!selected) return false
-    return canPublish || selected.author_id === userId
-  }, [canPublish, form.id, posts, userId])
+    return Boolean(selected && selected.author_id === userId && selected.status === 'draft')
+  }, [form.id, isSuperAdmin, posts, userId])
 
   const filteredPosts = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return posts
-    return posts.filter((post) => [post.title, post.slug, post.description, post.category, post.status, post.author_name].some((value) => value?.toLowerCase().includes(q)))
+    return posts.filter((post) => [post.title, post.description, post.category, post.status, post.author_name].some((value) => value?.toLowerCase().includes(q)))
   }, [posts, query])
 
   const loadPosts = async () => {
@@ -160,9 +181,9 @@ export default function BlogAdminPage() {
         if (roleErr) throw roleErr
         if (!alive) return
         setUserId(userData.user?.id ?? null)
+        setUserEmail(userData.user?.email ?? null)
         setRole((roleData || '') as BlogRole)
-        if (!roleData) return
-        await loadPosts()
+        if (roleData) await loadPosts()
       } catch (e: unknown) {
         if (!alive) return
         setError(getErrorMessage(e, 'Failed to load blog admin.'))
@@ -183,51 +204,55 @@ export default function BlogAdminPage() {
   }, [canManageAccess])
 
   const startNewPost = () => {
-    setSelectedId(null)
-    setForm({ ...emptyForm, authorName: 'Survive Sunday', sections: [{ heading: 'Main idea', body: [''] }] })
+    setForm({ ...emptyForm })
+    setActiveTab('new')
     setNotice(null)
     setError(null)
   }
 
   const selectPost = (post: BlogPostRow) => {
-    setSelectedId(post.id)
     setForm(formFromPost(post))
+    setActiveTab('new')
     setNotice(null)
     setError(null)
   }
 
-  const updateSection = (index: number, next: Partial<BlogPost['sections'][number]>) => {
-    setForm((current) => ({
-      ...current,
-      sections: current.sections.map((section, idx) => (idx === index ? { ...section, ...next } : section)),
-    }))
+  const uploadHeroImage = async (file: File) => {
+    setUploading(true)
+    setError(null)
+    try {
+      if (!file.type.startsWith('image/')) throw new Error('Choose an image file.')
+      if (file.size > 5 * 1024 * 1024) throw new Error('Blog images must be 5 MB or smaller.')
+      const ext = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
+      const path = `${userId || 'blog'}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+      const { error: uploadError } = await supabase.storage.from('blog-images').upload(path, file, {
+        cacheControl: '3600',
+        upsert: false,
+      })
+      if (uploadError) throw uploadError
+      const { data } = supabase.storage.from('blog-images').getPublicUrl(path)
+      setForm((current) => ({ ...current, heroImageUrl: data.publicUrl }))
+      setNotice('Hero image uploaded.')
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to upload hero image.'))
+    } finally {
+      setUploading(false)
+    }
   }
 
-  const updateParagraph = (sectionIndex: number, paragraphIndex: number, value: string) => {
-    setForm((current) => ({
-      ...current,
-      sections: current.sections.map((section, idx) => (
-        idx === sectionIndex
-          ? { ...section, body: section.body.map((paragraph, pIdx) => (pIdx === paragraphIndex ? value : paragraph)) }
-          : section
-      )),
-    }))
-  }
-
-  const savePost = async (nextStatus?: FormState['status']) => {
+  const savePost = async (nextStatus: Status = 'draft') => {
     setSaving(true)
     setError(null)
     setNotice(null)
 
     try {
-      const sections = cleanSections(form.sections)
       if (!form.title.trim()) throw new Error('Add a title before saving.')
-      if (!form.description.trim()) throw new Error('Add a description before saving.')
-      if (sections.length === 0) throw new Error('Add at least one complete section before saving.')
-      const status = nextStatus || form.status
-      const safeStatus = canPublish ? status : 'draft'
+      if (!form.description.trim()) throw new Error('Add a short summary before saving.')
+      const bodyParagraphs = paragraphsFromBody(form.body)
+      if (bodyParagraphs.length === 0) throw new Error('Write the blog post before saving.')
+      const safeStatus = canPublish ? nextStatus : 'draft'
       const slug = slugify(form.slug || form.title)
-      if (!slug) throw new Error('Add a valid slug before saving.')
+      if (!slug) throw new Error('Add a title that can be used for the post URL.')
 
       const payload = {
         title: form.title.trim(),
@@ -237,23 +262,22 @@ export default function BlogAdminPage() {
         status: safeStatus,
         author_id: userId,
         author_name: form.authorName.trim() || 'Survive Sunday',
-        read_time: form.readTime.trim() || estimateReadTime(sections),
+        read_time: estimateReadTime(form.body),
         pinned: canPublish ? form.pinned : false,
         hero_image_url: form.heroImageUrl.trim() || null,
-        sections,
+        sections: sectionsFromBody(form.body),
         published_at: safeStatus === 'published' ? new Date().toISOString() : null,
       }
 
       if (form.id) {
         const { error: updateErr } = await supabase.from('blog_posts').update(payload).eq('id', form.id)
         if (updateErr) throw updateErr
-        setNotice(safeStatus === 'published' ? 'Post published.' : 'Post saved.')
+        setNotice(safeStatus === 'published' ? 'Post published.' : safeStatus === 'archived' ? 'Post archived.' : 'Draft saved.')
       } else {
         const { data, error: insertErr } = await supabase.from('blog_posts').insert(payload).select('id').single()
         if (insertErr) throw insertErr
-        setSelectedId(data.id)
-        setForm((current) => ({ ...current, id: data.id, slug, status: safeStatus, sections }))
-        setNotice(safeStatus === 'published' ? 'Post created and published.' : 'Draft created.')
+        setForm((current) => ({ ...current, id: data.id, slug, status: safeStatus }))
+        setNotice(canPublish && safeStatus === 'published' ? 'Post created and published.' : 'Draft submitted.')
       }
 
       await loadPosts()
@@ -265,7 +289,7 @@ export default function BlogAdminPage() {
   }
 
   const deletePost = async () => {
-    if (!form.id) return
+    if (!form.id || !isSuperAdmin) return
     const confirmed = window.confirm(`Delete "${form.title}"? This cannot be undone.`)
     if (!confirmed) return
     setSaving(true)
@@ -284,19 +308,20 @@ export default function BlogAdminPage() {
   }
 
   const grantAccess = async () => {
+    if (!isSuperAdmin) return
     setError(null)
     setNotice(null)
     try {
       const { data, error: grantErr } = await supabase.rpc('grant_blog_permission', {
         p_email: grantEmail,
-        p_role: grantRole,
+        p_role: 'contributor',
       })
       if (grantErr) throw grantErr
-      setNotice(String(data || 'Blog access updated.'))
+      setNotice(String(data || 'Contributor added.'))
       setGrantEmail('')
       await loadPermissions()
     } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Failed to grant blog access.'))
+      setError(getErrorMessage(e, 'Failed to add contributor.'))
     }
   }
 
@@ -313,7 +338,7 @@ export default function BlogAdminPage() {
       <main className="mx-auto max-w-xl px-4 py-10">
         <div className="rounded-lg border border-red-200 bg-red-50 p-5 text-red-800">
           <h1 className="text-xl font-bold">Blog access required</h1>
-          <p className="mt-2 text-sm">Ask a blog admin to add you as a contributor or editor.</p>
+          <p className="mt-2 text-sm">Ask the Survive Sunday admin to add you as a contributor.</p>
           <Link href="/?auth=signin&returnTo=%2Fadmin%2Fblog" className="mt-4 inline-flex rounded-md bg-[#c5161d] px-4 py-2 text-sm font-semibold text-white">
             Sign in
           </Link>
@@ -329,236 +354,200 @@ export default function BlogAdminPage() {
           <div>
             <p className="text-xs font-bold uppercase tracking-wide text-[#c5161d]">Blog Admin</p>
             <h1 className="text-3xl font-bold text-slate-950">Publishing Desk</h1>
-            <p className="mt-1 text-sm text-slate-600">Role: <span className="font-semibold capitalize">{role}</span></p>
+            <p className="mt-1 text-sm text-slate-600">{isSuperAdmin ? 'Superadmin' : 'Contributor'} access</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/blog" className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50">
-              View Blog
-            </Link>
-            <button onClick={startNewPost} className="rounded-md bg-[#c5161d] px-3 py-2 text-sm font-semibold text-white hover:bg-[#a91218]">
-              New Post
-            </button>
-          </div>
+          <Link href="/blog" className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50">
+            View Blog
+          </Link>
         </div>
 
         {error && <p className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
         {notice && <p className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{notice}</p>}
 
-        <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
-          <aside className="rounded-lg border border-slate-200 bg-white">
-            <div className="border-b border-slate-200 p-3">
+        <div className="mb-5 flex flex-wrap gap-2 border-b border-slate-200">
+          <TabButton label="Posts" active={activeTab === 'posts'} onClick={() => setActiveTab('posts')} />
+          <TabButton label={form.id ? 'Edit Post' : 'Write New Blog'} active={activeTab === 'new'} onClick={startNewPost} />
+          {isSuperAdmin && <TabButton label="Access" active={activeTab === 'access'} onClick={() => setActiveTab('access')} />}
+        </div>
+
+        {activeTab === 'posts' && (
+          <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search posts"
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm md:max-w-md"
               />
+              <button onClick={startNewPost} className="rounded-md bg-[#c5161d] px-4 py-2 text-sm font-semibold text-white hover:bg-[#a91218]">
+                Write New Blog
+              </button>
             </div>
-            <div className="max-h-[760px] overflow-y-auto">
-              {filteredPosts.map((post) => (
-                <button
-                  key={post.id}
-                  type="button"
-                  onClick={() => selectPost(post)}
-                  className={`block w-full border-b border-slate-100 p-3 text-left hover:bg-slate-50 ${selectedId === post.id ? 'bg-slate-100' : ''}`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="truncate font-semibold text-slate-950">{post.title}</div>
-                      <div className="mt-1 text-xs text-slate-500">{post.category} / {post.read_time}</div>
-                    </div>
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
-                      post.status === 'published' ? 'bg-emerald-100 text-emerald-700' : post.status === 'archived' ? 'bg-slate-200 text-slate-600' : 'bg-amber-100 text-amber-700'
-                    }`}>
-                      {post.status}
-                    </span>
-                  </div>
-                </button>
-              ))}
-              {filteredPosts.length === 0 && <p className="p-4 text-sm text-slate-500">No posts yet.</p>}
-            </div>
-
-            {canManageAccess && (
-              <div className="border-t border-slate-200 p-3">
-                <h2 className="font-semibold text-slate-950">Blog access</h2>
-                <div className="mt-3 grid gap-2">
-                  <input
-                    value={grantEmail}
-                    onChange={(event) => setGrantEmail(event.target.value)}
-                    placeholder="friend@example.com"
-                    className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-                  />
-                  <div className="flex gap-2">
-                    <select value={grantRole} onChange={(event) => setGrantRole(event.target.value as BlogRole)} className="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm">
-                      <option value="contributor">Contributor</option>
-                      <option value="editor">Editor</option>
-                      <option value="admin">Admin</option>
-                    </select>
-                    <button onClick={grantAccess} className="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white">
-                      Add
-                    </button>
-                  </div>
-                </div>
-                <div className="mt-3 grid gap-2">
-                  {permissions.map((permission) => (
-                    <div key={permission.profile_id} className="rounded-md border border-slate-200 bg-slate-50 p-2 text-xs">
-                      <div className="font-semibold text-slate-950">{permission.display_name || permission.email || permission.profile_id}</div>
-                      <div className="text-slate-500">{permission.email || permission.profile_id} / {permission.role}</div>
-                    </div>
+            <div className="overflow-hidden rounded-lg border border-slate-200">
+              <table className="w-full min-w-[760px] text-left text-sm">
+                <thead className="bg-slate-100 text-xs uppercase tracking-wide text-slate-600">
+                  <tr>
+                    <th className="px-3 py-2">Post</th>
+                    <th className="px-3 py-2">Category</th>
+                    <th className="px-3 py-2">Status</th>
+                    <th className="px-3 py-2">Author</th>
+                    <th className="px-3 py-2">Updated</th>
+                    <th className="px-3 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPosts.map((post) => (
+                    <tr key={post.id} className="border-t border-slate-100">
+                      <td className="px-3 py-3">
+                        <div className="font-semibold text-slate-950">{post.title}</div>
+                        <div className="line-clamp-1 text-xs text-slate-500">{post.description}</div>
+                      </td>
+                      <td className="px-3 py-3">{post.category}</td>
+                      <td className="px-3 py-3">
+                        <StatusPill status={post.status} />
+                      </td>
+                      <td className="px-3 py-3">{post.author_name || 'Survive Sunday'}</td>
+                      <td className="px-3 py-3">{prettyDate(post.updated_at)}</td>
+                      <td className="px-3 py-3 text-right">
+                        <button onClick={() => selectPost(post)} className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50">
+                          Open
+                        </button>
+                      </td>
+                    </tr>
                   ))}
-                </div>
-              </div>
-            )}
-          </aside>
+                  {filteredPosts.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="px-3 py-8 text-center text-sm text-slate-500">No posts found.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
 
+        {activeTab === 'new' && (
           <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-4 grid gap-3 md:grid-cols-2">
-              <label className="block">
-                <span className="text-sm font-semibold text-slate-700">Title</span>
-                <input
-                  value={form.title}
-                  onChange={(event) => {
-                    const title = event.target.value
-                    setForm((current) => ({ ...current, title, slug: current.slug || slugify(title) }))
-                  }}
-                  disabled={!canEditSelected}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-                />
-              </label>
-              <label className="block">
-                <span className="text-sm font-semibold text-slate-700">Slug</span>
-                <input
-                  value={form.slug}
-                  onChange={(event) => setForm((current) => ({ ...current, slug: slugify(event.target.value) }))}
-                  disabled={!canEditSelected}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-                />
-              </label>
-              <label className="block md:col-span-2">
-                <span className="text-sm font-semibold text-slate-700">Description</span>
-                <textarea
-                  value={form.description}
-                  onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
-                  disabled={!canEditSelected}
-                  className="mt-1 min-h-20 w-full rounded-md border border-slate-300 px-3 py-2"
-                />
-              </label>
-              <label className="block">
-                <span className="text-sm font-semibold text-slate-700">Category</span>
-                <select
-                  value={form.category}
-                  onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
-                  disabled={!canEditSelected}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-                >
-                  {blogCategories.map((category) => <option key={category}>{category}</option>)}
-                </select>
-              </label>
-              <label className="block">
-                <span className="text-sm font-semibold text-slate-700">Status</span>
-                <select
-                  value={form.status}
-                  onChange={(event) => setForm((current) => ({ ...current, status: event.target.value as FormState['status'] }))}
-                  disabled={!canPublish}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-                >
-                  <option value="draft">Draft</option>
-                  <option value="published">Published</option>
-                  <option value="archived">Archived</option>
-                </select>
-              </label>
-              <label className="block">
-                <span className="text-sm font-semibold text-slate-700">Author name</span>
-                <input
-                  value={form.authorName}
-                  onChange={(event) => setForm((current) => ({ ...current, authorName: event.target.value }))}
-                  disabled={!canEditSelected}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-                />
-              </label>
-              <label className="block">
-                <span className="text-sm font-semibold text-slate-700">Read time</span>
-                <input
-                  value={form.readTime}
-                  onChange={(event) => setForm((current) => ({ ...current, readTime: event.target.value }))}
-                  disabled={!canEditSelected}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-                />
-              </label>
-              <label className="block md:col-span-2">
-                <span className="text-sm font-semibold text-slate-700">Hero image URL</span>
-                <input
-                  value={form.heroImageUrl}
-                  onChange={(event) => setForm((current) => ({ ...current, heroImageUrl: event.target.value }))}
-                  disabled={!canEditSelected}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
-                />
-              </label>
-              {canPublish && (
-                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={form.pinned}
-                    onChange={(event) => setForm((current) => ({ ...current, pinned: event.target.checked }))}
-                  />
-                  Pin as featured
-                </label>
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-950">{form.id ? 'Edit Blog Post' : 'Write New Blog'}</h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Status: <span className="font-semibold capitalize">{form.status}</span>
+                  {form.slug && <span> / URL: /blog/{form.slug}</span>}
+                </p>
+              </div>
+              {form.id && form.status === 'published' && (
+                <Link href={`/blog/${form.slug}`} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50">
+                  View Public Post
+                </Link>
               )}
             </div>
 
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="text-lg font-bold">Article sections</h2>
-              <button
-                type="button"
-                onClick={() => setForm((current) => ({ ...current, sections: [...current.sections, { heading: 'New section', body: [''] }] }))}
-                disabled={!canEditSelected}
-                className="rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-200"
-              >
-                Add section
-              </button>
-            </div>
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="grid gap-4">
+                <label className="block">
+                  <span className="text-sm font-semibold text-slate-700">Title</span>
+                  <input
+                    value={form.title}
+                    onChange={(event) => {
+                      const title = event.target.value
+                      setForm((current) => ({ ...current, title, slug: current.id ? current.slug : slugify(title) }))
+                    }}
+                    disabled={!canEditSelected}
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  />
+                </label>
 
-            <div className="grid gap-4">
-              {form.sections.map((section, sectionIndex) => (
-                <div key={sectionIndex} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <div className="mb-3 flex gap-2">
+                <label className="block">
+                  <span className="text-sm font-semibold text-slate-700">Short summary</span>
+                  <textarea
+                    value={form.description}
+                    onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
+                    disabled={!canEditSelected}
+                    className="mt-1 min-h-20 w-full rounded-md border border-slate-300 px-3 py-2"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-sm font-semibold text-slate-700">Blog post</span>
+                  <textarea
+                    value={form.body}
+                    onChange={(event) => setForm((current) => ({ ...current, body: event.target.value }))}
+                    disabled={!canEditSelected}
+                    placeholder="Write the full post here. Use a blank line between paragraphs."
+                    className="mt-1 min-h-[480px] w-full rounded-md border border-slate-300 px-3 py-3 text-sm leading-6"
+                  />
+                </label>
+              </div>
+
+              <aside className="grid content-start gap-4">
+                <label className="block">
+                  <span className="text-sm font-semibold text-slate-700">Category</span>
+                  <select
+                    value={form.category}
+                    onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
+                    disabled={!canEditSelected}
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  >
+                    {blogCategories.map((category) => <option key={category}>{category}</option>)}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="text-sm font-semibold text-slate-700">Author name</span>
+                  <input
+                    value={form.authorName}
+                    onChange={(event) => setForm((current) => ({ ...current, authorName: event.target.value }))}
+                    disabled={!canEditSelected}
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
+                  />
+                </label>
+
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <div className="text-sm font-semibold text-slate-700">Hero image</div>
+                  <div className="mt-3 overflow-hidden rounded-md border border-slate-200 bg-white">
+                    {form.heroImageUrl ? (
+                      <img src={form.heroImageUrl} alt="" className="h-36 w-full object-cover" />
+                    ) : (
+                      <div className="flex h-36 items-center justify-center text-sm text-slate-500">No image selected</div>
+                    )}
+                  </div>
+                  <label className="mt-3 inline-flex cursor-pointer rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800">
+                    {uploading ? 'Uploading...' : 'Choose Image'}
                     <input
-                      value={section.heading}
-                      onChange={(event) => updateSection(sectionIndex, { heading: event.target.value })}
-                      disabled={!canEditSelected}
-                      className="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 font-semibold"
+                      type="file"
+                      accept="image/*"
+                      disabled={uploading || !canEditSelected}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0]
+                        if (file) uploadHeroImage(file)
+                        event.currentTarget.value = ''
+                      }}
+                      className="sr-only"
                     />
+                  </label>
+                  {form.heroImageUrl && canEditSelected && (
                     <button
                       type="button"
-                      onClick={() => setForm((current) => ({ ...current, sections: current.sections.filter((_, idx) => idx !== sectionIndex) }))}
-                      disabled={!canEditSelected || form.sections.length === 1}
-                      className="rounded-md bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-50"
+                      onClick={() => setForm((current) => ({ ...current, heroImageUrl: '' }))}
+                      className="ml-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
                     >
                       Remove
                     </button>
-                  </div>
-                  <div className="grid gap-2">
-                    {section.body.map((paragraph, paragraphIndex) => (
-                      <textarea
-                        key={paragraphIndex}
-                        value={paragraph}
-                        onChange={(event) => updateParagraph(sectionIndex, paragraphIndex, event.target.value)}
-                        disabled={!canEditSelected}
-                        className="min-h-24 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-6"
-                        placeholder="Paragraph text"
-                      />
-                    ))}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => updateSection(sectionIndex, { body: [...section.body, ''] })}
-                    disabled={!canEditSelected}
-                    className="mt-2 rounded-md bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                  >
-                    Add paragraph
-                  </button>
+                  )}
                 </div>
-              ))}
+
+                {isSuperAdmin && (
+                  <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={form.pinned}
+                      onChange={(event) => setForm((current) => ({ ...current, pinned: event.target.checked }))}
+                    />
+                    Pin as featured
+                  </label>
+                )}
+              </aside>
             </div>
 
             <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
@@ -568,32 +557,93 @@ export default function BlogAdminPage() {
                   disabled={saving || !canEditSelected}
                   className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                 >
-                  {saving ? 'Saving...' : 'Save Draft'}
+                  {saving ? 'Saving...' : isSuperAdmin ? 'Save Draft' : 'Submit Draft'}
                 </button>
-                {canPublish && (
-                  <button
-                    onClick={() => savePost('published')}
-                    disabled={saving || !canEditSelected}
-                    className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                  >
-                    Publish
-                  </button>
-                )}
-                {form.id && (
-                  <Link href={`/blog/${form.slug}`} className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50">
-                    Preview Public URL
-                  </Link>
+                {isSuperAdmin && (
+                  <>
+                    <button
+                      onClick={() => savePost('published')}
+                      disabled={saving || !canEditSelected}
+                      className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                    >
+                      Publish
+                    </button>
+                    {form.id && form.status !== 'archived' && (
+                      <button
+                        onClick={() => savePost('archived')}
+                        disabled={saving || !canEditSelected}
+                        className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 disabled:opacity-50"
+                      >
+                        Archive
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
-              {form.id && canPublish && (
+              {form.id && isSuperAdmin && (
                 <button onClick={deletePost} disabled={saving} className="rounded-md bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 disabled:opacity-50">
                   Delete
                 </button>
               )}
             </div>
           </section>
-        </div>
+        )}
+
+        {activeTab === 'access' && isSuperAdmin && (
+          <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-4">
+              <h2 className="text-xl font-bold text-slate-950">Blog Contributors</h2>
+              <p className="mt-1 text-sm text-slate-600">Only the Survive Sunday superadmin can add contributors. Contributors can submit drafts, but publishing stays with you.</p>
+            </div>
+            <div className="mb-5 flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:flex-row">
+              <input
+                value={grantEmail}
+                onChange={(event) => setGrantEmail(event.target.value)}
+                placeholder="friend@example.com"
+                className="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+              <button onClick={grantAccess} className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
+                Add Contributor
+              </button>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              {permissions.map((permission) => (
+                <div key={permission.profile_id} className="rounded-md border border-slate-200 bg-white p-3 text-sm">
+                  <div className="font-semibold text-slate-950">{permission.display_name || permission.email || permission.profile_id}</div>
+                  <div className="mt-1 text-slate-500">{permission.email || permission.profile_id}</div>
+                  <div className="mt-2 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold capitalize text-slate-700">{permission.role}</div>
+                </div>
+              ))}
+              {permissions.length === 0 && <p className="text-sm text-slate-500">No contributors added yet.</p>}
+            </div>
+          </section>
+        )}
       </div>
     </main>
   )
+}
+
+function TabButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`border-b-2 px-4 py-3 text-sm font-semibold ${
+        active ? 'border-[#c5161d] text-[#c5161d]' : 'border-transparent text-slate-600 hover:text-slate-950'
+      }`}
+    >
+      {label}
+    </button>
+  )
+}
+
+function StatusPill({ status }: { status: Status }) {
+  const classes =
+    status === 'published'
+      ? 'bg-emerald-100 text-emerald-700'
+      : status === 'archived'
+        ? 'bg-slate-200 text-slate-600'
+        : 'bg-amber-100 text-amber-700'
+
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${classes}`}>{status}</span>
 }

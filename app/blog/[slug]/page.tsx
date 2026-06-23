@@ -36,6 +36,8 @@ export default async function BlogPostPage({ params }: Props) {
 
   const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://www.survivesunday.com').replace(/\/$/, '')
   const relatedPosts = await getRelatedPublicBlogPosts(post)
+  const visibleSections = post.sections.filter((section) => section.heading !== 'Article')
+  const showContents = visibleSections.length > 1
   const articleJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Article',
@@ -71,33 +73,41 @@ export default async function BlogPostPage({ params }: Props) {
           <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
             <span className="rounded-full bg-[#c5161d] px-2.5 py-1 uppercase tracking-wide text-white">{post.category}</span>
             <span className="rounded-full bg-white/10 px-2.5 py-1 text-slate-200">Updated {post.publishedAt}</span>
-            <span className="rounded-full bg-white/10 px-2.5 py-1 text-slate-200">{post.readTime}</span>
           </div>
           <h1 className="mt-4 max-w-4xl text-3xl font-extrabold tracking-normal sm:text-5xl">{post.title}</h1>
           <p className="mt-4 max-w-3xl text-base leading-7 text-slate-200">{post.description}</p>
+          {post.heroImageUrl && (
+            <div className="mt-6 overflow-hidden rounded-lg border border-white/10">
+              <img src={post.heroImageUrl} alt="" className="max-h-[420px] w-full object-cover" />
+            </div>
+          )}
           <div className="mt-5 rounded-lg border border-white/10 bg-white/5 p-4 text-sm leading-6 text-slate-200">
             Written by {post.authorName || 'Survive Sunday'} for football fans, survivor-pool players, and commissioners who want clearer rules and fewer Sunday headaches.
           </div>
         </header>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)_300px] lg:items-start">
-          <aside className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm lg:sticky lg:top-24">
-            <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">In this article</h2>
-            <nav className="mt-3 grid gap-2">
-              {post.sections.map((section) => (
-                <Link key={section.heading} href={`#${headingId(section.heading)}`} className="text-sm font-medium leading-5 text-slate-700 hover:text-[#c5161d]">
-                  {section.heading}
-                </Link>
-              ))}
-            </nav>
-          </aside>
+          {showContents ? (
+            <aside className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm lg:sticky lg:top-24">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">In this article</h2>
+              <nav className="mt-3 grid gap-2">
+                {visibleSections.map((section) => (
+                  <Link key={section.heading} href={`#${headingId(section.heading)}`} className="text-sm font-medium leading-5 text-slate-700 hover:text-[#c5161d]">
+                    {section.heading}
+                  </Link>
+                ))}
+              </nav>
+            </aside>
+          ) : (
+            <aside className="hidden lg:block" />
+          )}
 
           <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
             <div className="space-y-10">
               {post.sections.map((section, index) => (
                 <section key={section.heading} id={headingId(section.heading)} className="scroll-mt-28">
-                  <h2 className="text-2xl font-extrabold tracking-normal text-slate-950">{section.heading}</h2>
-                  <div className="mt-4 space-y-4 text-base leading-7 text-slate-700">
+                  {section.heading !== 'Article' && <h2 className="text-2xl font-extrabold tracking-normal text-slate-950">{section.heading}</h2>}
+                  <div className={`${section.heading === 'Article' ? '' : 'mt-4'} space-y-4 text-base leading-7 text-slate-700`}>
                     {section.body.map((paragraph) => (
                       <p key={paragraph}>{paragraph}</p>
                     ))}
