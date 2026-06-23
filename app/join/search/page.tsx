@@ -249,6 +249,19 @@ export default function JoinSearchPage() {
     return false
   }
 
+  const signInWithGoogle = async () => {
+    setError(null)
+    setModalError(null)
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/join/search` : undefined,
+        queryParams: { prompt: 'select_account' },
+      },
+    })
+    if (error) setModalError(error.message)
+  }
+
   const askConfirm = (message: string, action: () => Promise<void>) => {
     setConfirmMsg(message)
     setPendingAction(() => action)
@@ -468,6 +481,25 @@ export default function JoinSearchPage() {
                 <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                   This league is full.
                 </div>
+              ) : !authed ? (
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm font-semibold text-slate-950">Sign in or create an account to join {selected.name}.</p>
+                  <p className="mt-1 text-sm text-slate-600">You will come back to league search after signing in.</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button onClick={signInWithGoogle} className="rounded-md bg-[#4285F4] px-4 py-2 text-sm font-medium text-white hover:bg-blue-600">
+                      Continue with Google
+                    </button>
+                    <button onClick={() => router.push(signInToJoinSearch)} className="rounded-md bg-[#c5161d] px-4 py-2 text-sm font-medium text-white hover:bg-[#a91218]">
+                      Sign in with email
+                    </button>
+                    <button
+                      onClick={() => router.push(`/?auth=signup&returnTo=${encodeURIComponent('/join/search')}`)}
+                      className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-100"
+                    >
+                      Create account
+                    </button>
+                  </div>
+                </div>
               ) : selected.is_public ? (
                 <button
                   onClick={() => askConfirm(`Are you sure you want to join "${selected.name}"?`, joinSelectedPool)}
@@ -475,10 +507,6 @@ export default function JoinSearchPage() {
                   className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
                 >
                   {joining ? 'Joining...' : 'Join League'}
-                </button>
-              ) : !authed ? (
-                <button onClick={() => router.push(signInToJoinSearch)} className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
-                  Sign in to join private league
                 </button>
               ) : !showPassword ? (
                 <button onClick={() => setShowPassword(true)} className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">

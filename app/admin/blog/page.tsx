@@ -72,6 +72,23 @@ function slugify(value: string) {
     .replace(/(^-|-$)/g, '')
 }
 
+function uniqueSlug(baseSlug: string, posts: BlogPostRow[], currentId: string | null) {
+  const base = baseSlug || 'blog-post'
+  const taken = new Set(posts.filter((post) => post.id !== currentId).map((post) => post.slug))
+  if (!taken.has(base)) return base
+
+  let suffix = 2
+  while (taken.has(`${base}-${suffix}`)) suffix += 1
+  return `${base}-${suffix}`
+}
+
+function duplicateSlugMessage(error: unknown) {
+  if (!error || typeof error !== 'object') return false
+  const message = String((error as { message?: string }).message || '')
+  const code = String((error as { code?: string }).code || '')
+  return code === '23505' || message.includes('blog_posts_slug_key') || message.includes('duplicate key value')
+}
+
 function paragraphsFromBody(body: string) {
   return body
     .split(/\n{2,}/)
@@ -251,7 +268,7 @@ export default function BlogAdminPage() {
       const bodyParagraphs = paragraphsFromBody(form.body)
       if (bodyParagraphs.length === 0) throw new Error('Write the blog post before saving.')
       const safeStatus = canPublish ? nextStatus : 'draft'
-      const slug = slugify(form.slug || form.title)
+      const slug = uniqueSlug(slugify(form.slug || form.title), posts, form.id)
       if (!slug) throw new Error('Add a title that can be used for the post URL.')
 
       const payload = {
@@ -271,13 +288,33 @@ export default function BlogAdminPage() {
 
       if (form.id) {
         const { error: updateErr } = await supabase.from('blog_posts').update(payload).eq('id', form.id)
-        if (updateErr) throw updateErr
-        setForm((current) => ({ ...current, slug, status: safeStatus }))
+        if (updateErr) {
+          if (duplicateSlugMessage(updateErr)) {
+            const fallbackSlug = `${slug}-${Date.now().toString(36)}`
+            const { error: retryErr } = await supabase.from('blog_posts').update({ ...payload, slug: fallbackSlug }).eq('id', form.id)
+            if (retryErr) throw retryErr
+            setForm((current) => ({ ...current, slug: fallbackSlug, status: safeStatus }))
+          } else {
+            throw updateErr
+          }
+        } else {
+          setForm((current) => ({ ...current, slug, status: safeStatus }))
+        }
         setNotice(safeStatus === 'published' ? 'Post published.' : safeStatus === 'archived' ? 'Post archived.' : 'Draft saved.')
       } else {
         const { data, error: insertErr } = await supabase.from('blog_posts').insert(payload).select('id').single()
-        if (insertErr) throw insertErr
-        setForm((current) => ({ ...current, id: data.id, slug, status: safeStatus }))
+        if (insertErr) {
+          if (duplicateSlugMessage(insertErr)) {
+            const fallbackSlug = `${slug}-${Date.now().toString(36)}`
+            const { data: retryData, error: retryErr } = await supabase.from('blog_posts').insert({ ...payload, slug: fallbackSlug }).select('id').single()
+            if (retryErr) throw retryErr
+            setForm((current) => ({ ...current, id: retryData.id, slug: fallbackSlug, status: safeStatus }))
+          } else {
+            throw insertErr
+          }
+        } else {
+          setForm((current) => ({ ...current, id: data.id, slug, status: safeStatus }))
+        }
         setNotice(canPublish && safeStatus === 'published' ? 'Post created and published.' : 'Draft submitted.')
       }
 
@@ -436,6 +473,14 @@ export default function BlogAdminPage() {
                   Status: <span className="font-semibold capitalize">{form.status}</span>
                   {form.slug && <span> / URL: /blog/{form.slug}</span>}
                 </p>
+                {!isSuperAdmin && (
+                  <p className="mt-1 text-xs text-slate-500">Drafts are submitted for review. Publishing and access changes stay with the site admin.</p>
+                )}
+                {form.id && !canEditSelected && (
+                  <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                    This post is locked for your account. Contributors can edit their own drafts before review.
+                  </p>
+                )}
               </div>
               {form.id && form.status === 'published' && (
                 <Link href={`/blog/${form.slug}`} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50">

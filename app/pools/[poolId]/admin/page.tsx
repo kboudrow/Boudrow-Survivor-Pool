@@ -49,6 +49,35 @@ type AdminRow = {
   eliminated_week: number | null
 }
 
+type AdminActionRow = {
+  id: string
+  pool_id: string
+  admin_id: string
+  target_user_id: string | null
+  week: number | null
+  slot: number | null
+  action: string
+  old_team_abbr: string | null
+  new_team_abbr: string | null
+  reason: string | null
+  created_at: string
+}
+
+type PickSaveEventRow = {
+  id: string
+  pool_id: string
+  user_id: string
+  actor_user_id: string | null
+  source_table: string | null
+  action: string | null
+  week: number | null
+  slot: number | null
+  old_team_abbr: string | null
+  new_team_abbr: string | null
+  result: string | null
+  created_at: string
+}
+
 const ALL_WEEKS = Array.from({ length: 18 }, (_, i) => i + 1)
 const MEMBER_LIMIT_OPTIONS = [10, 25, 50, 100, 250, 500]
 const ENTRY_LIMIT_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1)
@@ -95,6 +124,7 @@ const rowKey = (row: AdminRow) => `${row.entry_id}:${row.slot}`
 const hasFinalPick = (row: AdminRow) => !!row.final_team_abbr || !!row.locked_at
 const entryLabel = (row: AdminRow) => (row.entry_number && row.entry_number > 1 ? `${row.display_name} (${row.entry_number})` : row.display_name)
 const memberLabel = (row: AdminRow) => row.display_name || row.user_id.slice(0, 8)
+const shortId = (value?: string | null) => (value ? value.slice(0, 8) : '-')
 const fmtShort = (value?: string | null) =>
   value
     ? new Date(value).toLocaleString(undefined, {
@@ -117,6 +147,9 @@ export default function PoolAdminPage() {
   const [pool, setPool] = useState<Pool | null>(null)
   const [poolStartAt, setPoolStartAt] = useState<string | null>(null)
   const [rows, setRows] = useState<AdminRow[]>([])
+  const [adminActions, setAdminActions] = useState<AdminActionRow[]>([])
+  const [pickEvents, setPickEvents] = useState<PickSaveEventRow[]>([])
+  const [auditLoading, setAuditLoading] = useState(false)
 
   const [selectedWeek, setSelectedWeek] = useState(1)
   const [doubleWeeksText, setDoubleWeeksText] = useState('')
@@ -198,6 +231,35 @@ export default function PoolAdminPage() {
     })
   }, [memberRows, memberSearch])
 
+  const loadAuditTrail = async () => {
+    if (!poolId) return
+    setAuditLoading(true)
+    try {
+      const [{ data: actions, error: actionsErr }, { data: events, error: eventsErr }] = await Promise.all([
+        supabase
+          .from('admin_actions')
+          .select('id,pool_id,admin_id,target_user_id,week,slot,action,old_team_abbr,new_team_abbr,reason,created_at')
+          .eq('pool_id', poolId)
+          .order('created_at', { ascending: false })
+          .limit(30),
+        supabase
+          .from('pick_save_events')
+          .select('id,pool_id,user_id,actor_user_id,source_table,action,week,slot,old_team_abbr,new_team_abbr,result,created_at')
+          .eq('pool_id', poolId)
+          .order('created_at', { ascending: false })
+          .limit(30),
+      ])
+      if (actionsErr) throw actionsErr
+      if (eventsErr) throw eventsErr
+      setAdminActions((actions || []) as AdminActionRow[])
+      setPickEvents((events || []) as PickSaveEventRow[])
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to load audit trail.'))
+    } finally {
+      setAuditLoading(false)
+    }
+  }
+
   const loadOverview = async (week = selectedWeek) => {
     if (!poolId) return
     setRefreshing(true)
@@ -263,6 +325,7 @@ export default function PoolAdminPage() {
       }
       setDraftTeams(nextDrafts)
       setFinalTeams(nextFinals)
+      await loadAuditTrail()
     } catch (e: unknown) {
       setError(getErrorMessage(e, 'Failed to load admin data.'))
     } finally {
@@ -1035,6 +1098,77 @@ export default function PoolAdminPage() {
                 >
                   {archiving ? 'Updating...' : pool.archived ? 'Unarchive league' : 'Archive league'}
                 </button>
+              </div>
+            </section>
+
+            <section className="rounded-lg border bg-white p-4">
+              <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="font-semibold">Admin Activity</h2>
+                  <p className="text-sm text-gray-600">Recent member removals, admin pick edits, and saved-pick events for this league.</p>
+                </div>
+                <button
+                  onClick={loadAuditTrail}
+                  disabled={auditLoading}
+                  className="rounded-md bg-gray-100 px-3 py-1.5 text-sm hover:bg-gray-200 disabled:opacity-50"
+                >
+                  {auditLoading ? 'Loading...' : 'Refresh activity'}
+                </button>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="rounded-md border border-slate-200 bg-slate-50">
+                  <div className="border-b border-slate-200 px-3 py-2 text-sm font-semibold text-slate-900">Admin actions</div>
+                  <div className="max-h-72 overflow-y-auto divide-y divide-slate-200 bg-white">
+                    {adminActions.map((action) => (
+                      <div key={action.id} className="p-3 text-sm">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-semibold capitalize text-slate-950">{action.action.replaceAll('_', ' ')}</span>
+                          <span className="text-xs text-slate-500">{fmtShort(action.created_at)}</span>
+                        </div>
+                        <div className="mt-1 text-xs text-slate-600">
+                          Admin {shortId(action.admin_id)} → Target {shortId(action.target_user_id)}
+                          {action.week ? ` · W${action.week}` : ''}
+                          {action.slot ? ` · Pick ${action.slot}` : ''}
+                        </div>
+                        {(action.old_team_abbr || action.new_team_abbr) && (
+                          <div className="mt-1 text-xs text-slate-600">
+                            {action.old_team_abbr || '-'} → {action.new_team_abbr || '-'}
+                          </div>
+                        )}
+                        {action.reason && <div className="mt-1 text-xs text-slate-500">{action.reason}</div>}
+                      </div>
+                    ))}
+                    {adminActions.length === 0 && <p className="p-3 text-sm text-slate-500">No admin actions recorded yet.</p>}
+                  </div>
+                </div>
+
+                <div className="rounded-md border border-slate-200 bg-slate-50">
+                  <div className="border-b border-slate-200 px-3 py-2 text-sm font-semibold text-slate-900">Pick save events</div>
+                  <div className="max-h-72 overflow-y-auto divide-y divide-slate-200 bg-white">
+                    {pickEvents.map((event) => (
+                      <div key={event.id} className="p-3 text-sm">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-semibold capitalize text-slate-950">{(event.action || 'saved').replaceAll('_', ' ')}</span>
+                          <span className="text-xs text-slate-500">{fmtShort(event.created_at)}</span>
+                        </div>
+                        <div className="mt-1 text-xs text-slate-600">
+                          User {shortId(event.user_id)} · Actor {shortId(event.actor_user_id || event.user_id)}
+                          {event.week ? ` · W${event.week}` : ''}
+                          {event.slot ? ` · Pick ${event.slot}` : ''}
+                          {event.source_table ? ` · ${event.source_table}` : ''}
+                        </div>
+                        {(event.old_team_abbr || event.new_team_abbr) && (
+                          <div className="mt-1 text-xs text-slate-600">
+                            {event.old_team_abbr || '-'} → {event.new_team_abbr || '-'}
+                          </div>
+                        )}
+                        {event.result && <div className="mt-1 text-xs text-slate-500">Result: {event.result}</div>}
+                      </div>
+                    ))}
+                    {pickEvents.length === 0 && <p className="p-3 text-sm text-slate-500">No pick events recorded yet.</p>}
+                  </div>
+                </div>
               </div>
             </section>
 
