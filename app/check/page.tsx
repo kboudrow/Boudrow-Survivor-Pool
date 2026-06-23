@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { authCallbackUrl } from '@/lib/authRedirect'
 import { ensureProfile } from '@/lib/ensureProfile'
 import { supabase } from '@/lib/supabaseClient'
 
@@ -24,11 +25,10 @@ export default function CheckPage() {
 
   const signInWithGoogle = async () => {
     setError(null)
-    const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo,
+        redirectTo: authCallbackUrl('/check'),
         queryParams: { prompt: 'select_account' },
       },
     })

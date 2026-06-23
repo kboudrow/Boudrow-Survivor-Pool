@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import NextImage from 'next/image'
 import { InviteModal } from '@/components/InviteModal'
+import { authCallbackUrl } from '@/lib/authRedirect'
 import { getErrorMessage } from '@/lib/errorMessage'
 import { supabase } from '@/lib/supabaseClient'
 
@@ -135,9 +136,7 @@ export default function PoolDetailPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: typeof window !== 'undefined'
-          ? `${window.location.origin}/pools/${poolId}`
-          : undefined,
+        redirectTo: authCallbackUrl(`/pools/${poolId}`),
         queryParams: { prompt: 'select_account' },
       }
     })

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import NextImage from 'next/image'
 import { useRouter } from 'next/navigation'
+import { authCallbackUrl, safeReturnTo } from '@/lib/authRedirect'
 
 type Mode = 'idle' | 'signin' | 'signup'
 type SupabaseClientModule = typeof import('@/lib/supabaseClient')
@@ -49,11 +50,6 @@ export default function Home() {
   }
   const allPwOk = pw.len && pw.upper && pw.lower && pw.num && pw.special && pw.match
 
-  const safeReturnTo = (value: string | null) => {
-    if (!value || !value.startsWith('/') || value.startsWith('//')) return null
-    return value
-  }
-
   const runEnsureProfileOnce = async (userId: string | null) => {
     if (!userId) {
       ensuredUserIdRef.current = null
@@ -89,7 +85,7 @@ export default function Home() {
   useEffect(() => {
     if (typeof window === 'undefined') return
     const params = new URLSearchParams(window.location.search)
-    const nextReturnTo = safeReturnTo(params.get('returnTo'))
+    const nextReturnTo = safeReturnTo(params.get('returnTo'), '') || null
     setReturnTo(nextReturnTo)
     returnToRef.current = nextReturnTo
     if (params.get('auth') === 'signin') {
@@ -114,7 +110,7 @@ export default function Home() {
   // auth handlers
   const signInWithGoogle = async () => {
     setAuthError(null)
-    const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}${returnToRef.current || returnTo || ''}` : undefined
+    const redirectTo = authCallbackUrl(returnToRef.current || returnTo || '/pools')
     const supabase = await getSupabase()
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -478,41 +474,6 @@ export default function Home() {
         )}
       </main>
 
-      {/* FOOTER */}
-      <footer className="mt-auto border-t px-6 py-8 text-sm text-gray-600 bg-white">
-        <div className="mx-auto max-w-5xl grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div>
-            <div className="font-semibold mb-2">Survive Sunday</div>
-            <p>Pool management for friends, families, and offices. No payouts, no sportsbook angle, just rules, picks, and bragging rights.</p>
-          </div>
-          <div>
-            <div className="font-semibold mb-2">Product</div>
-            <ul className="space-y-1">
-              <li><Link href="/how-it-works" className="underline">How it works</Link></li>
-              <li><Link href="/demo-league" className="underline">Demo league</Link></li>
-              <li><Link href="/about" className="underline">About</Link></li>
-              <li><Link href="/faq" className="underline">FAQ</Link></li>
-              <li><Link href="/blog" className="underline">Blog</Link></li>
-              <li><Link href="/contact" className="underline">Contact</Link></li>
-            </ul>
-          </div>
-          <div>
-            <div className="font-semibold mb-2">Legal</div>
-            <ul className="space-y-1">
-              <li><Link href="/terms" className="underline">Terms</Link></li>
-              <li><Link href="/privacy" className="underline">Privacy</Link></li>
-              <li><Link href="/cookies" className="underline">Cookies</Link></li>
-            </ul>
-          </div>
-          <div>
-            <div className="font-semibold mb-2">Disclaimer</div>
-            <p className="text-xs">
-              Not affiliated with or endorsed by the NFL or its clubs. Team names/logos are used for identification only.
-            </p>
-          </div>
-        </div>
-        <div className="mt-6 text-xs text-gray-500">&copy; {new Date().getFullYear()} Survive Sunday. All rights reserved.</div>
-      </footer>
     </div>
   )
 }

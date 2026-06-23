@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import NextImage from 'next/image'
 import { AdSlot } from '@/components/AdSlot'
+import { authCallbackUrl } from '@/lib/authRedirect'
 import { getErrorMessage } from '@/lib/errorMessage'
 import { supabase } from '@/lib/supabaseClient'
 
@@ -255,7 +256,7 @@ export default function JoinSearchPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/join/search` : undefined,
+        redirectTo: authCallbackUrl('/join/search'),
         queryParams: { prompt: 'select_account' },
       },
     })

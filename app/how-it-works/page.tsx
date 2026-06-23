@@ -9,19 +9,19 @@ export const metadata: Metadata = {
 const steps = [
   {
     title: 'Create or join a pool',
-    text: 'Commissioners create a pool, choose rules, activate it, and invite players. Players can join public pools by search or private pools by invite.',
+    text: 'Commissioners create a pool, choose the start week, strike limit, tie rule, deadline style, visibility, member limit, and whether multiple entries are allowed. Players can find public pools in search or join private pools with an invite link and password.',
   },
   {
     title: 'Make weekly picks',
-    text: 'Each player picks a team for the week. Once a team is used, it cannot be used again in the same pool.',
+    text: 'Each active entry picks a team for the week. Used teams are tracked automatically, so an entry cannot reuse the same team later in the season. If the commissioner adds double-pick weeks, active entries submit two picks for those weeks.',
   },
   {
     title: 'Picks lock automatically',
-    text: 'Pools can use rolling kickoff locks or a fixed weekly deadline. Locked picks become official final picks.',
+    text: 'Pools can use rolling kickoff locks or a fixed weekly deadline. Early games lock when they start, and locked picks become official final picks so nobody has to argue about late changes.',
   },
   {
     title: 'Standings update from results',
-    text: 'Wins, losses, pushes, strikes, and eliminations are tracked so everyone can see where the pool stands.',
+    text: 'Wins, losses, pushes, strikes, eliminations, used teams, and entry status are tracked in one place. Commissioners can see what happened each week, while players can follow who is still alive.',
   },
 ]
 
@@ -32,7 +32,7 @@ export default function HowItWorksPage() {
         <p className="text-sm font-semibold uppercase tracking-wide text-[#c5161d]">How it works</p>
         <h1 className="mt-2 text-4xl font-extrabold tracking-normal text-slate-950">Run an NFL survivor pool without spreadsheets</h1>
         <p className="mt-3 max-w-2xl text-slate-600">
-          Survive Sunday keeps the core flow simple: create a league, invite players, make picks, lock them, and track standings.
+          Survive Sunday keeps the core flow simple: create a league, invite players, make picks, lock them, and track standings without chasing texts or maintaining a spreadsheet.
         </p>
 
         <div className="mt-8 grid gap-4">
@@ -51,6 +51,9 @@ export default function HowItWorksPage() {
           </Link>
           <Link href="/join/search" className="rounded-md border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-800 hover:bg-slate-50">
             Join a Pool
+          </Link>
+          <Link href="/survivor-pool-rules" className="rounded-md border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-800 hover:bg-slate-50">
+            Read Rules Guide
           </Link>
         </div>
       </div>

@@ -56,6 +56,31 @@ const faqs = [
       'A double-pick week requires two picks instead of one. Commissioners choose those weeks before the pool starts, and both picks are tracked separately.',
   },
   {
+    question: 'Can I have multiple entries?',
+    answer:
+      'Yes. Commissioners can allow multiple entries per member. Each entry plays independently with its own picks, used teams, standings row, and survival status.',
+  },
+  {
+    question: 'Can I restart the same pool next season?',
+    answer:
+      'Yes. Run It Back is designed for commissioners who want to archive a completed pool and start a new season with similar settings instead of rebuilding everything from scratch.',
+  },
+  {
+    question: 'Can I archive completed pools?',
+    answer:
+      'Yes. Archiving keeps old pools out of the active dashboard while preserving history. Active or paid pools should not be casually archived once the season is underway.',
+  },
+  {
+    question: 'Can I change my pick after submitting?',
+    answer:
+      'Usually yes, as long as that pick has not locked. Once the selected game starts or the pool deadline passes, the pick becomes official and can no longer be changed by the player.',
+  },
+  {
+    question: 'What happens if my team ties?',
+    answer:
+      'That depends on the pool settings. Commissioners can decide whether ties count as a win, a loss, or a push before the pool starts.',
+  },
+  {
     question: 'Can admins change league settings later?',
     answer:
       'League settings are meant to lock once the pool reaches its configured start week. That protects fairness after players have already started making picks.',

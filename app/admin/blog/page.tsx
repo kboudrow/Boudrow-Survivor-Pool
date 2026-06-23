@@ -319,6 +319,10 @@ export default function BlogAdminPage() {
       }
 
       await loadPosts()
+      if (!canPublish) {
+        setActiveTab('posts')
+        setForm({ ...emptyForm })
+      }
     } catch (e: unknown) {
       setError(getErrorMessage(e, 'Failed to save post.'))
     } finally {

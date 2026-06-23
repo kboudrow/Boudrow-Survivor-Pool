@@ -4,7 +4,7 @@ import { getPublicBlogPosts } from '@/lib/blogDb'
 const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://www.survivesunday.com').replace(/\/$/, '')
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const staticRoutes = ['', '/about', '/demo-league', '/how-it-works', '/faq', '/blog', '/contact', '/privacy', '/terms', '/cookies'].map((path) => ({
+  const staticRoutes = ['', '/about', '/demo-league', '/how-it-works', '/faq', '/survivor-pool-rules', '/survivor-pool-constitution', '/blog', '/contact', '/privacy', '/terms', '/cookies'].map((path) => ({
     url: `${siteUrl}${path}`,
     lastModified: new Date('2026-06-11'),
   }))

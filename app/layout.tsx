@@ -4,6 +4,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import { AppHeader } from "@/components/AppHeader";
+import { SiteFooter } from "@/components/SiteFooter";
 
 const enableAdsense = process.env.NEXT_PUBLIC_ENABLE_ADSENSE === "true";
 const adsenseClient = (process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT || process.env.NEXT_PUBLIC_ADSENSE_CLIENT || "ca-pub-7635962482487315")
@@ -42,7 +43,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-slate-50 text-slate-950 antialiased">
+      <body className="flex min-h-screen flex-col bg-slate-50 text-slate-950 antialiased">
         {enableAdsense && (
           <Script
             async
@@ -52,7 +53,8 @@ export default function RootLayout({
           />
         )}
         <AppHeader />
-        <div>{children}</div>
+        <div className="flex-1">{children}</div>
+        <SiteFooter />
         <Analytics />
         <SpeedInsights />
       </body>
