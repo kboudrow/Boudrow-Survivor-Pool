@@ -78,6 +78,7 @@ export default async function BlogPostPage({ params }: Props) {
           <p className="mt-4 max-w-3xl text-base leading-7 text-slate-200">{post.description}</p>
           {post.heroImageUrl && (
             <div className="mt-6 overflow-hidden rounded-lg border border-white/10">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={post.heroImageUrl} alt="" className="max-h-[420px] w-full object-cover" />
             </div>
           )}

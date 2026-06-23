@@ -71,6 +71,7 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
               <>
                 {featured.heroImageUrl && (
                   <div className="mb-5 overflow-hidden rounded-lg border border-slate-200">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={featured.heroImageUrl} alt="" className="h-64 w-full object-cover" />
                   </div>
                 )}
@@ -204,6 +205,7 @@ function BlogCard({ post }: { post: PublicBlogPost }) {
     <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition hover:border-[#c5161d]/40">
       {post.heroImageUrl && (
         <div className="mb-4 overflow-hidden rounded-md border border-slate-200">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={post.heroImageUrl} alt="" className="h-36 w-full object-cover" />
         </div>
       )}

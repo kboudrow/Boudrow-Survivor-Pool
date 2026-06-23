@@ -37,6 +37,7 @@ export function AuthNav() {
   const [loaded, setLoaded] = useState(false)
   const [email, setEmail] = useState<string | null>(null)
   const [profile, setProfile] = useState<ProfileBadge | null>(null)
+  const [hasBlogAccess, setHasBlogAccess] = useState(false)
   const isAuthed = !!email
   const isSuperAdmin = email?.toLowerCase() === SUPERADMIN_EMAIL
   const initials = useMemo(() => getInitials(email, profile), [email, profile])
@@ -54,6 +55,15 @@ export function AuthNav() {
     setProfile(data ?? null)
   }
 
+  const loadBlogAccess = async (supabase: SupabaseClientModule['supabase'], userId: string | null) => {
+    if (!userId) {
+      setHasBlogAccess(false)
+      return
+    }
+    const { data } = await supabase.rpc('current_blog_role')
+    setHasBlogAccess(Boolean(data))
+  }
+
   useEffect(() => {
     let alive = true
     let unsubscribe: (() => void) | null = null
@@ -66,12 +76,16 @@ export function AuthNav() {
 
       if (!alive) return
       setEmail(user?.email ?? null)
-      await loadProfile(supabase, user?.id ?? null)
+      await Promise.all([
+        loadProfile(supabase, user?.id ?? null),
+        loadBlogAccess(supabase, user?.id ?? null),
+      ])
       setLoaded(true)
 
       const { data } = supabase.auth.onAuthStateChange((_event, session) => {
         setEmail(session?.user?.email ?? null)
         loadProfile(supabase, session?.user?.id ?? null).catch(() => setProfile(null))
+        loadBlogAccess(supabase, session?.user?.id ?? null).catch(() => setHasBlogAccess(false))
         setLoaded(true)
       })
       unsubscribe = () => data.subscription.unsubscribe()
@@ -89,6 +103,7 @@ export function AuthNav() {
     await supabase.auth.signOut()
     setEmail(null)
     setProfile(null)
+    setHasBlogAccess(false)
     try {
       window.localStorage.setItem('surviveSunday:auth-event', 'signed-out')
       window.localStorage.removeItem('surviveSunday:auth-event')
@@ -138,15 +153,15 @@ export function AuthNav() {
       <Link href="/join/search" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
         Join Pool
       </Link>
+      {hasBlogAccess && (
+        <Link href="/admin/blog" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
+          Blog Admin
+        </Link>
+      )}
       {isSuperAdmin && (
-        <>
-          <Link href="/admin/blog" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
-            Blog Admin
-          </Link>
-          <Link href="/admin" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
-            Admin
-          </Link>
-        </>
+        <Link href="/admin" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
+          Admin
+        </Link>
       )}
       <Link href="/pools/new" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
         Create Pool

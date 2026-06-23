@@ -272,6 +272,7 @@ export default function BlogAdminPage() {
       if (form.id) {
         const { error: updateErr } = await supabase.from('blog_posts').update(payload).eq('id', form.id)
         if (updateErr) throw updateErr
+        setForm((current) => ({ ...current, slug, status: safeStatus }))
         setNotice(safeStatus === 'published' ? 'Post published.' : safeStatus === 'archived' ? 'Post archived.' : 'Draft saved.')
       } else {
         const { data, error: insertErr } = await supabase.from('blog_posts').insert(payload).select('id').single()
@@ -507,6 +508,7 @@ export default function BlogAdminPage() {
                   <div className="text-sm font-semibold text-slate-700">Hero image</div>
                   <div className="mt-3 overflow-hidden rounded-md border border-slate-200 bg-white">
                     {form.heroImageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
                       <img src={form.heroImageUrl} alt="" className="h-36 w-full object-cover" />
                     ) : (
                       <div className="flex h-36 items-center justify-center text-sm text-slate-500">No image selected</div>
