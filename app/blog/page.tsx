@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { blogCategories } from '@/lib/blogPosts'
-import { getPublicBlogPosts, type PublicBlogPost } from '@/lib/blogDb'
+import { getPublicBlogCategories, getPublicBlogPosts, type PublicBlogPost } from '@/lib/blogDb'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,9 +23,9 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
   const params = (await searchParams) || {}
   const selectedCategory = params.category || 'All'
   const query = (params.q || '').trim()
-  const allPosts = await getPublicBlogPosts()
+  const [allPosts, allCategories] = await Promise.all([getPublicBlogPosts(), getPublicBlogCategories()])
   const featured = allPosts.find((post) => post.pinned) || allPosts[0]
-  const visibleCategories = blogCategories.filter((category) => allPosts.some((post) => post.category === category))
+  const visibleCategories = allCategories.filter((category) => allPosts.some((post) => post.category === category))
   const filteredPosts = allPosts.filter((post) => {
     const categoryMatch = selectedCategory === 'All' || post.category === selectedCategory
     const queryMatch =
@@ -85,16 +84,6 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
             ) : (
               <p className="text-sm text-slate-600">No published articles yet.</p>
             )}
-            <div className="mt-5 flex flex-wrap gap-3">
-              {featured && (
-                <Link href={`/blog/${featured.slug}`} className="rounded-md bg-[#c5161d] px-4 py-2 text-sm font-semibold text-white hover:bg-[#a91218]">
-                  Read featured guide
-                </Link>
-              )}
-              <Link href="/demo-league" className="rounded-md border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-white">
-                View demo league
-              </Link>
-            </div>
           </article>
         </section>
 

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import { defaultPoolImage } from '@/lib/poolImages'
@@ -91,6 +91,7 @@ export default function CreatePoolPage() {
 
   // UI state
   const [loading, setLoading] = useState(false)
+  const [authChecking, setAuthChecking] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   // Derived
@@ -99,6 +100,24 @@ export default function CreatePoolPage() {
     [startWeek]
   )
   const max_members = maxMembers === 'custom' ? Number(customMaxMembers) : Number(maxMembers)
+
+  useEffect(() => {
+    let alive = true
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!alive) return
+      if (!user) {
+        router.replace(`/?auth=signin&returnTo=${encodeURIComponent('/pools/new')}`)
+        return
+      }
+      setAuthChecking(false)
+    }
+
+    checkAuth()
+    return () => {
+      alive = false
+    }
+  }, [router])
 
   const toggleWeek = (w: number) => {
     if (w < start_week) return
@@ -153,7 +172,10 @@ export default function CreatePoolPage() {
 
     try {
       const { data: { user }, error: userErr } = await supabase.auth.getUser()
-      if (userErr || !user) throw new Error('Please sign in again before creating a pool.')
+      if (userErr || !user) {
+        router.push(`/?auth=signin&returnTo=${encodeURIComponent('/pools/new')}`)
+        return
+      }
 
       const trimmedName = poolName.trim()
       if (!trimmedName) throw new Error('Please enter a pool name.')
@@ -243,6 +265,17 @@ export default function CreatePoolPage() {
 
   const nameError = isNameRelatedError(error)
   const generalError = error && !nameError ? error : null
+
+  if (authChecking) {
+    return (
+      <div className="wrap">
+        <div className="intro">
+          <h1>Create a New League</h1>
+          <p>Checking your account...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div ref={topRef} className="wrap">

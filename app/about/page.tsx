@@ -74,7 +74,7 @@ export default function AboutPage() {
             <a href="mailto:survivesunday1@gmail.com" className="font-semibold text-[#c5161d] hover:text-[#a91218]">survivesunday1@gmail.com</a>.
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <Link href="/demo-league" className="rounded-md bg-[#c5161d] px-4 py-2 font-semibold text-white hover:bg-[#a91218]">View demo league</Link>
+            <Link href="/blog" className="rounded-md bg-[#c5161d] px-4 py-2 font-semibold text-white hover:bg-[#a91218]">Read the blog</Link>
             <Link href="/faq" className="rounded-md border border-slate-200 bg-slate-50 px-4 py-2 font-semibold text-slate-800 hover:bg-white">Read FAQ</Link>
           </div>
         </section>

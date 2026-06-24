@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { blogCategories, type BlogPost } from '@/lib/blogPosts'
+import { blogCategories as seedBlogCategories, type BlogPost } from '@/lib/blogPosts'
 import { getErrorMessage } from '@/lib/errorMessage'
 import { supabase } from '@/lib/supabaseClient'
 
 type BlogRole = '' | 'contributor' | 'editor' | 'admin'
-type Tab = 'posts' | 'new' | 'access'
+type Tab = 'posts' | 'new' | 'categories' | 'access'
 type Status = 'draft' | 'published' | 'archived'
 
 type BlogPostRow = {
@@ -127,7 +127,7 @@ function formFromPost(post: BlogPostRow): FormState {
     title: post.title,
     slug: post.slug,
     description: post.description,
-    category: blogCategories.includes(post.category as (typeof blogCategories)[number]) ? post.category : 'Survivor Pools',
+    category: post.category || 'Survivor Pools',
     status: post.status,
     authorName: post.author_name || 'Survive Sunday',
     pinned: Boolean(post.pinned),
@@ -151,6 +151,9 @@ export default function BlogAdminPage() {
   const [notice, setNotice] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [grantEmail, setGrantEmail] = useState('')
+  const [categories, setCategories] = useState<string[]>([...seedBlogCategories])
+  const [newCategory, setNewCategory] = useState('')
+  const [savingCategory, setSavingCategory] = useState(false)
 
   const isSuperAdmin = userEmail?.toLowerCase() === SUPERADMIN_EMAIL
   const canPublish = isSuperAdmin
@@ -177,6 +180,19 @@ export default function BlogAdminPage() {
     setPosts((data || []) as BlogPostRow[])
   }
 
+  const loadCategories = async () => {
+    const { data, error: categoryErr } = await supabase
+      .from('blog_categories')
+      .select('name')
+      .order('sort_order', { ascending: true })
+      .order('name', { ascending: true })
+    if (categoryErr) throw categoryErr
+    const nextCategories = (data || [])
+      .map((row) => row.name)
+      .filter((name): name is string => typeof name === 'string' && name.trim().length > 0)
+    setCategories(Array.from(new Set([...nextCategories, ...seedBlogCategories])))
+  }
+
   const loadPermissions = async () => {
     if (!canManageAccess) return
     const { data, error: permErr } = await supabase.rpc('blog_permission_overview')
@@ -200,7 +216,7 @@ export default function BlogAdminPage() {
         setUserId(userData.user?.id ?? null)
         setUserEmail(userData.user?.email ?? null)
         setRole((roleData || '') as BlogRole)
-        if (roleData) await loadPosts()
+        if (roleData) await Promise.all([loadPosts(), loadCategories()])
       } catch (e: unknown) {
         if (!alive) return
         setError(getErrorMessage(e, 'Failed to load blog admin.'))
@@ -366,6 +382,35 @@ export default function BlogAdminPage() {
     }
   }
 
+  const addCategory = async () => {
+    if (!isSuperAdmin) return
+    const name = newCategory.trim()
+    if (!name) return
+    const alreadyExists = categories.some((category) => category.toLowerCase() === name.toLowerCase())
+    if (alreadyExists) {
+      setNewCategory('')
+      setNotice(`${name} is already in your category list.`)
+      return
+    }
+    setSavingCategory(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const sortOrder = Math.max(100, categories.length * 10 + 10)
+      const { error: insertErr } = await supabase
+        .from('blog_categories')
+        .upsert({ name, sort_order: sortOrder, created_by: userId }, { onConflict: 'name', ignoreDuplicates: true })
+      if (insertErr) throw insertErr
+      setNewCategory('')
+      setNotice(`Added ${name} category.`)
+      await loadCategories()
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to add category.'))
+    } finally {
+      setSavingCategory(false)
+    }
+  }
+
   if (loading) {
     return (
       <main className="mx-auto max-w-6xl px-4 py-8">
@@ -408,6 +453,7 @@ export default function BlogAdminPage() {
         <div className="mb-5 flex flex-wrap gap-2 border-b border-slate-200">
           <TabButton label="Posts" active={activeTab === 'posts'} onClick={() => setActiveTab('posts')} />
           <TabButton label={form.id ? 'Edit Post' : 'Write New Blog'} active={activeTab === 'new'} onClick={startNewPost} />
+          {isSuperAdmin && <TabButton label="Categories" active={activeTab === 'categories'} onClick={() => setActiveTab('categories')} />}
           {isSuperAdmin && <TabButton label="Access" active={activeTab === 'access'} onClick={() => setActiveTab('access')} />}
         </div>
 
@@ -538,7 +584,7 @@ export default function BlogAdminPage() {
                     disabled={!canEditSelected}
                     className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2"
                   >
-                    {blogCategories.map((category) => <option key={category}>{category}</option>)}
+                    {categories.map((category) => <option key={category}>{category}</option>)}
                   </select>
                 </label>
 
@@ -635,6 +681,40 @@ export default function BlogAdminPage() {
                   Delete
                 </button>
               )}
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'categories' && isSuperAdmin && (
+          <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-4">
+              <h2 className="text-xl font-bold text-slate-950">Blog Categories</h2>
+              <p className="mt-1 text-sm text-slate-600">Add categories that contributors can use when writing posts.</p>
+            </div>
+            <div className="mb-5 flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:flex-row">
+              <input
+                value={newCategory}
+                onChange={(event) => setNewCategory(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') addCategory()
+                }}
+                placeholder="e.g. College Football"
+                className="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+              <button
+                onClick={addCategory}
+                disabled={savingCategory || !newCategory.trim()}
+                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {savingCategory ? 'Adding...' : 'Add Category'}
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {categories.map((category) => (
+                <span key={category} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-semibold text-slate-700">
+                  {category}
+                </span>
+              ))}
             </div>
           </section>
         )}

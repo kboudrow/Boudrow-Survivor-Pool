@@ -40,6 +40,20 @@ const publicBlogClient = supabaseUrl && supabaseAnonKey
     })
   : null
 
+async function withTimeout<T>(promise: PromiseLike<T>, ms = 4500): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | null = null
+  try {
+    return await Promise.race([
+      Promise.resolve(promise),
+      new Promise<T>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error('Blog database request timed out.')), ms)
+      }),
+    ])
+  } finally {
+    if (timeout) clearTimeout(timeout)
+  }
+}
+
 function isSections(value: unknown): BlogPost['sections'] {
   if (!Array.isArray(value)) return []
   return value
@@ -93,7 +107,7 @@ export async function getDatabaseBlogPosts(status = 'published') {
 
     if (status) query = query.eq('status', status)
 
-    const { data, error } = await query
+    const { data, error } = await withTimeout(query)
     if (error) throw error
     return ((data || []) as BlogPostRow[]).map(rowToBlogPost)
   } catch {
@@ -113,15 +127,36 @@ export async function getPublicBlogPosts() {
   return sortBlogPosts(Array.from(merged.values()))
 }
 
+export async function getPublicBlogCategories() {
+  const fallback = Array.from(new Set(blogPosts.map((post) => post.category)))
+  if (!publicBlogClient) return fallback
+
+  try {
+    const { data, error } = await withTimeout(publicBlogClient
+      .from('blog_categories')
+      .select('name')
+      .order('sort_order', { ascending: true })
+      .order('name', { ascending: true }))
+
+    if (error) throw error
+    const dbCategories = (data || [])
+      .map((row) => row.name)
+      .filter((name): name is string => typeof name === 'string' && name.trim().length > 0)
+    return Array.from(new Set([...dbCategories, ...fallback]))
+  } catch {
+    return fallback
+  }
+}
+
 export async function getPublicBlogPost(slug: string) {
   if (publicBlogClient) {
     try {
-      const { data, error } = await publicBlogClient
+      const { data, error } = await withTimeout(publicBlogClient
         .from('blog_posts')
         .select('id, slug, title, description, category, status, author_id, author_name, read_time, pinned, hero_image_url, sections, published_at, created_at, updated_at')
         .eq('slug', slug)
         .eq('status', 'published')
-        .maybeSingle()
+        .maybeSingle())
 
       if (error) throw error
       if (data) return rowToBlogPost(data as BlogPostRow)

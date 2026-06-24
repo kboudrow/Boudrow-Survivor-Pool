@@ -166,8 +166,8 @@ export default async function BlogPostPage({ params }: Props) {
               <Link href="/pools/new" className="rounded-md bg-[#c5161d] px-4 py-2 text-sm font-semibold text-white hover:bg-[#a91218]">
                 Create League
               </Link>
-              <Link href="/demo-league" className="rounded-md border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-white">
-                View Demo
+              <Link href="/blog" className="rounded-md border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-white">
+                Read more articles
               </Link>
             </div>
           </div>

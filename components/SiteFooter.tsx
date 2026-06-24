@@ -12,7 +12,6 @@ export function SiteFooter() {
           <div className="mb-2 font-semibold">Product</div>
           <ul className="space-y-1">
             <li><Link href="/how-it-works" className="underline">How it works</Link></li>
-            <li><Link href="/demo-league" className="underline">Demo league</Link></li>
             <li><Link href="/about" className="underline">About</Link></li>
             <li><Link href="/faq" className="underline">FAQ</Link></li>
             <li><Link href="/blog" className="underline">Blog</Link></li>

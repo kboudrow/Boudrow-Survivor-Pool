@@ -314,9 +314,9 @@ export default function Home() {
         <section className="bg-white px-4 pb-12 sm:px-6">
           <div className="mx-auto grid max-w-5xl gap-4 md:grid-cols-3">
             <PublicLink
-              title="Try the public demo"
-              text="See a sample league with picks, standings, distribution, and commissioner-style context."
-              href="/demo-league"
+              title="Read strategy and league guides"
+              text="Browse survivor pool rules, commissioner notes, and NFL articles before setting up your league."
+              href="/blog"
             />
             <PublicLink
               title="Read commissioner guides"
