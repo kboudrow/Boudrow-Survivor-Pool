@@ -80,6 +80,11 @@ function isMissingFavoriteTeamColumn(error: unknown) {
   return getErrorMessage(error, '').toLowerCase().includes('favorite_team')
 }
 
+function isDuplicateUsernameError(error: unknown) {
+  const message = getErrorMessage(error, '').toLowerCase()
+  return message.includes('profiles_username_lower_unique') || message.includes('duplicate key') || message.includes('unique constraint')
+}
+
 function computeBestFinish(rows: HistoryRow[]) {
   if (rows.some((r) => isWon(r.status))) return 'Won'
 
@@ -259,7 +264,7 @@ export default function ProfilePage() {
         if (profErr) throw profErr
         if (!alive) return
         const profileRow = prof
-        setUsername(profileRow?.display_name || profileRow?.username || '')
+        setUsername(profileRow?.username || profileRow?.display_name || '')
         setFirstName(profileRow?.first_name || '')
         setLastName(profileRow?.last_name || '')
         setFavoriteTeam(profileRow?.favorite_team || '')
@@ -291,6 +296,7 @@ export default function ProfilePage() {
       if (!cleaned) throw new Error('Username cannot be empty.')
       if (cleaned.length < 3) throw new Error('Username must be at least 3 characters.')
       if (cleaned.length > 30) throw new Error('Username must be 30 characters or fewer.')
+      if (!/^[A-Za-z0-9_.-]+$/.test(cleaned)) throw new Error('Username can only use letters, numbers, periods, underscores, and hyphens.')
 
       let { error } = await supabase
         .from('profiles')
@@ -314,7 +320,10 @@ export default function ProfilePage() {
           .eq('id', userId)
         error = fallback.error
       }
-      if (error) throw error
+      if (error) {
+        if (isDuplicateUsernameError(error)) throw new Error('That username is already taken. Try another one.')
+        throw error
+      }
 
       setUsername(cleaned)
       setFirstName(firstName.trim())
@@ -508,7 +517,7 @@ export default function ProfilePage() {
                   </div>
                 </div>
                 <div className="rounded-md bg-white px-3 py-2 text-sm shadow-sm">
-                  <span className="text-gray-500">Display name:</span> <span className="font-semibold">{username.trim() || 'Not set'}</span>
+                  <span className="text-gray-500">Username:</span> <span className="font-semibold">{username.trim() || 'Not set'}</span>
                 </div>
               </div>
             </section>
@@ -544,13 +553,14 @@ export default function ProfilePage() {
               <h2 className="text-lg font-semibold mb-2">Profile Details</h2>
               <div className="grid sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Display name</label>
+                  <label className="block text-sm font-medium mb-1">Username</label>
                   <input
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     className="w-full border rounded-md px-3 py-2"
-                    placeholder="e.g. Kev, SundayCrew, etc."
+                    placeholder="e.g. SundayCrew"
                   />
+                  <p className="mt-1 text-xs text-slate-500">Unique. Letters, numbers, periods, underscores, and hyphens only.</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">First name</label>

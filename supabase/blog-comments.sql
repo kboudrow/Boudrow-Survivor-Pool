@@ -140,9 +140,8 @@ as $function$
     bc.post_slug,
     bc.profile_id,
     coalesce(
-      nullif(trim(concat_ws(' ', pp.first_name, pp.last_name)), ''),
-      pp.username,
-      'Survive Sunday reader'
+      nullif(pp.username, ''),
+      'Player ' || left(bc.profile_id::text, 8)
     ) as author_name,
     pp.avatar_url,
     bc.body,

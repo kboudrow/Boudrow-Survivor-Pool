@@ -10,6 +10,7 @@ type BlogComment = {
   id: string
   post_slug: string
   profile_id: string
+  parent_comment_id: string | null
   author_name: string | null
   avatar_url: string | null
   body: string
@@ -46,15 +47,32 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl }:
   const [userId, setUserId] = useState<string | null>(null)
   const [comments, setComments] = useState<BlogComment[]>([])
   const [body, setBody] = useState('')
+  const [replyBody, setReplyBody] = useState('')
+  const [replyingTo, setReplyingTo] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [submittingReply, setSubmittingReply] = useState(false)
   const [reactingId, setReactingId] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const visibleComments = expanded ? comments : comments.slice(0, 5)
-  const remainingCount = Math.max(0, comments.length - visibleComments.length)
+  const repliesByParent = useMemo(() => {
+    const map = new Map<string, BlogComment[]>()
+    for (const comment of comments) {
+      if (!comment.parent_comment_id) continue
+      const list = map.get(comment.parent_comment_id) || []
+      list.push(comment)
+      map.set(comment.parent_comment_id, list)
+    }
+    for (const list of map.values()) {
+      list.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    }
+    return map
+  }, [comments])
+  const topLevelComments = useMemo(() => comments.filter((comment) => !comment.parent_comment_id), [comments])
+  const visibleComments = expanded ? topLevelComments : topLevelComments.slice(0, 5)
+  const remainingCount = Math.max(0, topLevelComments.length - visibleComments.length)
   const encodedUrl = encodeURIComponent(shareUrl)
   const encodedTitle = encodeURIComponent(title)
   const encodedText = encodeURIComponent(`${title} - ${description}`)
@@ -135,25 +153,33 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl }:
     }
   }
 
-  const submitComment = async () => {
-    const cleanBody = body.trim()
-    if (!userId || !cleanBody || submitting) return
-    setSubmitting(true)
+  const submitComment = async (parentCommentId: string | null = null) => {
+    const cleanBody = (parentCommentId ? replyBody : body).trim()
+    if (!userId || !cleanBody || submitting || submittingReply) return
+    if (parentCommentId) setSubmittingReply(true)
+    else setSubmitting(true)
     setError(null)
     try {
       const { error: insertErr } = await supabase.from('blog_comments').insert({
         post_slug: postSlug,
         profile_id: userId,
+        parent_comment_id: parentCommentId,
         body: cleanBody,
       })
       if (insertErr) throw insertErr
-      setBody('')
+      if (parentCommentId) {
+        setReplyBody('')
+        setReplyingTo(null)
+      } else {
+        setBody('')
+      }
       setExpanded(true)
       await loadComments()
     } catch (e: unknown) {
       setError(getErrorMessage(e, 'Failed to post comment.'))
     } finally {
-      setSubmitting(false)
+      if (parentCommentId) setSubmittingReply(false)
+      else setSubmitting(false)
     }
   }
 
@@ -242,7 +268,7 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl }:
                 <span className="text-xs text-slate-500">{body.trim().length}/2000</span>
                 <button
                   type="button"
-                  onClick={submitComment}
+                  onClick={() => submitComment()}
                   disabled={submitting || !body.trim()}
                   className="rounded-md bg-[#c5161d] px-4 py-2 text-sm font-semibold text-white hover:bg-[#a91218] disabled:opacity-50"
                 >
@@ -279,7 +305,7 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl }:
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold text-slate-950">{comment.author_name || 'Survive Sunday reader'}</span>
+                      <span className="font-semibold text-slate-950">{comment.author_name || 'Player'}</span>
                       <span className="text-xs text-slate-500">{commentDate(comment.created_at)}</span>
                     </div>
                     <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{comment.body}</p>
@@ -306,7 +332,101 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl }:
                       >
                         👎 {comment.down_count}
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReplyingTo((current) => (current === comment.id ? null : comment.id))
+                          setReplyBody('')
+                        }}
+                        disabled={!userId}
+                        className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-semibold text-slate-700 transition hover:bg-white disabled:opacity-50"
+                      >
+                        Reply
+                      </button>
                     </div>
+                    {replyingTo === comment.id && (
+                      <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <textarea
+                          value={replyBody}
+                          onChange={(event) => setReplyBody(event.target.value)}
+                          maxLength={2000}
+                          placeholder={`Reply to ${comment.author_name || 'this comment'}...`}
+                          className="min-h-20 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-6 focus:border-[#c5161d] focus:outline-none focus:ring-2 focus:ring-red-100"
+                        />
+                        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-xs text-slate-500">{replyBody.trim().length}/2000</span>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setReplyingTo(null)
+                                setReplyBody('')
+                              }}
+                              className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => submitComment(comment.id)}
+                              disabled={submittingReply || !replyBody.trim()}
+                              className="rounded-md bg-[#c5161d] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#a91218] disabled:opacity-50"
+                            >
+                              {submittingReply ? 'Replying...' : 'Post reply'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {(repliesByParent.get(comment.id) || []).length > 0 && (
+                      <div className="mt-4 grid gap-3 border-l-2 border-slate-200 pl-3">
+                        {(repliesByParent.get(comment.id) || []).map((reply) => (
+                          <div key={reply.id} className="rounded-lg bg-slate-50 p-3">
+                            <div className="flex gap-3">
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-800 text-[11px] font-bold text-white">
+                                {reply.avatar_url ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img src={reply.avatar_url} alt="" className="h-full w-full object-cover" />
+                                ) : (
+                                  initials(reply.author_name)
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-sm font-semibold text-slate-950">{reply.author_name || 'Player'}</span>
+                                  <span className="text-xs text-slate-500">{commentDate(reply.created_at)}</span>
+                                </div>
+                                <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">{reply.body}</p>
+                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => reactToComment(reply, 'up')}
+                                    disabled={!userId || reactingId === reply.id}
+                                    aria-label="Thumbs up"
+                                    className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition disabled:opacity-50 ${
+                                      reply.viewer_reaction === 'up' ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                                    }`}
+                                  >
+                                    👍 {reply.up_count}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => reactToComment(reply, 'down')}
+                                    disabled={!userId || reactingId === reply.id}
+                                    aria-label="Thumbs down"
+                                    className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition disabled:opacity-50 ${
+                                      reply.viewer_reaction === 'down' ? 'border-red-300 bg-red-50 text-red-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                                    }`}
+                                  >
+                                    👎 {reply.down_count}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </article>
@@ -323,7 +443,7 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl }:
             Show {remainingCount} more comments
           </button>
         )}
-        {expanded && comments.length > 5 && (
+        {expanded && topLevelComments.length > 5 && (
           <button
             type="button"
             onClick={() => setExpanded(false)}

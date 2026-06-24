@@ -26,6 +26,9 @@ export type PublicBlogPost = BlogPost & {
   authorName?: string
   heroImageUrl?: string | null
   status?: string
+  commentCount?: number
+  upCount?: number
+  downCount?: number
 }
 
 const supabaseUrl = cleanEnvValue(process.env.NEXT_PUBLIC_SUPABASE_URL)
@@ -124,7 +127,14 @@ export async function getPublicBlogPosts() {
     if (!merged.has(post.slug)) merged.set(post.slug, { ...post, source: 'seed', authorName: 'Survive Sunday' })
   }
 
-  return sortBlogPosts(Array.from(merged.values()))
+  const posts = sortBlogPosts(Array.from(merged.values()))
+  const engagement = await getBlogEngagement(posts.map((post) => post.slug))
+  return posts.map((post) => ({
+    ...post,
+    commentCount: engagement.get(post.slug)?.commentCount ?? 0,
+    upCount: engagement.get(post.slug)?.upCount ?? 0,
+    downCount: engagement.get(post.slug)?.downCount ?? 0,
+  }))
 }
 
 export async function getPublicBlogCategories() {
@@ -180,4 +190,24 @@ export async function getRelatedPublicBlogPosts(post: PublicBlogPost, limit = 3)
     .slice(0, limit)
 
   return related.length ? related : getRelatedBlogPosts(post, limit)
+}
+
+async function getBlogEngagement(slugs: string[]) {
+  const fallback = new Map<string, { commentCount: number; upCount: number; downCount: number }>()
+  for (const slug of slugs) fallback.set(slug, { commentCount: 0, upCount: 0, downCount: 0 })
+  if (!publicBlogClient || slugs.length === 0) return fallback
+
+  try {
+    const { data, error } = await withTimeout(publicBlogClient.rpc('blog_engagement_for_posts', { p_post_slugs: slugs }))
+    if (error) throw error
+    for (const row of data || []) {
+      fallback.set(row.post_slug, {
+        commentCount: Number(row.comment_count || 0),
+        upCount: Number(row.up_count || 0),
+        downCount: Number(row.down_count || 0),
+      })
+    }
+  } catch {}
+
+  return fallback
 }

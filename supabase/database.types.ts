@@ -140,6 +140,7 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           id: string
+          parent_comment_id: string | null
           post_slug: string
           profile_id: string
           updated_at: string
@@ -149,6 +150,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           id?: string
+          parent_comment_id?: string | null
           post_slug: string
           profile_id: string
           updated_at?: string
@@ -158,11 +160,20 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           id?: string
+          parent_comment_id?: string | null
           post_slug?: string
           profile_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "blog_comments_parent_comment_id_fkey"
+            columns: ["parent_comment_id"]
+            isOneToOne: false
+            referencedRelation: "blog_comments"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       blog_permissions: {
         Row: {
@@ -1497,11 +1508,21 @@ export type Database = {
           created_at: string
           down_count: number
           id: string
+          parent_comment_id: string
           post_slug: string
           profile_id: string
           up_count: number
           updated_at: string
           viewer_reaction: string
+        }[]
+      }
+      blog_engagement_for_posts: {
+        Args: { p_post_slugs: string[] }
+        Returns: {
+          comment_count: number
+          down_count: number
+          post_slug: string
+          up_count: number
         }[]
       }
       blog_permission_overview: {

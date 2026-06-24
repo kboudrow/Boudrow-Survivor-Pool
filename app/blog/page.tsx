@@ -80,6 +80,11 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
                   </Link>
                 </h2>
                 <p className="mt-3 max-w-2xl leading-7 text-slate-600">{featured.description}</p>
+                <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1">{featured.commentCount ?? 0} comments</span>
+                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">👍 {featured.upCount ?? 0}</span>
+                  <span className="rounded-full bg-red-50 px-2.5 py-1 text-red-700">👎 {featured.downCount ?? 0}</span>
+                </div>
               </>
             ) : (
               <p className="text-sm text-slate-600">No published articles yet.</p>
@@ -200,6 +205,11 @@ function BlogCard({ post }: { post: PublicBlogPost }) {
         </Link>
       </h3>
       <p className="mt-2 text-sm leading-6 text-slate-600">{post.description}</p>
+      <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
+        <span className="rounded-full bg-slate-100 px-2 py-1">{post.commentCount ?? 0} comments</span>
+        <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">👍 {post.upCount ?? 0}</span>
+        <span className="rounded-full bg-red-50 px-2 py-1 text-red-700">👎 {post.downCount ?? 0}</span>
+      </div>
       <Link href={`/blog/${post.slug}`} className="mt-4 inline-flex text-sm font-semibold text-[#c5161d] hover:text-[#a91218]">
         Read article
       </Link>

@@ -163,10 +163,8 @@ const fmtLocal = (iso: string) =>
   })
 
 const displayNameForMember = (m: Profile) =>
-  m.display_name ||
   m.username ||
-  `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim() ||
-  m.email ||
+  m.display_name ||
   `${(m.profile_id || m.id).slice(0, 8)}...`
 
 const entryLabelForMember = (m: Profile) => {
