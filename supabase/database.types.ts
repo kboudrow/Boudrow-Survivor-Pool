@@ -99,6 +99,71 @@ export type Database = {
         }
         Relationships: []
       }
+      blog_comment_reactions: {
+        Row: {
+          comment_id: string
+          created_at: string
+          id: string
+          profile_id: string
+          reaction: string
+          updated_at: string
+        }
+        Insert: {
+          comment_id: string
+          created_at?: string
+          id?: string
+          profile_id: string
+          reaction: string
+          updated_at?: string
+        }
+        Update: {
+          comment_id?: string
+          created_at?: string
+          id?: string
+          profile_id?: string
+          reaction?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blog_comment_reactions_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "blog_comments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      blog_comments: {
+        Row: {
+          body: string
+          created_at: string
+          deleted_at: string | null
+          id: string
+          post_slug: string
+          profile_id: string
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          post_slug: string
+          profile_id: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          post_slug?: string
+          profile_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       blog_permissions: {
         Row: {
           created_at: string
@@ -1423,6 +1488,22 @@ export type Database = {
       }
       auto_archive_completed_pools: { Args: never; Returns: number }
       backfill_eliminated_week: { Args: never; Returns: number }
+      blog_comments_for_post: {
+        Args: { p_post_slug: string }
+        Returns: {
+          author_name: string
+          avatar_url: string
+          body: string
+          created_at: string
+          down_count: number
+          id: string
+          post_slug: string
+          profile_id: string
+          up_count: number
+          updated_at: string
+          viewer_reaction: string
+        }[]
+      }
       blog_permission_overview: {
         Args: never
         Returns: {

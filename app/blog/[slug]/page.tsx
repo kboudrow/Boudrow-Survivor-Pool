@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
+import { BlogShareAndComments } from '@/components/BlogShareAndComments'
 import { getPublicBlogPost, getRelatedPublicBlogPosts } from '@/lib/blogDb'
 
 export const dynamic = 'force-dynamic'
@@ -153,6 +154,13 @@ export default async function BlogPostPage({ params }: Props) {
             </div>
           </aside>
         </div>
+
+        <BlogShareAndComments
+          postSlug={post.slug}
+          title={post.title}
+          description={post.description}
+          shareUrl={`${siteUrl}/blog/${post.slug}`}
+        />
 
         <section className="mt-8 rounded-xl border border-[#d2ad5b]/50 bg-white p-5 shadow-sm sm:p-6">
           <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-center">
