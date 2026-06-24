@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { AdSlot } from '@/components/AdSlot'
@@ -601,10 +601,10 @@ function MyPoolsContent() {
   const [aliveCount, setAliveCount] = useState(0)
   const [elimCount, setElimCount] = useState(0)
   const availableWeeks = useMemo(() => weeks.filter((week) => week >= (pool?.start_week ?? 1)), [weeks, pool?.start_week])
-  const picksAllowedForWeek = (week: number) => {
+  const picksAllowedForWeek = useCallback((week: number) => {
     if (week < (pool?.start_week ?? 1)) return 0
     return pool?.double_pick_weeks?.includes(week) ? 2 : 1
-  }
+  }, [pool?.double_pick_weeks, pool?.start_week])
   const poolStartMs = poolStartAt ? Date.parse(poolStartAt) : null
   const poolStartKnown = poolStartMs !== null && Number.isFinite(poolStartMs)
   const leagueHasStarted = poolStartKnown && Date.now() >= poolStartMs
@@ -1403,6 +1403,23 @@ function MyPoolsContent() {
   const visiblePickPercent = expectedPickCount > 0 ? Math.round((visiblePicksThisWeek.length / expectedPickCount) * 100) : 0
   const visiblePickedCount = visiblePicksThisWeek.filter((pick) => !isNoPick(pick.team_abbr)).length
   const visibleNoPickCount = visiblePicksThisWeek.length - visiblePickedCount
+  const weekPickCompletion = useMemo(() => {
+    const needed = picksAllowedForWeek(standingsWeek)
+    const counts = new Map<string, number>()
+    for (const pick of visiblePicksThisWeek) {
+      if (isNoPick(pick.team_abbr)) continue
+      counts.set(pick.entry_id, (counts.get(pick.entry_id) || 0) + 1)
+    }
+    let complete = 0
+    let partial = 0
+    for (const member of members) {
+      const made = counts.get(member.id) || 0
+      if (made >= needed) complete += 1
+      else if (made > 0) partial += 1
+    }
+    const missing = Math.max(0, members.length - complete - partial)
+    return { complete, partial, missing, needed }
+  }, [members, picksAllowedForWeek, standingsWeek, visiblePicksThisWeek])
   const teamPickChartRows = useMemo(() => {
     const counts = new Map<string, number>()
     for (const pick of visiblePicksThisWeek) {
@@ -1420,6 +1437,37 @@ function MyPoolsContent() {
       return { team, count, percentage, result }
     }).sort((a, b) => b.count - a.count || a.team.abbr.localeCompare(b.team.abbr))
   }, [expectedPickCount, standingsGamesForWeek, visiblePicksThisWeek])
+  const gameImpactRows = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const pick of visiblePicksThisWeek) {
+      if (isNoPick(pick.team_abbr)) continue
+      const abbr = toAbbr(pick.team_abbr)
+      counts.set(abbr, (counts.get(abbr) || 0) + 1)
+    }
+    return standingsGamesForWeek
+      .map((game) => {
+        const awayAbbr = toAbbr(game.away_team)
+        const homeAbbr = toAbbr(game.home_team)
+        const away = teamByAbbr(awayAbbr) || { abbr: awayAbbr, name: awayAbbr }
+        const home = teamByAbbr(homeAbbr) || { abbr: homeAbbr, name: homeAbbr }
+        const awayCount = counts.get(awayAbbr) || 0
+        const homeCount = counts.get(homeAbbr) || 0
+        const total = awayCount + homeCount
+        const winner = toAbbr(game.winner || '')
+        return {
+          game,
+          away,
+          home,
+          awayCount,
+          homeCount,
+          total,
+          awayResult: game.status === 'final' ? (winner === awayAbbr ? 'win' : 'loss') : 'pending',
+          homeResult: game.status === 'final' ? (winner === homeAbbr ? 'win' : 'loss') : 'pending',
+        }
+      })
+      .filter((row) => row.total > 0)
+      .sort((a, b) => b.total - a.total || new Date(a.game.kickoff_at_utc || a.game.game_time).getTime() - new Date(b.game.kickoff_at_utc || b.game.game_time).getTime())
+  }, [standingsGamesForWeek, visiblePicksThisWeek])
   const leagueAvailableTeams = useMemo(() => {
     const usedByEntry = new Map<string, Set<string>>()
     for (const pick of standingsHistoryPicks) {
@@ -1441,16 +1489,27 @@ function MyPoolsContent() {
     }).sort((a, b) => b.available - a.available || a.team.abbr.localeCompare(b.team.abbr))
   }, [members, standingsHistoryPicks])
   const previousWeekHistory = useMemo(() => {
-    const rows = []
+    const rows: Array<{ week: number; picks: number; wins: number; losses: number; pushes: number; alive: number; eliminated: number; eliminatedThisWeek: number }> = []
+    const strikesByEntry = new Map(members.map((member) => [member.id, 0]))
     for (const week of availableWeeks.filter((w) => w < standingsWeek)) {
       const weekPicks = standingsHistoryPicks.filter((pick) => pick.week === week)
       const wins = weekPicks.filter((pick) => pick.result === 'win').length
       const losses = weekPicks.filter((pick) => pick.result === 'loss').length
       const pushes = weekPicks.filter((pick) => pick.result === 'push').length
-      rows.push({ week, picks: weekPicks.length, wins, losses, pushes })
+      let eliminatedThisWeek = 0
+      for (const member of members) {
+        const before = (strikesByEntry.get(member.id) || 0) >= (pool?.strikes_allowed ?? 1)
+        const entryPicks = weekPicks.filter((pick) => pick.entry_id === member.id)
+        const strikes = entryPicks.filter((pick) => pick.result === 'loss' || (pick.result === 'push' && pool?.tie_rule === 'loss')).length
+        strikesByEntry.set(member.id, (strikesByEntry.get(member.id) || 0) + strikes)
+        const after = (strikesByEntry.get(member.id) || 0) >= (pool?.strikes_allowed ?? 1)
+        if (!before && after) eliminatedThisWeek += 1
+      }
+      const eliminated = Array.from(strikesByEntry.values()).filter((strikes) => strikes >= (pool?.strikes_allowed ?? 1)).length
+      rows.push({ week, picks: weekPicks.length, wins, losses, pushes, alive: Math.max(0, members.length - eliminated), eliminated, eliminatedThisWeek })
     }
     return rows.slice(-5).reverse()
-  }, [availableWeeks, standingsHistoryPicks, standingsWeek])
+  }, [availableWeeks, members, pool?.strikes_allowed, pool?.tie_rule, standingsHistoryPicks, standingsWeek])
   const remainingTeamsForEntry = useMemo(() => {
     const used = new Set(
       standingsHistoryPicks
@@ -2078,18 +2137,22 @@ function MyPoolsContent() {
 
                   <div className="mb-6 grid gap-3 lg:grid-cols-3">
                     <div className="rounded-lg border border-gray-200 bg-white p-4">
-                      <div className="text-xs uppercase text-gray-500">Visible Pick Coverage</div>
+                      <div className="text-xs uppercase text-gray-500">Week Pick Completion</div>
                       <div className="mt-2 text-2xl font-bold">
-                        {visiblePicksThisWeek.length}/{Math.max(expectedPickCount, visiblePicksThisWeek.length)}
+                        {weekPickCompletion.complete}/{members.length}
                       </div>
                       <div className="mt-1 text-xs text-gray-500">
-                        {visiblePickPercent}% visible. {standingsPicksVisible ? 'Locked picks are visible.' : 'Other entries stay hidden until the deadline.'}
+                        {standingsPicksVisible
+                          ? `${weekPickCompletion.partial} partial / ${weekPickCompletion.missing} missing`
+                          : 'Hidden until this week opens.'}
                       </div>
                     </div>
                     <div className="rounded-lg border border-gray-200 bg-white p-4">
-                      <div className="text-xs uppercase text-gray-500">Visible Picks Submitted</div>
-                      <div className="mt-2 text-2xl font-bold">{visiblePickedCount}</div>
-                      <div className="mt-1 text-xs text-gray-500">{visibleNoPickCount} visible no-pick slot{visibleNoPickCount === 1 ? '' : 's'}.</div>
+                      <div className="text-xs uppercase text-gray-500">Visible Pick Slots</div>
+                      <div className="mt-2 text-2xl font-bold">{visiblePickedCount}/{Math.max(expectedPickCount, visiblePicksThisWeek.length)}</div>
+                      <div className="mt-1 text-xs text-gray-500">
+                        {visiblePickPercent}% visible. {visibleNoPickCount} no-pick slot{visibleNoPickCount === 1 ? '' : 's'}.
+                      </div>
                     </div>
                     <div className="rounded-lg border border-gray-200 bg-white p-4">
                       <div className="text-xs uppercase text-gray-500">Most Picked Visible Team</div>
@@ -2170,6 +2233,91 @@ function MyPoolsContent() {
                         })}
                       </div>
                     )}
+                  </div>
+
+                  <div className="mb-6 grid gap-3 lg:grid-cols-2">
+                    <div className="rounded-lg border border-gray-200 bg-white p-4">
+                      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="text-xs uppercase text-gray-500">Games That Matter This Week</div>
+                          <div className="mt-1 text-sm text-gray-600">Matchups with visible picks attached.</div>
+                        </div>
+                        <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">{gameImpactRows.length}</span>
+                      </div>
+                      {!standingsPicksVisible ? (
+                        <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">
+                          This unlocks when Week {standingsWeek} opens.
+                        </div>
+                      ) : gameImpactRows.length === 0 ? (
+                        <p className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">No visible picks are tied to this week&apos;s games yet.</p>
+                      ) : (
+                        <div className="grid gap-2">
+                          {gameImpactRows.slice(0, 8).map(({ game, away, home, awayCount, homeCount, total, awayResult, homeResult }) => (
+                            <div key={game.id} className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                              <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+                                <span>{fmtEtDateTime(game.kickoff_at_utc || game.game_time)}</span>
+                                <span className="font-semibold text-slate-700">{total} visible pick{total === 1 ? '' : 's'}</span>
+                              </div>
+                              <div className="grid gap-2 sm:grid-cols-2">
+                                {[
+                                  { team: away, count: awayCount, result: awayResult },
+                                  { team: home, count: homeCount, result: homeResult },
+                                ].map(({ team, count, result }) => {
+                                  const resultClass = result === 'win' ? 'bg-emerald-500' : result === 'loss' ? 'bg-red-500' : 'bg-slate-400'
+                                  return (
+                                    <div key={team.abbr} className="rounded-md bg-white p-2">
+                                      <div className="mb-1 flex items-center justify-between gap-2">
+                                        <span className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold">
+                                          <TeamLogo team={team} size={22} />
+                                          <span className="truncate">{team.abbr}</span>
+                                        </span>
+                                        <span className="text-xs font-semibold text-slate-700">{count}</span>
+                                      </div>
+                                      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                                        <div className={`h-full rounded-full ${resultClass}`} style={{ width: `${total > 0 ? Math.max(3, Math.round((count / total) * 100)) : 0}%` }} />
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="rounded-lg border border-gray-200 bg-white p-4">
+                      <div className="mb-3">
+                        <div className="text-xs uppercase text-gray-500">Survival Trend</div>
+                        <div className="mt-1 text-sm text-gray-600">Recent weeks based on adjudicated pick results.</div>
+                      </div>
+                      {previousWeekHistory.length === 0 ? (
+                        <p className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">No finished weeks to chart yet.</p>
+                      ) : (
+                        <div className="grid gap-2">
+                          {previousWeekHistory.slice().reverse().map((row) => {
+                            const alivePct = members.length > 0 ? Math.round((row.alive / members.length) * 100) : 0
+                            return (
+                              <div key={row.week} className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                                <div className="mb-2 flex items-center justify-between text-sm">
+                                  <span className="font-semibold">Week {row.week}</span>
+                                  <span className="text-xs text-slate-600">{row.alive}/{members.length} alive</span>
+                                </div>
+                                <div className="h-2 overflow-hidden rounded-full bg-red-100">
+                                  <div className="h-full rounded-full bg-emerald-500" style={{ width: `${alivePct}%` }} />
+                                </div>
+                                <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
+                                  <span>{row.wins} wins</span>
+                                  <span>{row.losses} losses</span>
+                                  {row.pushes > 0 && <span>{row.pushes} pushes</span>}
+                                  <span>{row.eliminatedThisWeek} eliminated</span>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <details className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
