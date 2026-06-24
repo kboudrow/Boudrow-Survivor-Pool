@@ -84,7 +84,7 @@ export default async function BlogPostPage({ params }: Props) {
             </div>
           )}
           <div className="mt-5 rounded-lg border border-white/10 bg-white/5 p-4 text-sm leading-6 text-slate-200">
-            Written by {post.authorName || 'Survive Sunday'} for football fans, survivor-pool players, and commissioners who want clearer rules and fewer Sunday headaches.
+            By: {post.authorName || 'Survive Sunday'}
           </div>
         </header>
 
@@ -106,7 +106,7 @@ export default async function BlogPostPage({ params }: Props) {
 
           <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-9">
             <div className="space-y-10">
-              {post.sections.map((section, index) => (
+              {post.sections.map((section) => (
                 <section key={section.heading} id={headingId(section.heading)} className="scroll-mt-28">
                   {section.heading !== 'Article' && <h2 className="text-2xl font-extrabold tracking-normal text-slate-950">{section.heading}</h2>}
                   <div className={`${section.heading === 'Article' ? '' : 'mt-4'} space-y-5 text-[17px] leading-8 text-slate-700`}>
@@ -114,13 +114,6 @@ export default async function BlogPostPage({ params }: Props) {
                       <p key={paragraph}>{paragraph}</p>
                     ))}
                   </div>
-
-                  {index === 0 && (
-                    <Callout
-                      title="Quick read"
-                      text="If you are sending rules to a group, write the deadline, tie rule, missed-pick rule, and entry limit before anyone makes a pick."
-                    />
-                  )}
 
                   {post.category === 'Templates' && section.body[0] && (
                     <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
@@ -160,6 +153,7 @@ export default async function BlogPostPage({ params }: Props) {
           title={post.title}
           description={post.description}
           shareUrl={`${siteUrl}/blog/${post.slug}`}
+          commentsFirst
         />
 
         <section className="mt-8 rounded-xl border border-[#d2ad5b]/50 bg-white p-5 shadow-sm sm:p-6">
@@ -190,13 +184,4 @@ function headingId(value: string) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '')
-}
-
-function Callout({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="mt-5 rounded-lg border border-[#d2ad5b]/50 bg-[#fffaf0] p-4">
-      <div className="text-sm font-bold text-slate-950">{title}</div>
-      <p className="mt-1 text-sm leading-6 text-slate-700">{text}</p>
-    </div>
-  )
 }

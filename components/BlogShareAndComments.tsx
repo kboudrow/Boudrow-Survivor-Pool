@@ -26,6 +26,7 @@ type BlogShareAndCommentsProps = {
   title: string
   description: string
   shareUrl: string
+  commentsFirst?: boolean
 }
 
 function initials(name: string | null) {
@@ -43,7 +44,7 @@ function commentDate(value: string) {
   })
 }
 
-export function BlogShareAndComments({ postSlug, title, description, shareUrl }: BlogShareAndCommentsProps) {
+export function BlogShareAndComments({ postSlug, title, description, shareUrl, commentsFirst = false }: BlogShareAndCommentsProps) {
   const [userId, setUserId] = useState<string | null>(null)
   const [comments, setComments] = useState<BlogComment[]>([])
   const [body, setBody] = useState('')
@@ -209,8 +210,7 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl }:
     }
   }
 
-  return (
-    <div className="mt-8 grid gap-6">
+  const shareSection = (
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
@@ -242,7 +242,9 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl }:
           </div>
         </div>
       </section>
+  )
 
+  const commentsSection = (
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -453,6 +455,12 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl }:
           </button>
         )}
       </section>
+  )
+
+  return (
+    <div className="mt-8 grid gap-6">
+      {commentsFirst ? commentsSection : shareSection}
+      {commentsFirst ? shareSection : commentsSection}
     </div>
   )
 }
