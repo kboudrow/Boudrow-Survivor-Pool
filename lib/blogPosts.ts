@@ -16,6 +16,10 @@ export type BlogPost = {
 export const blogCategories = [
   'Survivor Pools',
   'NFL',
+  'NBA',
+  'MLB',
+  'NHL',
+  'PGA',
   'Other Sports',
 ] as const
 
