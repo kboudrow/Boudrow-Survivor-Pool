@@ -319,10 +319,8 @@ export default function BlogAdminPage() {
       }
 
       await loadPosts()
-      if (!canPublish) {
-        setActiveTab('posts')
-        setForm({ ...emptyForm })
-      }
+      setActiveTab('posts')
+      setForm({ ...emptyForm })
     } catch (e: unknown) {
       setError(getErrorMessage(e, 'Failed to save post.'))
     } finally {
@@ -340,8 +338,9 @@ export default function BlogAdminPage() {
       const { error: deleteErr } = await supabase.from('blog_posts').delete().eq('id', form.id)
       if (deleteErr) throw deleteErr
       setNotice('Post deleted.')
-      startNewPost()
       await loadPosts()
+      setActiveTab('posts')
+      setForm({ ...emptyForm })
     } catch (e: unknown) {
       setError(getErrorMessage(e, 'Failed to delete post.'))
     } finally {

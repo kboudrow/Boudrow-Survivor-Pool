@@ -40,7 +40,7 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
 
   return (
     <main className="min-h-[70vh] bg-slate-50 px-4 py-10 sm:px-6">
-      <div className="mx-auto max-w-6xl">
+      <div className="mx-auto max-w-7xl">
         <section className="rounded-xl border border-red-950 bg-[#090b0f] p-5 text-white shadow-sm sm:p-8">
           <p className="text-sm font-bold uppercase tracking-wide text-[#d2ad5b]">Survive Sunday Journal</p>
           <div className="mt-3 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.4fr)] lg:items-end">
@@ -60,7 +60,7 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
           </div>
         </section>
 
-        <section className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <section className="mt-6">
           <article className="rounded-xl border border-[#d2ad5b]/60 bg-white p-5 shadow-sm sm:p-6">
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-[#c5161d] px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-white">Featured</span>
@@ -70,9 +70,9 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
             {featured ? (
               <>
                 {featured.heroImageUrl && (
-                  <div className="mb-5 overflow-hidden rounded-lg border border-slate-200">
+                  <div className="mb-5 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={featured.heroImageUrl} alt="" className="h-64 w-full object-cover" />
+                    <img src={featured.heroImageUrl} alt="" className="max-h-[420px] w-full object-contain" />
                   </div>
                 )}
                 <h2 className="text-3xl font-extrabold tracking-normal text-slate-950">
@@ -96,15 +96,6 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
               </Link>
             </div>
           </article>
-
-          <aside className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-950">Start here</h2>
-            <div className="mt-4 grid gap-3">
-              <ResourceLink href="/blog/nfl-survivor-pool-rules-template" title="Rules template" text="Copy-ready language for your group." />
-              <ResourceLink href="/blog/fixed-deadline-vs-rolling-kickoff-locks" title="Deadline guide" text="Pick the lock style that fits your league." />
-              <ResourceLink href="/blog/what-to-do-when-someone-forgets-a-pick" title="Forgotten picks" text="Avoid Sunday morning arguments." />
-            </div>
-          </aside>
         </section>
 
         <section className="mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -120,7 +111,7 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
               <input
                 name="q"
                 defaultValue={query}
-                placeholder="Search guides"
+                placeholder="Search"
                 className="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-[#c5161d] focus:outline-none focus:ring-2 focus:ring-red-100"
               />
               <button className="rounded-md bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">Search</button>
@@ -191,6 +182,7 @@ function CategoryLink({ label, active, query }: { label: string; active: boolean
   return (
     <Link
       href={href}
+      scroll={false}
       className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
         active ? 'border-[#c5161d] bg-[#c5161d] text-white' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-white'
       }`}
@@ -204,9 +196,9 @@ function BlogCard({ post }: { post: PublicBlogPost }) {
   return (
     <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition hover:border-[#c5161d]/40">
       {post.heroImageUrl && (
-        <div className="mb-4 overflow-hidden rounded-md border border-slate-200">
+        <div className="mb-4 overflow-hidden rounded-md border border-slate-200 bg-slate-50">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={post.heroImageUrl} alt="" className="h-36 w-full object-cover" />
+          <img src={post.heroImageUrl} alt="" className="h-40 w-full object-contain" />
         </div>
       )}
       <div className="mb-3 flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
@@ -223,14 +215,5 @@ function BlogCard({ post }: { post: PublicBlogPost }) {
         Read article
       </Link>
     </article>
-  )
-}
-
-function ResourceLink({ href, title, text }: { href: string; title: string; text: string }) {
-  return (
-    <Link href={href} className="rounded-lg border border-slate-200 bg-slate-50 p-3 transition hover:bg-white">
-      <div className="font-semibold text-slate-950">{title}</div>
-      <p className="mt-1 text-sm leading-5 text-slate-600">{text}</p>
-    </Link>
   )
 }

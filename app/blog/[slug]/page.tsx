@@ -64,7 +64,7 @@ export default async function BlogPostPage({ params }: Props) {
   return (
     <main className="min-h-[70vh] bg-slate-50 px-4 py-10 sm:px-6">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }} />
-      <div className="mx-auto max-w-6xl">
+      <div className="mx-auto max-w-7xl">
         <Link href="/blog" className="text-sm font-semibold text-[#c5161d] hover:text-[#a91218]">
           Back to blog
         </Link>
@@ -77,9 +77,9 @@ export default async function BlogPostPage({ params }: Props) {
           <h1 className="mt-4 max-w-4xl text-3xl font-extrabold tracking-normal sm:text-5xl">{post.title}</h1>
           <p className="mt-4 max-w-3xl text-base leading-7 text-slate-200">{post.description}</p>
           {post.heroImageUrl && (
-            <div className="mt-6 overflow-hidden rounded-lg border border-white/10">
+            <div className="mt-6 overflow-hidden rounded-lg border border-white/10 bg-white/5">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={post.heroImageUrl} alt="" className="max-h-[420px] w-full object-cover" />
+              <img src={post.heroImageUrl} alt="" className="max-h-[520px] w-full object-contain" />
             </div>
           )}
           <div className="mt-5 rounded-lg border border-white/10 bg-white/5 p-4 text-sm leading-6 text-slate-200">
@@ -87,7 +87,7 @@ export default async function BlogPostPage({ params }: Props) {
           </div>
         </header>
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)_300px] lg:items-start">
+        <div className="mt-6 grid gap-6 lg:grid-cols-[240px_minmax(0,920px)_260px] lg:items-start lg:justify-center">
           {showContents ? (
             <aside className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm lg:sticky lg:top-24">
               <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">In this article</h2>
@@ -103,12 +103,12 @@ export default async function BlogPostPage({ params }: Props) {
             <aside className="hidden lg:block" />
           )}
 
-          <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
+          <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-9">
             <div className="space-y-10">
               {post.sections.map((section, index) => (
                 <section key={section.heading} id={headingId(section.heading)} className="scroll-mt-28">
                   {section.heading !== 'Article' && <h2 className="text-2xl font-extrabold tracking-normal text-slate-950">{section.heading}</h2>}
-                  <div className={`${section.heading === 'Article' ? '' : 'mt-4'} space-y-4 text-base leading-7 text-slate-700`}>
+                  <div className={`${section.heading === 'Article' ? '' : 'mt-4'} space-y-5 text-[17px] leading-8 text-slate-700`}>
                     {section.body.map((paragraph) => (
                       <p key={paragraph}>{paragraph}</p>
                     ))}

@@ -973,23 +973,38 @@ export default function PoolAdminPage() {
             <section className="rounded-lg border bg-white p-4">
               <div className="mb-3">
                 <h2 className="font-semibold">Scoring Tools</h2>
-                <p className="text-sm text-gray-600">Use these after deadlines or final scores. They do not change league rules.</p>
+                <p className="text-sm text-gray-600">These are league maintenance buttons. They do not change rules, member limits, or double-pick settings.</p>
               </div>
               <div className="grid gap-3 md:grid-cols-3">
-                <button onClick={finalizeLocked} disabled={!!runningAction} className="rounded-md bg-indigo-600 px-3 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">
-                  Lock due picks
-                </button>
-                <button onClick={adjudicate} disabled={!!runningAction} className="rounded-md bg-emerald-600 px-3 py-2 text-sm text-white hover:bg-emerald-700 disabled:opacity-50">
-                  Score final games
-                </button>
-                <button
-                  onClick={toggleArchive}
-                  disabled={archiving || settingsLocked}
-                  title={settingsLocked ? 'League settings are locked after the league starts.' : undefined}
-                  className="rounded-md bg-amber-600 px-3 py-2 text-sm text-white hover:bg-amber-700 disabled:opacity-50"
-                >
-                  {archiving ? 'Updating...' : pool.archived ? 'Unarchive league' : 'Archive league'}
-                </button>
+                <div className="rounded-lg border border-indigo-100 bg-indigo-50 p-3">
+                  <button onClick={finalizeLocked} disabled={!!runningAction} className="w-full rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+                    Lock Due Picks
+                  </button>
+                  <p className="mt-2 text-xs leading-5 text-indigo-950">
+                    Turns saved picks into official picks after their deadline. Future picks stay editable.
+                  </p>
+                </div>
+                <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-3">
+                  <button onClick={adjudicate} disabled={!!runningAction} className="w-full rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
+                    Score Final Games
+                  </button>
+                  <p className="mt-2 text-xs leading-5 text-emerald-950">
+                    Applies win, loss, or push to official picks for games that already have final scores.
+                  </p>
+                </div>
+                <div className="rounded-lg border border-amber-100 bg-amber-50 p-3">
+                  <button
+                    onClick={toggleArchive}
+                    disabled={archiving || settingsLocked}
+                    title={settingsLocked ? 'League settings are locked after the league starts.' : undefined}
+                    className="w-full rounded-md bg-amber-600 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
+                  >
+                    {archiving ? 'Updating...' : pool.archived ? 'Unarchive League' : 'Archive League'}
+                  </button>
+                  <p className="mt-2 text-xs leading-5 text-amber-950">
+                    Hides or restores this league before it starts. Started leagues cannot be archived here.
+                  </p>
+                </div>
               </div>
             </section>
 
