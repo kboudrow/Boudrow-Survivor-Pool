@@ -1,4 +1,4 @@
-import Link from 'next/link'
+﻿import Link from 'next/link'
 
 export const metadata = {
   title: 'Terms of Service | Survive Sunday',
@@ -83,7 +83,7 @@ export default function TermsPage() {
           controls, profile settings, archived history, and &quot;run it back&quot; cloning for future seasons.
         </p>
         <p className="mt-3 leading-7 text-slate-700">
-          Pool creators and admins are responsible for configuring their pools and communicating rules to their participants. League
+          Pool creators and admins are responsible for configuring their pools and communicating rules to their participants. Pool
           settings may lock after the configured start week to protect fairness.
         </p>
 
@@ -188,3 +188,4 @@ export default function TermsPage() {
     </main>
   )
 }
+

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
@@ -234,7 +234,7 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-lg font-bold text-slate-950">Share this article</h2>
-            <p className="mt-1 text-sm text-slate-600">Send it to your league, group text, or social feed.</p>
+            <p className="mt-1 text-sm text-slate-600">Send it to your pool, group text, or social feed.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={nativeShare} className="rounded-md bg-slate-950 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800">
@@ -340,7 +340,7 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
                           comment.viewer_reaction === 'up' ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-white'
                         }`}
                       >
-                        👍 {comment.up_count}
+                        ðŸ‘ {comment.up_count}
                       </button>
                       <button
                         type="button"
@@ -351,7 +351,7 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
                           comment.viewer_reaction === 'down' ? 'border-red-300 bg-red-50 text-red-700' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-white'
                         }`}
                       >
-                        👎 {comment.down_count}
+                        ðŸ‘Ž {comment.down_count}
                       </button>
                       <button
                         type="button"
@@ -436,7 +436,7 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
                                       reply.viewer_reaction === 'up' ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                                     }`}
                                   >
-                                    👍 {reply.up_count}
+                                    ðŸ‘ {reply.up_count}
                                   </button>
                                   <button
                                     type="button"
@@ -447,7 +447,7 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
                                       reply.viewer_reaction === 'down' ? 'border-red-300 bg-red-50 text-red-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                                     }`}
                                   >
-                                    👎 {reply.down_count}
+                                    ðŸ‘Ž {reply.down_count}
                                   </button>
                                   <button
                                     type="button"
@@ -499,3 +499,4 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
     </div>
   )
 }
+

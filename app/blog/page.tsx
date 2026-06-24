@@ -1,4 +1,4 @@
-import Link from 'next/link'
+﻿import Link from 'next/link'
 import type { Metadata } from 'next'
 import { getPublicBlogCategories, getPublicBlogPosts, type PublicBlogPost } from '@/lib/blogDb'
 
@@ -48,7 +48,7 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
                 NFL notes, survivor strategy, and commissioner help.
               </h1>
               <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-200 sm:text-base">
-                Guides for running better pools, understanding league settings, following NFL wrinkles, and keeping Sunday fun instead of administrative.
+                Guides for running better pools, understanding pool settings, following NFL wrinkles, and keeping Sunday fun instead of administrative.
               </p>
             </div>
             <div className="grid grid-cols-3 gap-2 rounded-lg border border-white/10 bg-white/5 p-3 text-center">
@@ -82,8 +82,8 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
                 <p className="mt-3 max-w-2xl leading-7 text-slate-600">{featured.description}</p>
                 <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
                   <span className="rounded-full bg-slate-100 px-2.5 py-1">{featured.commentCount ?? 0} comments</span>
-                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">👍 {featured.upCount ?? 0}</span>
-                  <span className="rounded-full bg-red-50 px-2.5 py-1 text-red-700">👎 {featured.downCount ?? 0}</span>
+                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">ðŸ‘ {featured.upCount ?? 0}</span>
+                  <span className="rounded-full bg-red-50 px-2.5 py-1 text-red-700">ðŸ‘Ž {featured.downCount ?? 0}</span>
                 </div>
               </>
             ) : (
@@ -146,11 +146,11 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
             <div>
               <h2 className="text-xl font-bold text-slate-950">Running a pool this season?</h2>
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                Create your league before Week 1 and keep picks, locks, standings, and rule disputes in one place.
+                Create your pool before Week 1 and keep picks, locks, standings, and rule disputes in one place.
               </p>
             </div>
             <Link href="/pools/new" className="rounded-md bg-[#c5161d] px-4 py-2 text-center text-sm font-semibold text-white hover:bg-[#a91218]">
-              Create League
+              Create Pool
             </Link>
           </div>
         </section>
@@ -207,8 +207,8 @@ function BlogCard({ post }: { post: PublicBlogPost }) {
       <p className="mt-2 text-sm leading-6 text-slate-600">{post.description}</p>
       <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
         <span className="rounded-full bg-slate-100 px-2 py-1">{post.commentCount ?? 0} comments</span>
-        <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">👍 {post.upCount ?? 0}</span>
-        <span className="rounded-full bg-red-50 px-2 py-1 text-red-700">👎 {post.downCount ?? 0}</span>
+        <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">ðŸ‘ {post.upCount ?? 0}</span>
+        <span className="rounded-full bg-red-50 px-2 py-1 text-red-700">ðŸ‘Ž {post.downCount ?? 0}</span>
       </div>
       <Link href={`/blog/${post.slug}`} className="mt-4 inline-flex text-sm font-semibold text-[#c5161d] hover:text-[#a91218]">
         Read article
@@ -216,3 +216,4 @@ function BlogCard({ post }: { post: PublicBlogPost }) {
     </article>
   )
 }
+

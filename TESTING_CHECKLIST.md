@@ -1,15 +1,15 @@
-# Survive Sunday Beta Testing Checklist
+﻿# Survive Sunday Beta Testing Checklist
 
 Use this as a side-by-side checklist while testing. You do not need to test everything in one sitting.
 
 Recommended setup:
 - Use one admin/creator account.
 - Use one standard player account.
-- Create one fresh test league.
+- Create one fresh test pool.
 - Keep notes under any item that fails, feels confusing, or looks ugly.
 
 Fast beta pass:
-- Create a league, invite one friend, confirm the member and entry counts match everywhere.
+- Create a pool, invite one friend, confirm the member and entry counts match everywhere.
 - Make picks for every entry you own, then change one before it locks.
 - Open standings and confirm usernames, picks, results, and alive counts feel right.
 - Read a blog while signed out, then sign in and leave a comment/reply/reaction.
@@ -35,7 +35,7 @@ Fast beta pass:
 - [ ] New account creation asks for a username and prevents duplicate usernames.
   - Notes:
 
-- [ ] Logged-out Create League / Join League paths send user to sign in or clearly explain sign-in is required.
+- [ ] Logged-out Create Pool / Join Pool paths send user to sign in or clearly explain sign-in is required.
   - Notes:
 
 - [ ] Top navigation buttons work after signing in.
@@ -47,28 +47,28 @@ Fast beta pass:
 - [ ] Sign out works from the top bar.
   - Notes:
 
-## 2. Create League
+## 2. Create Pool
 
-- [ ] Admin can open Create League while signed in.
+- [ ] Admin can open Create Pool while signed in.
   - Notes:
 
-- [ ] New league defaults Tie Counts As to Loss.
+- [ ] New pool defaults Tie Counts As to Loss.
   - Notes:
 
-- [ ] Admin can create a new league with a clear name.
-  - Test league name:
+- [ ] Admin can create a new pool with a clear name.
+  - Test pool name:
   - Notes:
 
-- [ ] After creation, admin lands on the admin/league area.
+- [ ] After creation, admin lands on the admin/pool area.
   - Notes:
 
-- [ ] New league is active and joinable without payment.
+- [ ] New pool is active and joinable without payment.
   - Notes:
 
-- [ ] League image upload works, or a fallback image appears if none is uploaded.
+- [ ] Pool image upload works, or a fallback image appears if none is uploaded.
   - Notes:
 
-- [ ] Private league password field appears directly under the visibility setting.
+- [ ] Private pool password field appears directly under the visibility setting.
   - Notes:
 
 - [ ] Multiple-entry setting works, including the max entries dropdown.
@@ -76,22 +76,22 @@ Fast beta pass:
 
 ## 3. Join/Search Flow
 
-- [ ] Standard player can open Join League while signed in.
+- [ ] Standard player can open Join Pool while signed in.
   - Notes:
 
-- [ ] Search finds the test league by name.
+- [ ] Search finds the test pool by name.
   - Notes:
 
-- [ ] Search finds public and private leagues.
+- [ ] Search finds public and private pools.
   - Notes:
 
-- [ ] Search results show useful labels: public/private, joined, your league, member limit, member count.
+- [ ] Search results show useful labels: public/private, joined, your pool, member limit, member count.
   - Notes:
 
-- [ ] Public league can be joined without a password.
+- [ ] Public pool can be joined without a password.
   - Notes:
 
-- [ ] Private league asks for a password.
+- [ ] Private pool asks for a password.
   - Notes:
 
 - [ ] Wrong private password shows a clear error inside the join modal.
@@ -100,21 +100,21 @@ Fast beta pass:
 - [ ] Correct private password allows join.
   - Notes:
 
-- [ ] Full league cannot be joined and shows a clear message.
+- [ ] Full pool cannot be joined and shows a clear message.
   - Notes:
 
-- [ ] After joining, player is taken directly to that league.
+- [ ] After joining, player is taken directly to that pool.
   - Notes:
 
-- [ ] Joined league appears under My Pools.
+- [ ] Joined pool appears under My Pools.
   - Notes:
 
-- [ ] If player tries joining again, message makes sense and offers Open League.
+- [ ] If player tries joining again, message makes sense and offers Open Pool.
   - Notes:
 
 ## 4. Pool Members And Standings
 
-- [ ] My Pools opens a selected league without Failed to load pool errors.
+- [ ] My Pools opens a selected pool without Failed to load pool errors.
   - Notes:
 
 - [ ] Pool Members tab shows the admin/creator.
@@ -192,12 +192,12 @@ Fast beta pass:
 - [ ] Player cannot use the same team for both picks in a double-pick week.
   - Notes:
 
-## 6. Admin League Settings
+## 6. Admin Pool Settings
 
-- [ ] Admin panel loads for the league creator.
+- [ ] Admin panel loads for the pool creator.
   - Notes:
 
-- [ ] Admin Panel button is visible to the league creator.
+- [ ] Admin Panel button is visible to the pool creator.
   - Notes:
 
 - [ ] Admin Panel button is not visible to a normal player.
@@ -206,20 +206,20 @@ Fast beta pass:
 - [ ] Admin setup summary shows visibility, settings lock, member limit, and double-pick count.
   - Notes:
 
-- [ ] Member limit can be changed before the league starts.
+- [ ] Member limit can be changed before the pool starts.
   - New limit:
   - Notes:
 
 - [ ] Member limit cannot be set below the current member count.
   - Notes:
 
-- [ ] Public league can be changed to private before league start.
+- [ ] Public pool can be changed to private before pool start.
   - Notes:
 
 - [ ] Switching to private requires a password.
   - Notes:
 
-- [ ] Private league can be changed back to public before league start.
+- [ ] Private pool can be changed back to public before pool start.
   - Notes:
 
 - [ ] Double-pick weeks can be selected with the week buttons.
@@ -232,13 +232,13 @@ Fast beta pass:
 - [ ] Double-pick weeks show correctly on the player pool page.
   - Notes:
 
-- [ ] Archive/unarchive works before the league starts.
+- [ ] Archive/unarchive works before the pool starts.
   - Notes:
 
-- [ ] New 2026 leagues do not incorrectly show league settings as locked.
+- [ ] New 2026 pools do not incorrectly show pool settings as locked.
   - Notes:
 
-- [ ] Once the league reaches its configured start week, league settings are locked.
+- [ ] Once the pool reaches its configured start week, pool settings are locked.
   - Notes:
 
 - [ ] After start, admin can still manage player picks/results where appropriate.
@@ -254,7 +254,7 @@ Fast beta pass:
   - Team:
   - Notes:
 
-- [ ] Admin can remove a member before league start.
+- [ ] Admin can remove a member before pool start.
   - Notes:
 
 - [ ] Removing a member removes the intended user and no one else.
@@ -266,7 +266,7 @@ Fast beta pass:
 - [ ] Admin page refreshes automatically after admin actions.
   - Notes:
 
-- [ ] Remove member is disabled after league start.
+- [ ] Remove member is disabled after pool start.
   - Notes:
 
 ## 8. Results Maintenance
@@ -277,13 +277,13 @@ Fast beta pass:
 - [ ] Future games never show as wins or losses before they are played.
   - Notes:
 
-- [ ] Tie counts as loss leagues score ties as losses.
+- [ ] Tie counts as loss pools score ties as losses.
   - Notes:
 
-- [ ] Tie counts as win/push leagues score ties correctly if tested.
+- [ ] Tie counts as win/push pools score ties correctly if tested.
   - Notes:
 
-- [ ] Any repair or scoring tool is clearly scoped to one league, not the whole site.
+- [ ] Any repair or scoring tool is clearly scoped to one pool, not the whole site.
   - Notes:
 
 ## 9. Profile And History
@@ -350,7 +350,7 @@ Fast beta pass:
 - [ ] Signed-in readers can reply to a comment.
   - Notes:
 
-- [ ] Signed-in readers can use 👍 and 👎 reactions.
+- [ ] Signed-in readers can use ðŸ‘ and ðŸ‘Ž reactions.
   - Notes:
 
 - [ ] Report button submits a comment for review without exposing admin tools.
@@ -430,3 +430,5 @@ Use this section for anything that fails, feels confusing, or looks ugly.
 4.
 
 5.
+
+

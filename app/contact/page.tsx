@@ -1,4 +1,4 @@
-import Link from 'next/link'
+﻿import Link from 'next/link'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
@@ -34,7 +34,7 @@ export default function ContactPage() {
             <div className="mt-8 grid gap-3 sm:grid-cols-2">
               <Info title="Pool help" text="Questions about creating pools, invites, deadlines, picks, or admin tools." />
               <Info title="Account help" text="Sign-in, profile, privacy, or data questions." />
-              <Info title="League help" text="Settings, member counts, private leagues, or anything that looks off inside a pool." />
+              <Info title="Pool help" text="Settings, member counts, private pools, or anything that looks off inside a pool." />
               <Info title="Site feedback" text="Bug reports, confusing screens, or ideas that would make the app easier." />
             </div>
           </div>
@@ -42,7 +42,7 @@ export default function ContactPage() {
           <aside className="border-t border-slate-200 bg-slate-50 p-5 sm:p-8 md:border-l md:border-t-0">
             <h2 className="text-lg font-bold text-slate-950">Before you write</h2>
             <ul className="mt-3 space-y-3 text-sm leading-6 text-slate-600">
-              <li>Include the pool name if the question is about a specific league.</li>
+              <li>Include the pool name if the question is about a specific pool.</li>
               <li>Use the email address tied to your account when possible.</li>
               <li>Do not send passwords or private access codes.</li>
             </ul>
@@ -67,3 +67,4 @@ function Info({ title, text }: { title: string; text: string }) {
     </div>
   )
 }
+

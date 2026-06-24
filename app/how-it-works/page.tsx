@@ -1,4 +1,4 @@
-import Link from 'next/link'
+﻿import Link from 'next/link'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
@@ -32,7 +32,7 @@ export default function HowItWorksPage() {
         <p className="text-sm font-semibold uppercase tracking-wide text-[#c5161d]">How it works</p>
         <h1 className="mt-2 text-4xl font-extrabold tracking-normal text-slate-950">Run an NFL survivor pool without spreadsheets</h1>
         <p className="mt-3 max-w-2xl text-slate-600">
-          Survive Sunday keeps the core flow simple: create a league, invite players, make picks, lock them, and track standings without chasing texts or maintaining a spreadsheet.
+          Survive Sunday keeps the core flow simple: create a pool, invite players, make picks, lock them, and track standings without chasing texts or maintaining a spreadsheet.
         </p>
 
         <div className="mt-8 grid gap-4">
@@ -60,3 +60,4 @@ export default function HowItWorksPage() {
     </main>
   )
 }
+

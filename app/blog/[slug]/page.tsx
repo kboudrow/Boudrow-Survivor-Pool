@@ -1,4 +1,4 @@
-import Link from 'next/link'
+﻿import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { BlogShareAndComments } from '@/components/BlogShareAndComments'
@@ -130,7 +130,7 @@ export default async function BlogPostPage({ params }: Props) {
             <div className="rounded-lg border border-[#d2ad5b]/50 bg-white p-4 shadow-sm">
               <h2 className="text-lg font-bold text-slate-950">Commissioner note</h2>
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                The best leagues feel fair because the rules are boringly clear. Decide once, write it down, and let the system enforce it.
+                The best pools feel fair because the rules are boringly clear. Decide once, write it down, and let the system enforce it.
               </p>
             </div>
 
@@ -159,14 +159,14 @@ export default async function BlogPostPage({ params }: Props) {
         <section className="mt-8 rounded-xl border border-[#d2ad5b]/50 bg-white p-5 shadow-sm sm:p-6">
           <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-center">
             <div>
-              <h2 className="text-xl font-bold text-slate-950">Ready to run a cleaner league?</h2>
+              <h2 className="text-xl font-bold text-slate-950">Ready to run a cleaner pool?</h2>
               <p className="mt-2 text-sm leading-6 text-slate-600">
                 Create a survivor pool, invite your group, and keep picks, locks, standings, and rule disputes organized.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
               <Link href="/pools/new" className="rounded-md bg-[#c5161d] px-4 py-2 text-sm font-semibold text-white hover:bg-[#a91218]">
-                Create League
+                Create Pool
               </Link>
               <Link href="/blog" className="rounded-md border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-white">
                 Read more articles
@@ -185,3 +185,4 @@ function headingId(value: string) {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '')
 }
+

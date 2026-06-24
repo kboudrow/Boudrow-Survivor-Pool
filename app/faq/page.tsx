@@ -1,4 +1,4 @@
-import Link from 'next/link'
+﻿import Link from 'next/link'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
@@ -81,9 +81,9 @@ const faqs = [
       'That depends on the pool settings. Commissioners can decide whether ties count as a win, a loss, or a push before the pool starts.',
   },
   {
-    question: 'Can admins change league settings later?',
+    question: 'Can admins change pool settings later?',
     answer:
-      'League settings are meant to lock once the pool reaches its configured start week. That protects fairness after players have already started making picks.',
+      'Pool settings are meant to lock once the pool reaches its configured start week. That protects fairness after players have already started making picks.',
   },
   {
     question: 'Can eliminated players still see the pool?',
@@ -98,7 +98,7 @@ const faqs = [
   {
     question: 'Where can I get help?',
     answer:
-      'Email survivesunday1@gmail.com or use the Contact page. Include your pool name if the question is about a specific league.',
+      'Email survivesunday1@gmail.com or use the Contact page. Include your pool name if the question is about a specific pool.',
   },
 ]
 
@@ -130,3 +130,4 @@ export default function FaqPage() {
     </main>
   )
 }
+

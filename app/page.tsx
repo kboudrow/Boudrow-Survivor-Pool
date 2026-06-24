@@ -335,7 +335,7 @@ export default function Home() {
                 <p className="text-xs font-bold uppercase tracking-wide text-[#c5161d]">For commissioners</p>
                 <h2 className="mt-1 text-2xl font-bold text-slate-950">Why commissioners use Survive Sunday</h2>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  The best survivor pool is the one everyone trusts. Survive Sunday keeps the boring admin work out of the way so the league can stay fun.
+                  The best survivor pool is the one everyone trusts. Survive Sunday keeps the boring admin work out of the way so the pool can stay fun.
                 </p>
               </div>
               <ul className="grid gap-2 sm:grid-cols-2">
@@ -359,13 +359,13 @@ export default function Home() {
         <section className="bg-white px-4 pb-12 sm:px-6">
           <div className="mx-auto grid max-w-5xl gap-4 md:grid-cols-3">
             <PublicLink
-              title="Read strategy and league guides"
-              text="Browse survivor pool rules, commissioner notes, and NFL articles before setting up your league."
+              title="Read strategy and pool guides"
+              text="Browse survivor pool rules, commissioner notes, and NFL articles before setting up your pool."
               href="/blog"
             />
             <PublicLink
               title="Read commissioner guides"
-              text="Rules, deadlines, double-pick weeks, private pools, and strategy notes for running a cleaner league."
+              text="Rules, deadlines, double-pick weeks, private pools, and strategy notes for running a cleaner pool."
               href="/blog"
             />
             <PublicLink
@@ -562,3 +562,4 @@ function PublicLink({ title, text, href }: { title: string; text: string; href: 
     </Link>
   )
 }
+

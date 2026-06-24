@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
@@ -142,10 +142,10 @@ export function AuthNav() {
         Blog
       </Link>
       <Link href="/pools" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
-        My Leagues
+        My Pools
       </Link>
       <Link href="/join/search" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
-        Join League
+        Join Pool
       </Link>
       {hasBlogAccess && (
         <Link href="/admin/blog" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
@@ -158,7 +158,7 @@ export function AuthNav() {
         </Link>
       )}
       <Link href="/pools/new" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
-        Create League
+        Create Pool
       </Link>
       <Link
         href="/profile"
@@ -183,3 +183,4 @@ export function AuthNav() {
     </div>
   )
 }
+

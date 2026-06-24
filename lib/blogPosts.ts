@@ -1,4 +1,4 @@
-export type BlogPost = {
+﻿export type BlogPost = {
   slug: string
   title: string
   description: string
@@ -102,7 +102,7 @@ export const blogPosts: BlogPost[] = [
         heading: 'Set rules before invites go out',
         body: [
           'Commissioners should decide the rules before players join. The biggest settings are start week, pick deadline, strike limit, tie rule, double-pick weeks, and whether the pool is public or private.',
-          'Changing league settings after the season starts can cause trust problems, so lock those rules once the pool begins.',
+          'Changing pool settings after the season starts can cause trust problems, so lock those rules once the pool begins.',
         ],
       },
       {
@@ -172,7 +172,7 @@ export const blogPosts: BlogPost[] = [
       {
         heading: 'Use private pools for tighter control',
         body: [
-          'Private pools are better for family groups, office leagues, and invite-only contests. A password gives commissioners more control over who joins.',
+          'Private pools are better for family groups, office pools, and invite-only contests. A password gives commissioners more control over who joins.',
           'Send the invite link and password separately when possible. It reduces accidental sharing and makes it easier to close the door before Week 1.',
         ],
       },
@@ -180,7 +180,7 @@ export const blogPosts: BlogPost[] = [
         heading: 'Close invites once the pool starts',
         body: [
           'A survivor pool should stop accepting new members once its configured start week begins. Late entries can create fairness problems because early risk has already passed.',
-          'The cleanest setup is to invite everyone early, open the pool, and let the invite button disappear automatically after the league starts.',
+          'The cleanest setup is to invite everyone early, open the pool, and let the invite button disappear automatically after the pool starts.',
         ],
       },
     ],
@@ -197,7 +197,7 @@ export const blogPosts: BlogPost[] = [
       {
         heading: 'Use this before invites go out',
         body: [
-          'Need a set of survivor pool rules you can send to your group? Use this template as-is or customize it for your league.',
+          'Need a set of survivor pool rules you can send to your group? Use this template as-is or customize it for your pool.',
           'The most important thing is to make the rules clear before players join. Once picks start, changing rules can create trust problems fast.',
         ],
       },
@@ -205,7 +205,7 @@ export const blogPosts: BlogPost[] = [
         heading: 'Basic rules',
         body: [
           'Each participant selects one NFL team to win its game each week. If the selected team wins, that entry advances to the next week.',
-          'If the selected team loses, that entry receives a strike or is eliminated, depending on league settings. Teams may only be used once during the season. The last remaining entry wins the pool.',
+          'If the selected team loses, that entry receives a strike or is eliminated, depending on pool settings. Teams may only be used once during the season. The last remaining entry wins the pool.',
         ],
       },
       {
@@ -225,7 +225,7 @@ export const blogPosts: BlogPost[] = [
       {
         heading: 'Multiple entries and double-pick weeks',
         body: [
-          'If your league allows multiple entries, each participant may have up to the number of entries set by the commissioner. Each entry should be treated independently with its own picks, standings position, and elimination status.',
+          'If your pool allows multiple entries, each participant may have up to the number of entries set by the commissioner. Each entry should be treated independently with its own picks, standings position, and elimination status.',
           'During designated double-pick weeks, each active entry must submit two different teams. Unless the commissioner states otherwise, both picks must win for the entry to survive the week.',
         ],
       },
@@ -264,7 +264,7 @@ export const blogPosts: BlogPost[] = [
         heading: 'Fixed deadline locks',
         body: [
           'With a fixed deadline, all picks lock at a single time each week. A common example is Sunday at 1:00 PM ET. Once the deadline passes, nobody can make changes.',
-          'Fixed deadlines are easy for commissioners to manage, simple for participants to understand, and good for creating a consistent weekly routine. They work especially well for office pools and casual leagues.',
+          'Fixed deadlines are easy for commissioners to manage, simple for participants to understand, and good for creating a consistent weekly routine. They work especially well for office pools and casual pools.',
         ],
       },
       {
@@ -310,7 +310,7 @@ export const blogPosts: BlogPost[] = [
         heading: 'The text every commissioner gets',
         body: [
           'Every survivor pool commissioner eventually gets the same text message: "Wait, did I submit my pick?" The games are about to start, the participant forgot, and now everyone is looking to the commissioner for a ruling.',
-          'How you handle missed picks can determine whether your league stays fun or becomes a weekly argument.',
+          'How you handle missed picks can determine whether your pool stays fun or becomes a weekly argument.',
         ],
       },
       {
@@ -352,7 +352,7 @@ export const blogPosts: BlogPost[] = [
         heading: 'The best approach',
         body: [
           'The easiest way to avoid disputes is to establish the rule before the season starts and enforce it automatically.',
-          'Whether your league uses traditional eliminations, mulligans, or automatic picks, participants should know exactly what happens when they miss a deadline. That is why many commissioners choose platforms like Survive Sunday, where deadlines, locks, standings, and elimination tracking are handled automatically throughout the season.',
+          'Whether your pool uses traditional eliminations, mulligans, or automatic picks, participants should know exactly what happens when they miss a deadline. That is why many commissioners choose platforms like Survive Sunday, where deadlines, locks, standings, and elimination tracking are handled automatically throughout the season.',
         ],
       },
     ],
@@ -386,3 +386,4 @@ export function getRelatedBlogPosts(post: BlogPost, limit = 3) {
     })
     .slice(0, limit)
 }
+

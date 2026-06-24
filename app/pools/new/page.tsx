@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -28,7 +28,7 @@ function formatCreatePoolError(e: unknown): string {
   const hint = typeof errorInfo?.hint === 'string' ? errorInfo.hint : undefined
   const code = typeof errorInfo?.code === 'string' ? errorInfo.code : undefined
 
-  const full = [msg, details, hint].filter(Boolean).join(' — ')
+  const full = [msg, details, hint].filter(Boolean).join(' â€” ')
   const lower = full.toLowerCase()
 
   if (lower.includes('already exists') || code === '23505') {
@@ -151,8 +151,8 @@ export default function CreatePoolPage() {
   }
 
   const uploadLeagueImage = async (file: File, userId: string) => {
-    if (!file.type.startsWith('image/')) throw new Error('Choose an image file for the league image.')
-    if (file.size > 5 * 1024 * 1024) throw new Error('League image must be 5 MB or smaller.')
+    if (!file.type.startsWith('image/')) throw new Error('Choose an image file for the pool image.')
+    if (file.size > 5 * 1024 * 1024) throw new Error('Pool image must be 5 MB or smaller.')
 
     const ext = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
     const path = `${userId}/${Date.now()}.${ext}`
@@ -270,7 +270,7 @@ export default function CreatePoolPage() {
     return (
       <div className="wrap">
         <div className="intro">
-          <h1>Create a New League</h1>
+          <h1>Create a New Pool</h1>
           <p>Checking your account...</p>
         </div>
       </div>
@@ -280,7 +280,7 @@ export default function CreatePoolPage() {
   return (
     <div ref={topRef} className="wrap">
       <div className="intro">
-        <h1>Create a New League</h1>
+        <h1>Create a New Pool</h1>
         <span>Set the rules now. Once the pool starts, the important settings lock for fairness.</span>
       </div>
 
@@ -305,7 +305,7 @@ export default function CreatePoolPage() {
             className={nameError ? 'inputError' : ''}
           />
           <p className="hint">
-            Names must be <b>unique</b> and can’t contain restricted terms (e.g., “survivor”, “pool”, “abc”, “123”).
+            Names must be <b>unique</b> and canâ€™t contain restricted terms (e.g., â€œsurvivorâ€, â€œpoolâ€, â€œabcâ€, â€œ123â€).
           </p>
           {nameError && (
             <p className="fieldError" role="alert" aria-live="polite">{error}</p>
@@ -370,7 +370,7 @@ export default function CreatePoolPage() {
           </div>
 
           <div className="field">
-            <label>League Visibility</label>
+            <label>Pool Visibility</label>
             <div className="toggleRow">
               <span className={`pill ${isPublic ? 'active' : ''}`}>Public</span>
               <button
@@ -491,7 +491,7 @@ export default function CreatePoolPage() {
         </div>
 
         <div className="field">
-          <label htmlFor="leagueImage">League Image</label>
+          <label htmlFor="leagueImage">Pool Image</label>
           <div className="imageUpload">
             <div className="imagePreview">
               {imagePreview ? (
@@ -513,13 +513,13 @@ export default function CreatePoolPage() {
                 Choose image
               </label>
               <span className="fileName">{imageFile ? imageFile.name : 'No image selected'}</span>
-              <p className="hint">Optional. Upload a logo or league image up to 5 MB.</p>
+              <p className="hint">Optional. Upload a logo or pool image up to 5 MB.</p>
             </div>
           </div>
         </div>
 
         <button className="primary" type="submit" disabled={loading}>
-          {loading ? 'Creating...' : 'Create League'}
+          {loading ? 'Creating...' : 'Create Pool'}
         </button>
       </form>
 
@@ -688,3 +688,4 @@ export default function CreatePoolPage() {
     </div>
   )
 }
+

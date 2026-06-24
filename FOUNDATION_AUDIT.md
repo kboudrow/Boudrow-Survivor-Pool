@@ -1,4 +1,4 @@
-# Survive Sunday Foundation Audit
+﻿# Survive Sunday Foundation Audit
 
 Last updated: 24 Jun 2026
 
@@ -41,10 +41,11 @@ Last updated: 24 Jun 2026
 
 ## Copy And SEO
 
-- Main authenticated nav now uses League language for primary actions.
+- Main authenticated nav now uses Pool language for primary actions.
 - Added Twitter card metadata for richer shared links.
 - Public content pages remain indexed; private/account/admin routes remain disallowed in robots.
 
 ## Accessibility
 
 - Current baseline is usable but still needs a dedicated pass for focus order, modal trapping, keyboard-only workflows, and table/card semantics on the large pool page.
+

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
@@ -135,7 +135,7 @@ export default function JoinPoolPage() {
       })
 
       if (error) {
-        setError(getErrorMessage(error, 'Could not join this league.'))
+        setError(getErrorMessage(error, 'Could not join this pool.'))
         return
       }
 
@@ -160,7 +160,7 @@ export default function JoinPoolPage() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <NextImage src="/survive-sunday-logo.png" alt="Survive Sunday" width={44} height={44} className="object-contain" />
-            <h1 className="text-2xl font-bold">Join League</h1>
+            <h1 className="text-2xl font-bold">Join Pool</h1>
           </div>
 
           {/* Owner shortcut to Admin Panel for convenience */}
@@ -200,13 +200,13 @@ export default function JoinPoolPage() {
 
             {!isJoinable && !isOwner && !alreadyMember && (
               <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                This league is not accepting members yet.
+                This pool is not accepting members yet.
               </div>
             )}
 
             {isFull && !isOwner && !alreadyMember && (
               <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                This league is full.
+                This pool is full.
               </div>
             )}
 
@@ -233,7 +233,7 @@ export default function JoinPoolPage() {
 
             {authed && alreadyMember && (
               <div className="mt-4 flex items-center gap-2">
-                <span className="text-sm text-emerald-700">You&apos;re already in this league.</span>
+                <span className="text-sm text-emerald-700">You&apos;re already in this pool.</span>
                 <Link href={`/pools?pool=${pool.id}`} className="px-3 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 text-sm">
                   Open Pool
                 </Link>
@@ -247,7 +247,7 @@ export default function JoinPoolPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full rounded-md border px-3 py-2"
-                    placeholder="Enter league password"
+                    placeholder="Enter pool password"
                     type="password"
                   />
                 )}
@@ -256,7 +256,7 @@ export default function JoinPoolPage() {
                   disabled={joining || (!isJoinable && !isOwner) || (isFull && !isOwner) || (!pool.is_public && !password.trim())}
                   className="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
                 >
-                  {joining ? 'Joining...' : 'Join League'}
+                  {joining ? 'Joining...' : 'Join Pool'}
                 </button>
                 <Link href="/pools" className="px-4 py-2 rounded-md bg-gray-100 hover:bg-gray-200">
                   Cancel
@@ -279,3 +279,4 @@ function Info({ label, value }: { label: string; value: string }) {
     </div>
   )
 }
+

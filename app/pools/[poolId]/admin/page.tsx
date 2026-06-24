@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import type { ChangeEvent } from 'react'
 import { useEffect, useMemo, useState } from 'react'
@@ -368,7 +368,7 @@ export default function PoolAdminPage() {
   const saveDoubleWeeks = async () => {
     if (!pool) return
     if (settingsLocked) {
-      setError('League settings cannot be changed after the league has started.')
+      setError('Pool settings cannot be changed after the pool has started.')
       return
     }
     setSavingDouble(true)
@@ -408,7 +408,7 @@ export default function PoolAdminPage() {
   const saveMemberLimit = async () => {
     if (!pool) return
     if (settingsLocked) {
-      setError('League settings cannot be changed after the league has started.')
+      setError('Pool settings cannot be changed after the pool has started.')
       return
     }
     const nextLimit = parseInt(maxMembersText.trim(), 10)
@@ -442,7 +442,7 @@ export default function PoolAdminPage() {
   const saveEntrySettings = async () => {
     if (!pool) return
     if (settingsLocked) {
-      setError('League settings cannot be changed after the league has started.')
+      setError('Pool settings cannot be changed after the pool has started.')
       return
     }
     const nextEntries = allowMultipleEntriesDraft ? parseInt(maxEntriesPerUserDraft, 10) : 1
@@ -473,7 +473,7 @@ export default function PoolAdminPage() {
   const saveVisibility = async () => {
     if (!pool) return
     if (settingsLocked) {
-      setError('League settings cannot be changed after the league has started.')
+      setError('Pool settings cannot be changed after the pool has started.')
       return
     }
     if (!isPublicDraft && !visibilityPassword.trim()) {
@@ -512,8 +512,8 @@ export default function PoolAdminPage() {
   }
 
   const uploadLeagueImage = async (file: File, poolIdValue: string) => {
-    if (!file.type.startsWith('image/')) throw new Error('Choose an image file for the league image.')
-    if (file.size > 5 * 1024 * 1024) throw new Error('League image must be 5 MB or smaller.')
+    if (!file.type.startsWith('image/')) throw new Error('Choose an image file for the pool image.')
+    if (file.size > 5 * 1024 * 1024) throw new Error('Pool image must be 5 MB or smaller.')
 
     const ext = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
     const path = `${poolIdValue}/${Date.now()}.${ext}`
@@ -550,9 +550,9 @@ export default function PoolAdminPage() {
         if (prev) URL.revokeObjectURL(prev)
         return null
       })
-      setNotice('League image saved.')
+      setNotice('Pool image saved.')
     } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Failed to save league image.'))
+      setError(getErrorMessage(e, 'Failed to save pool image.'))
     } finally {
       setSavingImage(false)
     }
@@ -576,9 +576,9 @@ export default function PoolAdminPage() {
         if (prev) URL.revokeObjectURL(prev)
         return null
       })
-      setNotice('League image reset to a default.')
+      setNotice('Pool image reset to a default.')
     } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Failed to save league image.'))
+      setError(getErrorMessage(e, 'Failed to save pool image.'))
     } finally {
       setSavingImage(false)
     }
@@ -587,7 +587,7 @@ export default function PoolAdminPage() {
   const toggleArchive = async () => {
     if (!pool) return
     if (settingsLocked) {
-      setError('League settings cannot be changed after the league has started.')
+      setError('Pool settings cannot be changed after the pool has started.')
       return
     }
     setArchiving(true)
@@ -657,7 +657,7 @@ export default function PoolAdminPage() {
     runAction('Remove member', async () => {
       if (!pool) return
       if (settingsLocked) {
-        throw new Error('Members cannot be removed after the league has started.')
+        throw new Error('Members cannot be removed after the pool has started.')
       }
       const label = memberLabel(row)
       const confirmed = window.confirm(
@@ -680,10 +680,10 @@ export default function PoolAdminPage() {
           <div>
             <h1 className="text-2xl font-bold">Admin Panel</h1>
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm text-gray-600">{pool ? `${pool.name} - ${pool.season ?? 'Season not set'} - League admin` : 'League controls'}</p>
+              <p className="text-sm text-gray-600">{pool ? `${pool.name} - ${pool.season ?? 'Season not set'} - Pool admin` : 'Pool controls'}</p>
               {isPoolJoinable && (
                 <span className="rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
-                  Free League
+                  Free Pool
                 </span>
               )}
             </div>
@@ -761,21 +761,21 @@ export default function PoolAdminPage() {
             <section className="rounded-lg border bg-white p-4">
               <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <h2 className="font-semibold">League Settings</h2>
-                  <p className="text-sm text-gray-600">Edit league setup before the first game in the start week kicks off.</p>
+                  <h2 className="font-semibold">Pool Settings</h2>
+                  <p className="text-sm text-gray-600">Edit pool setup before the first game in the start week kicks off.</p>
                 </div>
                 <button
                   onClick={toggleArchive}
                   disabled={archiving || settingsLocked}
-                  title={settingsLocked ? 'Started leagues cannot be archived from this panel.' : undefined}
+                  title={settingsLocked ? 'Started pools cannot be archived from this panel.' : undefined}
                   className="rounded-md bg-amber-600 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
                 >
-                  {archiving ? 'Updating...' : pool.archived ? 'Unarchive League' : 'Archive League'}
+                  {archiving ? 'Updating...' : pool.archived ? 'Unarchive Pool' : 'Archive Pool'}
                 </button>
               </div>
               {settingsLocked && (
                 <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                  League settings are locked because this pool has reached its configured start week. Admins can still review members and make commissioner pick corrections.
+                  Pool settings are locked because this pool has reached its configured start week. Admins can still review members and make commissioner pick corrections.
                 </p>
               )}
               {!settingsLocked && poolStartAt && (
@@ -786,7 +786,7 @@ export default function PoolAdminPage() {
 
               <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-[minmax(220px,320px)_minmax(240px,320px)_minmax(260px,360px)_1fr]">
                 <div className="rounded-md border border-gray-200 bg-gray-50 p-3 lg:col-span-2 xl:col-span-4">
-                  <label className="mb-1 block text-sm font-medium">League image</label>
+                  <label className="mb-1 block text-sm font-medium">Pool image</label>
                   <div className="grid gap-3 md:grid-cols-[120px_1fr_auto] md:items-center">
                     <div className="h-20 overflow-hidden rounded-md border border-slate-200 bg-white">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -800,7 +800,7 @@ export default function PoolAdminPage() {
                         disabled={savingImage}
                         className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white disabled:opacity-50"
                       />
-                      <p className="mt-1 text-xs text-gray-600">Upload a logo or league image up to 5 MB.</p>
+                      <p className="mt-1 text-xs text-gray-600">Upload a logo or pool image up to 5 MB.</p>
                     </div>
                     <div className="flex flex-wrap gap-2 md:flex-col">
                       <button onClick={saveImage} disabled={savingImage || !imageFileDraft} className="rounded-md bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50">
@@ -959,7 +959,7 @@ export default function PoolAdminPage() {
               <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h2 className="font-semibold">Admin Activity</h2>
-                  <p className="text-sm text-gray-600">Recent member removals, admin pick edits, and saved-pick events for this league.</p>
+                  <p className="text-sm text-gray-600">Recent member removals, admin pick edits, and saved-pick events for this pool.</p>
                 </div>
                 <button
                   onClick={loadAuditTrail}
@@ -981,13 +981,13 @@ export default function PoolAdminPage() {
                           <span className="text-xs text-slate-500">{fmtShort(action.created_at)}</span>
                         </div>
                         <div className="mt-1 text-xs text-slate-600">
-                          Admin {shortId(action.admin_id)} → Target {shortId(action.target_user_id)}
-                          {action.week ? ` · W${action.week}` : ''}
-                          {action.slot ? ` · Pick ${action.slot}` : ''}
+                          Admin {shortId(action.admin_id)} â†’ Target {shortId(action.target_user_id)}
+                          {action.week ? ` Â· W${action.week}` : ''}
+                          {action.slot ? ` Â· Pick ${action.slot}` : ''}
                         </div>
                         {(action.old_team_abbr || action.new_team_abbr) && (
                           <div className="mt-1 text-xs text-slate-600">
-                            {action.old_team_abbr || '-'} → {action.new_team_abbr || '-'}
+                            {action.old_team_abbr || '-'} â†’ {action.new_team_abbr || '-'}
                           </div>
                         )}
                         {action.reason && <div className="mt-1 text-xs text-slate-500">{action.reason}</div>}
@@ -1007,14 +1007,14 @@ export default function PoolAdminPage() {
                           <span className="text-xs text-slate-500">{fmtShort(event.created_at)}</span>
                         </div>
                         <div className="mt-1 text-xs text-slate-600">
-                          User {shortId(event.user_id)} · Actor {shortId(event.actor_user_id || event.user_id)}
-                          {event.week ? ` · W${event.week}` : ''}
-                          {event.slot ? ` · Pick ${event.slot}` : ''}
-                          {event.source_table ? ` · ${event.source_table}` : ''}
+                          User {shortId(event.user_id)} Â· Actor {shortId(event.actor_user_id || event.user_id)}
+                          {event.week ? ` Â· W${event.week}` : ''}
+                          {event.slot ? ` Â· Pick ${event.slot}` : ''}
+                          {event.source_table ? ` Â· ${event.source_table}` : ''}
                         </div>
                         {(event.old_team_abbr || event.new_team_abbr) && (
                           <div className="mt-1 text-xs text-slate-600">
-                            {event.old_team_abbr || '-'} → {event.new_team_abbr || '-'}
+                            {event.old_team_abbr || '-'} â†’ {event.new_team_abbr || '-'}
                           </div>
                         )}
                         {event.result && <div className="mt-1 text-xs text-slate-500">Result: {event.result}</div>}
@@ -1030,7 +1030,7 @@ export default function PoolAdminPage() {
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="font-semibold">Members & Picks</h2>
-                  <p className="text-sm text-gray-600">Choose a week, then submit, edit, or remove an entry before the league starts.</p>
+                  <p className="text-sm text-gray-600">Choose a week, then submit, edit, or remove an entry before the pool starts.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <input
@@ -1064,7 +1064,7 @@ export default function PoolAdminPage() {
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-3 py-2">
                   <div>
                     <h3 className="text-sm font-semibold text-slate-950">Entry Management</h3>
-                    <p className="text-xs text-slate-600">Remove a full entry before the league starts. Pick edits stay in the weekly table below.</p>
+                    <p className="text-xs text-slate-600">Remove a full entry before the pool starts. Pick edits stay in the weekly table below.</p>
                   </div>
                   <span className="rounded-full bg-white px-2 py-1 text-xs text-slate-600">
                     {visibleMemberRows.length} {visibleMemberRows.length === 1 ? 'member' : 'members'}
@@ -1108,7 +1108,7 @@ export default function PoolAdminPage() {
                             <button
                               onClick={() => removeMember(row, entries.length)}
                               disabled={!!runningAction || settingsLocked}
-                              title={settingsLocked ? 'Members cannot be removed after the league starts.' : undefined}
+                              title={settingsLocked ? 'Members cannot be removed after the pool starts.' : undefined}
                               className="rounded-md bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
                             >
                               Remove member
@@ -1227,3 +1227,4 @@ export default function PoolAdminPage() {
     </main>
   )
 }
+

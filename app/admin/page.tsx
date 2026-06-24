@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
@@ -188,9 +188,9 @@ export default function SuperAdminPage() {
     if (authorized && selectedPoolId) loadEntries(selectedPoolId)
   }, [authorized, selectedPoolId])
 
-  const repairSelectedLeague = async () => {
+  const repairSelectedPool = async () => {
     if (!selectedPool) return
-    const confirmed = window.confirm(`Repair future results for "${selectedPool.name}"? This clears this league's stat rows and moves future final picks back to editable drafts. It does not change other leagues.`)
+    const confirmed = window.confirm(`Repair future results for "${selectedPool.name}"? This clears this pool's stat rows and moves future final picks back to editable drafts. It does not change other pools.`)
     if (!confirmed) return
     setRunningAction('repair-selected')
     setError(null)
@@ -198,11 +198,11 @@ export default function SuperAdminPage() {
     try {
       const { data, error: repairErr } = await supabase.rpc('superadmin_repair_pool_future_results', { p_pool_id: selectedPool.pool_id })
       if (repairErr) throw repairErr
-      setNotice(String(data || 'League repair complete.'))
+      setNotice(String(data || 'Pool repair complete.'))
       await loadPools()
       if (selectedPoolId) await loadEntries(selectedPoolId)
     } catch (e: unknown) {
-      setError(getErrorMessage(e, 'League repair failed.'))
+      setError(getErrorMessage(e, 'Pool repair failed.'))
     } finally {
       setRunningAction(null)
     }
@@ -266,7 +266,7 @@ export default function SuperAdminPage() {
           <div>
             <p className="text-xs font-bold uppercase tracking-wide text-[#c5161d]">Platform Admin</p>
             <h1 className="text-3xl font-bold text-slate-950">Superadmin</h1>
-            <p className="mt-1 text-sm text-slate-600">Signed in as {email}. League and pool support tools live here.</p>
+            <p className="mt-1 text-sm text-slate-600">Signed in as {email}. Pool support tools live here.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button onClick={() => loadPools().catch((e) => setError(getErrorMessage(e, 'Refresh failed.')))} className="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white">
@@ -279,7 +279,7 @@ export default function SuperAdminPage() {
         {notice && <p className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{notice}</p>}
 
         <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <Stat label="Leagues / Pools" value={totals.pools} />
+          <Stat label="Pools" value={totals.pools} />
           <Stat label="Active" value={totals.active} />
           <Stat label="Archived" value={totals.archived} />
           <Stat label="Unique Members" value={totals.members} />
@@ -364,7 +364,7 @@ export default function SuperAdminPage() {
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search leagues, pools, owner, id"
+                  placeholder="Search pools, owner, id"
                   className="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
                 />
                 <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
@@ -401,7 +401,7 @@ export default function SuperAdminPage() {
                   </div>
                 </button>
               ))}
-              {filteredPools.length === 0 && <p className="p-4 text-sm text-slate-500">No leagues match that filter.</p>}
+              {filteredPools.length === 0 && <p className="p-4 text-sm text-slate-500">No pools match that filter.</p>}
             </div>
           </section>
 
@@ -421,14 +421,14 @@ export default function SuperAdminPage() {
                       Open Pool
                     </Link>
                     <Link href={`/pools/${selectedPool.pool_id}/admin`} className="rounded-md bg-amber-600 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-700">
-                      League Admin
+                      Pool Admin
                     </Link>
                     <button
-                      onClick={repairSelectedLeague}
+                      onClick={repairSelectedPool}
                       disabled={runningAction === 'repair-selected'}
                       className="rounded-md bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
                     >
-                      {runningAction === 'repair-selected' ? 'Repairing...' : 'Repair This League'}
+                      {runningAction === 'repair-selected' ? 'Repairing...' : 'Repair This Pool'}
                     </button>
                   </div>
                 </div>
@@ -520,3 +520,4 @@ function Info({ label, value }: { label: string; value: string }) {
     </div>
   )
 }
+

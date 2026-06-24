@@ -1,4 +1,4 @@
-import Link from 'next/link'
+﻿import Link from 'next/link'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
@@ -11,14 +11,14 @@ export const metadata: Metadata = {
 
 const clauses = [
   ['1. Pool Format', 'Each entry must select one eligible NFL team each required pick slot. If the selected team wins, the entry survives. If the selected team loses, ties, or does not play, the result follows the pool settings below.'],
-  ['2. Eligibility', 'Only invited or approved members may participate. Commissioners may remove entries before the pool starts if a member joined by mistake or violates league rules.'],
+  ['2. Eligibility', 'Only invited or approved members may participate. Commissioners may remove entries before the pool starts if a member joined by mistake or violates pool rules.'],
   ['3. Entry Rules', 'If multiple entries are allowed, each entry is independent. Used teams, picks, strikes, standings, and elimination status are tracked separately for every entry.'],
-  ['4. Pick Deadlines', 'Picks must be submitted before the league deadline or before the selected game locks. Games that have already started are not eligible picks.'],
+  ['4. Pick Deadlines', 'Picks must be submitted before the pool deadline or before the selected game locks. Games that have already started are not eligible picks.'],
   ['5. No Repeat Teams', 'An entry may not select the same NFL team more than once during the season unless the commissioner explicitly announces a different rule before the pool starts.'],
   ['6. Missed Picks', 'A missed pick after the deadline counts as a loss or strike unless the commissioner defines a different rule before the season.'],
   ['7. Tie Rules', 'The commissioner must state before the season whether a tied NFL game counts as a win, loss, or push for survivor purposes.'],
   ['8. Double-Pick Weeks', 'If double-pick weeks are used, every active entry must submit two valid picks for that week. Both picks must survive for the entry to avoid a strike unless the commissioner defines otherwise.'],
-  ['9. Eliminations', 'An entry is eliminated after it reaches the strike limit set by the commissioner. Eliminated entries may continue to view league standings but cannot submit future picks.'],
+  ['9. Eliminations', 'An entry is eliminated after it reaches the strike limit set by the commissioner. Eliminated entries may continue to view pool standings but cannot submit future picks.'],
   ['10. Winner Determination', 'The winner is the last remaining active entry. If multiple entries remain after the final configured week, the commissioner should use the announced tiebreaker or split-title rule.'],
   ['11. Commissioner Authority', 'The commissioner may correct obvious administrative errors, but rule changes after the pool starts should be avoided unless every affected member agrees.'],
 ]
@@ -59,3 +59,4 @@ export default function SurvivorPoolConstitutionPage() {
     </main>
   )
 }
+

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
@@ -167,7 +167,7 @@ export default function PoolDetailPage() {
         p_password: pool.is_public ? null : password || null,
       })
       if (error) {
-        setError(getErrorMessage(error, 'Could not join this league.'))
+        setError(getErrorMessage(error, 'Could not join this pool.'))
         return
       }
       router.push(`/pools?pool=${pool.id}`)
@@ -205,7 +205,7 @@ export default function PoolDetailPage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${pool.name.replace(/\s+/g, '_')}_league_roster.csv`
+    a.download = `${pool.name.replace(/\s+/g, '_')}_pool_roster.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -246,7 +246,7 @@ export default function PoolDetailPage() {
             <div className="mb-4">
               <h2 className="text-xl font-semibold">{pool.name}</h2>
               <p className="text-sm text-gray-600">
-                {pool.is_public ? 'Public' : 'Private'} · Starts week {pool.start_week} · Strikes {pool.strikes_allowed} · Tie = {pool.tie_rule === 'win' ? 'Win' : 'Loss'}
+                {pool.is_public ? 'Public' : 'Private'} Â· Starts week {pool.start_week} Â· Strikes {pool.strikes_allowed} Â· Tie = {pool.tie_rule === 'win' ? 'Win' : 'Loss'}
               </p>
               <p className="text-sm text-gray-600">
                 Pick Deadline: {pool.deadline_mode === 'rolling' ? 'Rolling: each game locks at kickoff' : (fixedDeadlineLabel || 'Sunday 1 PM ET')}
@@ -349,4 +349,5 @@ export default function PoolDetailPage() {
     </main>
   )
 }
+
 

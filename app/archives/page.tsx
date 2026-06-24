@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -196,7 +196,7 @@ export default function ArchivesPage() {
           </Link>
         </div>
 
-        {loading && <p>Loading…</p>}
+        {loading && <p>Loadingâ€¦</p>}
         {error && <p className="text-red-600">{error}</p>}
 
         {!loading && !error && pools.length === 0 && <div className="border rounded-lg p-4 text-sm text-gray-700">No history yet.</div>}
@@ -205,10 +205,10 @@ export default function ArchivesPage() {
           <ul className="grid gap-3 sm:grid-cols-2">
             {pools.map((p) => {
               const canRunBack = !!userId && p.created_by === userId
-              const archivedLabel = p.archived_at ? new Date(p.archived_at).toLocaleString() : '—'
-              const seasonLabel = p.season ?? '—'
-              const strikesLabel = p.strikes_allowed ?? '—'
-              const tieLabel = p.tie_rule ?? '—'
+              const archivedLabel = p.archived_at ? new Date(p.archived_at).toLocaleString() : 'â€”'
+              const seasonLabel = p.season ?? 'â€”'
+              const strikesLabel = p.strikes_allowed ?? 'â€”'
+              const tieLabel = p.tie_rule ?? 'â€”'
 
               return (
                 <li key={p.id} className="border border-gray-200 rounded-lg p-4">
@@ -216,12 +216,12 @@ export default function ArchivesPage() {
                     <div>
                       <div className="text-lg font-semibold">{p.name}</div>
                       <div className="text-xs text-gray-600 mt-1">
-                        {p.is_public ? 'Public' : 'Private'} · Start Week {p.start_week} · Strikes {strikesLabel} · Tie {tieLabel}
+                        {p.is_public ? 'Public' : 'Private'} Â· Start Week {p.start_week} Â· Strikes {strikesLabel} Â· Tie {tieLabel}
                       </div>
                       <div className="text-xs text-gray-500 mt-1">
-                        Season: {seasonLabel} · Archived: {archivedLabel}
+                        Season: {seasonLabel} Â· Archived: {archivedLabel}
                       </div>
-                      {p.cloned_from_pool_id && <div className="text-xs text-gray-500 mt-1">Created from a previous league</div>}
+                      {p.cloned_from_pool_id && <div className="text-xs text-gray-500 mt-1">Created from a previous pool</div>}
                     </div>
 
                     <div className="flex flex-col items-end gap-2">
@@ -256,14 +256,14 @@ export default function ArchivesPage() {
             </div>
 
             <p className="text-sm text-gray-700 mb-4">
-              This creates one <b>new</b> league from <b>{activePool.name}</b> with the same settings, but it starts <b>empty</b>.
-              You’ll share a fresh invite link with last year’s group.
+              This creates one <b>new</b> pool from <b>{activePool.name}</b> with the same settings, but it starts <b>empty</b>.
+              Youâ€™ll share a fresh invite link with last yearâ€™s group.
             </p>
 
             <div className="border rounded-lg p-3 mb-4 bg-gray-50">
               <div className="text-sm font-semibold">{activePool.name}</div>
               <div className="text-xs text-gray-600 mt-1">
-                Start Week {activePool.start_week} · Strikes {activePool.strikes_allowed ?? '—'} · Tie {activePool.tie_rule ?? '—'} ·{' '}
+                Start Week {activePool.start_week} Â· Strikes {activePool.strikes_allowed ?? 'â€”'} Â· Tie {activePool.tie_rule ?? 'â€”'} Â·{' '}
                 {activePool.include_playoffs ? 'Regular + Playoffs' : 'Regular only'}
               </div>
             </div>
@@ -286,7 +286,7 @@ export default function ArchivesPage() {
                 Cancel
               </button>
               <button onClick={runItBack} className="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50" disabled={running}>
-                {running ? 'Creating…' : 'Create new season pool'}
+                {running ? 'Creatingâ€¦' : 'Create new season pool'}
               </button>
             </div>
           </div>
@@ -295,3 +295,4 @@ export default function ArchivesPage() {
     </main>
   )
 }
+

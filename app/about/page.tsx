@@ -1,9 +1,9 @@
-import Link from 'next/link'
+﻿import Link from 'next/link'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
   title: 'About | Survive Sunday',
-  description: 'Learn why Survive Sunday exists, what the survivor pool app handles, and how it keeps leagues organized without spreadsheets.',
+  description: 'Learn why Survive Sunday exists, what the survivor pool app handles, and how it keeps pools organized without spreadsheets.',
   alternates: {
     canonical: '/about',
   },
@@ -34,7 +34,7 @@ export default function AboutPage() {
             Survivor pools are fun. Running the spreadsheet is not.
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-200 sm:text-base">
-            Survive Sunday exists to make NFL survivor pools easier to run for friends, families, offices, and recurring leagues. The goal is simple: fewer manual mistakes, fewer arguments, and a cleaner Sunday experience for everyone.
+            Survive Sunday exists to make NFL survivor pools easier to run for friends, families, offices, and recurring pools. The goal is simple: fewer manual mistakes, fewer arguments, and a cleaner Sunday experience for everyone.
           </p>
         </section>
 
@@ -52,7 +52,7 @@ export default function AboutPage() {
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {[
               'Public and private pool setup',
-              'Invite links and password-protected leagues',
+              'Invite links and password-protected pools',
               'Automatic pick locks and weekly deadlines',
               'No-repeat team enforcement',
               'Multiple entries per member when allowed',
@@ -82,3 +82,5 @@ export default function AboutPage() {
     </main>
   )
 }
+
+

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
@@ -629,7 +629,7 @@ function MyPoolsContent() {
     ? 'Week distribution is live for this week.'
     : standingsRevealAt
       ? `Week distribution goes live when this week opens: ${fmtEtDateTime(standingsRevealAt)}.`
-      : 'Week distribution goes live when this week opens for the league.'
+      : 'Week distribution goes live when this week opens for the pool.'
 
   const showPickNotice = (notice: PickNotice) => {
     if (pickNoticeTimerRef.current) window.clearTimeout(pickNoticeTimerRef.current)
@@ -1662,16 +1662,16 @@ function MyPoolsContent() {
       {!loading && !error && pools.length === 0 && (
         <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-xs font-bold uppercase tracking-wide text-[#c5161d]">Start here</p>
-          <h2 className="mt-1 text-2xl font-bold text-slate-950">No leagues yet</h2>
+          <h2 className="mt-1 text-2xl font-bold text-slate-950">No pools yet</h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-            Create a league for your group, search public leagues, or use an invite link from a commissioner. Once you join, your picks and standings will show here.
+            Create a pool for your group, search public pools, or use an invite link from a commissioner. Once you join, your picks and standings will show here.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <Link href="/pools/new" className="rounded-md bg-[#c5161d] px-4 py-2 text-sm font-semibold text-white hover:bg-[#a91218]">
-              Create League
+              Create Pool
             </Link>
             <Link href="/join/search" className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50">
-              Find a League
+              Find a Pool
             </Link>
           </div>
         </section>
@@ -2187,7 +2187,7 @@ function MyPoolsContent() {
                       <div>
                         <div className="text-xs uppercase text-gray-500">Week {standingsWeek} Pick Distribution</div>
                         <div className="mt-1 text-sm text-gray-600">
-                          Percentage of active entry picks on each team. This goes live when the league week opens.
+                          Percentage of active entry picks on each team. This goes live when the pool week opens.
                         </div>
                       </div>
                       <div className="text-xs text-gray-500">
@@ -2544,3 +2544,4 @@ export default function MyPoolsPage() {
     </Suspense>
   )
 }
+
