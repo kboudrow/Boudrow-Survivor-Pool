@@ -608,28 +608,6 @@ export default function PoolAdminPage() {
     }
   }
 
-  const finalizeLocked = () => {
-    const confirmed = window.confirm('Finalize only picks whose deadlines have passed? Future picks will stay editable.')
-    if (!confirmed) return
-    runAction('Finalize due picks', async () => {
-      if (!pool) return
-      const { data, error } = await supabase.rpc('finalize_locked_picks_for_pool', { p_pool_id: pool.id })
-      if (error) throw error
-      return `Finalized ${data ?? 0} pick(s).`
-    })
-  }
-
-  const adjudicate = () => {
-    const confirmed = window.confirm('Adjudicate completed games for this season and update player results?')
-    if (!confirmed) return
-    runAction('Adjudicate results', async () => {
-      if (!pool) return
-      const { data, error } = await supabase.rpc('adjudicate_completed_weeks', { p_season: pool.season ?? new Date().getFullYear() })
-      if (error) throw error
-      return `Adjudicated ${data ?? 0} pick result(s).`
-    })
-  }
-
   const saveDraft = (row: AdminRow) =>
     runAction('Save pick', async () => {
       if (!pool) return
@@ -787,10 +765,18 @@ export default function PoolAdminPage() {
                   <h2 className="font-semibold">League Settings</h2>
                   <p className="text-sm text-gray-600">Edit league setup before the first game in the start week kicks off.</p>
                 </div>
+                <button
+                  onClick={toggleArchive}
+                  disabled={archiving || settingsLocked}
+                  title={settingsLocked ? 'Started leagues cannot be archived from this panel.' : undefined}
+                  className="rounded-md bg-amber-600 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
+                >
+                  {archiving ? 'Updating...' : pool.archived ? 'Unarchive League' : 'Archive League'}
+                </button>
               </div>
               {settingsLocked && (
                 <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                  League settings are locked because this pool has reached its configured start week. Admins can still manage player picks and results.
+                  League settings are locked because this pool has reached its configured start week. Admins can still review members and make commissioner pick corrections.
                 </p>
               )}
               {!settingsLocked && poolStartAt && (
@@ -966,44 +952,6 @@ export default function PoolAdminPage() {
                     className="w-full rounded-md border px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-500"
                     placeholder="e.g. 5,8,12"
                   />
-                </div>
-              </div>
-            </section>
-
-            <section className="rounded-lg border bg-white p-4">
-              <div className="mb-3">
-                <h2 className="font-semibold">Scoring Tools</h2>
-                <p className="text-sm text-gray-600">These are league maintenance buttons. They do not change rules, member limits, or double-pick settings.</p>
-              </div>
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="rounded-lg border border-indigo-100 bg-indigo-50 p-3">
-                  <button onClick={finalizeLocked} disabled={!!runningAction} className="w-full rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
-                    Lock Due Picks
-                  </button>
-                  <p className="mt-2 text-xs leading-5 text-indigo-950">
-                    Turns saved picks into official picks after their deadline. Future picks stay editable.
-                  </p>
-                </div>
-                <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-3">
-                  <button onClick={adjudicate} disabled={!!runningAction} className="w-full rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
-                    Score Final Games
-                  </button>
-                  <p className="mt-2 text-xs leading-5 text-emerald-950">
-                    Applies win, loss, or push to official picks for games that already have final scores.
-                  </p>
-                </div>
-                <div className="rounded-lg border border-amber-100 bg-amber-50 p-3">
-                  <button
-                    onClick={toggleArchive}
-                    disabled={archiving || settingsLocked}
-                    title={settingsLocked ? 'League settings are locked after the league starts.' : undefined}
-                    className="w-full rounded-md bg-amber-600 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
-                  >
-                    {archiving ? 'Updating...' : pool.archived ? 'Unarchive League' : 'Archive League'}
-                  </button>
-                  <p className="mt-2 text-xs leading-5 text-amber-950">
-                    Hides or restores this league before it starts. Started leagues cannot be archived here.
-                  </p>
                 </div>
               </div>
             </section>
