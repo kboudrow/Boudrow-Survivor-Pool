@@ -176,7 +176,7 @@ export const blogPosts: BlogPost[] = [
         heading: 'Close invites once the pool starts',
         body: [
           'A survivor pool should stop accepting new members once its configured start week begins. Late entries can create fairness problems because early risk has already passed.',
-          'The cleanest setup is to invite everyone early, activate the pool, and let the invite button disappear automatically after the league starts.',
+          'The cleanest setup is to invite everyone early, open the pool, and let the invite button disappear automatically after the league starts.',
         ],
       },
     ],

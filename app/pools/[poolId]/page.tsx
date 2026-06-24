@@ -53,12 +53,12 @@ export default function PoolDetailPage() {
   const [inviteOpen, setInviteOpen] = useState(false)
   const [poolStartAt, setPoolStartAt] = useState<string | null>(null)
 
-  const isActive = pool?.activation_status === 'active'
+  const isJoinable = pool?.activation_status !== 'cancelled'
   const isFull = !!(pool?.max_members && memberCount >= pool.max_members)
   const poolStartMs = poolStartAt ? Date.parse(poolStartAt) : null
   const poolStartKnown = poolStartMs !== null && Number.isFinite(poolStartMs)
   const leagueHasStarted = poolStartKnown && Date.now() >= poolStartMs
-  const canInvite = !!pool && isActive && poolStartKnown && !leagueHasStarted
+  const canInvite = !!pool && isJoinable && poolStartKnown && !leagueHasStarted
   const authReturnTo = `/pools/${poolId}`
   const signInHref = `/?auth=signin&returnTo=${encodeURIComponent(authReturnTo)}`
   const signUpHref = `/?auth=signup&returnTo=${encodeURIComponent(authReturnTo)}`
@@ -249,11 +249,11 @@ export default function PoolDetailPage() {
               </div>
               <div className="border rounded-lg p-3">
                 <div className="text-xs uppercase text-gray-500">Status</div>
-                <div className="text-lg font-semibold">{isActive ? 'Active' : 'Draft'}</div>
+                <div className="text-lg font-semibold">{isJoinable ? 'Open' : 'Closed'}</div>
               </div>
             </div>
 
-            {!isActive && !alreadyMember && !isOwner && (
+            {!isJoinable && !alreadyMember && !isOwner && (
               <div className="mb-4 p-3 border border-amber-200 rounded-md bg-amber-50 text-sm text-amber-800">
                 This pool is not accepting members yet.
               </div>
@@ -308,7 +308,7 @@ export default function PoolDetailPage() {
                 )}
                 <button
                   onClick={joinPool}
-                  disabled={joining || (!isActive && !isOwner) || (isFull && !isOwner) || (!pool.is_public && !password.trim())}
+                  disabled={joining || (!isJoinable && !isOwner) || (isFull && !isOwner) || (!pool.is_public && !password.trim())}
                   className="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
                 >
                   {joining ? 'Joining...' : 'Join Pool'}

@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
   title: 'FAQ | Survive Sunday',
-  description: 'Answers about Survive Sunday pool setup, pick deadlines, strikes, double-pick weeks, private pools, admin tools, payments, and AdSense-safe use.',
+  description: 'Answers about Survive Sunday pool setup, pick deadlines, strikes, double-pick weeks, private pools, admin tools, and AdSense-safe use.',
   alternates: {
     canonical: '/faq',
   },
@@ -68,7 +68,7 @@ const faqs = [
   {
     question: 'Can I archive completed pools?',
     answer:
-      'Yes. Archiving keeps old pools out of the active dashboard while preserving history. Active or paid pools should not be casually archived once the season is underway.',
+      'Yes. Archiving keeps old pools out of the active dashboard while preserving history. Pools should not be casually archived once the season is underway.',
   },
   {
     question: 'Can I change my pick after submitting?',
@@ -94,11 +94,6 @@ const faqs = [
     question: 'Is this a betting or payout site?',
     answer:
       'No. Survive Sunday is a pool-management tool. It does not accept wagers, hold funds, manage prize pools, calculate payouts, or act as a sportsbook.',
-  },
-  {
-    question: 'Why is there a pool activation payment?',
-    answer:
-      'The activation fee supports running the platform. It is not a buy-in, wager, prize pool, or player payout.',
   },
   {
     question: 'Where can I get help?',

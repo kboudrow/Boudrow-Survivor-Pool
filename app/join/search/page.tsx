@@ -24,6 +24,7 @@ type Pool = {
   created_at?: string | null
   activation_status?: 'draft' | 'active' | 'cancelled' | string | null
   max_members?: number | null
+  member_count?: number | null
 }
 
 function formatPoolMeta(pool: Pool) {
@@ -145,6 +146,7 @@ export default function JoinSearchPage() {
           .from('pools')
           .select('id, name, is_public, allow_discovery, start_week, include_playoffs, strikes_allowed, tie_rule, deadline_mode, deadline_fixed, notes, created_by, created_at, activation_status, max_members')
           .eq('archived', false)
+          .eq('is_public', true)
           .order('created_at', { ascending: false })
           .limit(30)
 
@@ -191,7 +193,15 @@ export default function JoinSearchPage() {
         })
 
         if (error) throw error
-        setResults((data || []) as Pool[])
+        const nextResults = (data || []) as Pool[]
+        setResults(nextResults)
+        setPoolMemberCounts((prev) => {
+          const next = { ...prev }
+          for (const pool of nextResults) {
+            if (typeof pool.member_count === 'number') next[pool.id] = pool.member_count
+          }
+          return next
+        })
       } catch (e: unknown) {
         setError(getErrorMessage(e, 'Search failed.'))
       } finally {

@@ -2,7 +2,7 @@
 
 import type { ChangeEvent } from 'react'
 import { useEffect, useMemo, useState } from 'react'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { InviteModal } from '@/components/InviteModal'
 import { getErrorMessage } from '@/lib/errorMessage'
@@ -137,7 +137,6 @@ const fmtShort = (value?: string | null) =>
 
 export default function PoolAdminPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { poolId } = useParams<{ poolId: string }>()
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -158,7 +157,6 @@ export default function PoolAdminPage() {
   const [allowMultipleEntriesDraft, setAllowMultipleEntriesDraft] = useState(false)
   const [maxEntriesPerUserDraft, setMaxEntriesPerUserDraft] = useState('1')
   const [archiving, setArchiving] = useState(false)
-  const [activating, setActivating] = useState(false)
   const [savingDouble, setSavingDouble] = useState(false)
   const [savingLimit, setSavingLimit] = useState(false)
   const [savingEntries, setSavingEntries] = useState(false)
@@ -169,7 +167,6 @@ export default function PoolAdminPage() {
   const [imageUrlDraft, setImageUrlDraft] = useState('')
   const [imageFileDraft, setImageFileDraft] = useState<File | null>(null)
   const [imagePreviewDraft, setImagePreviewDraft] = useState<string | null>(null)
-  const [confirmingCheckout, setConfirmingCheckout] = useState(false)
   const [runningAction, setRunningAction] = useState<string | null>(null)
   const [draftTeams, setDraftTeams] = useState<Record<string, string>>({})
   const [finalTeams, setFinalTeams] = useState<Record<string, string>>({})
@@ -197,13 +194,12 @@ export default function PoolAdminPage() {
     const alive = entryRows.filter((row) => !row.eliminated).length
     return { alive, eliminated: entryRows.length - alive }
   }, [entryRows])
-  const isPoolActive = pool?.activation_status === 'active'
-  const isPaidPool = pool?.payment_status === 'paid' || pool?.activation_status === 'active'
+  const isPoolJoinable = pool?.activation_status !== 'cancelled'
   const poolStartMs = poolStartAt ? Date.parse(poolStartAt) : null
   const poolStartKnown = poolStartMs !== null && Number.isFinite(poolStartMs)
   const leagueHasStarted = poolStartKnown && Date.now() >= poolStartMs
   const settingsLocked = leagueHasStarted
-  const canInvite = !!pool && isPoolActive && poolStartKnown && !leagueHasStarted
+  const canInvite = !!pool && isPoolJoinable && poolStartKnown && !leagueHasStarted
   const visibilityChanged = !!pool && isPublicDraft !== pool.is_public
   const selectedDoubleWeeks = useMemo(() => {
     return new Set(
@@ -347,53 +343,6 @@ export default function PoolAdminPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [poolId])
-
-  useEffect(() => {
-    if (!pool || !isOwner || pool.activation_status === 'active') return
-    const activated = searchParams.get('activated')
-    const sessionId = searchParams.get('session_id')
-    if (activated !== 'success' || !sessionId || confirmingCheckout) return
-
-    const confirmCheckout = async () => {
-      setConfirmingCheckout(true)
-      setError(null)
-      setNotice(null)
-      try {
-        const {
-          data: { session },
-          error: sessionError,
-        } = await supabase.auth.getSession()
-
-        if (sessionError) throw sessionError
-        if (!session?.access_token) throw new Error('Please sign in again to confirm payment.')
-
-        const response = await fetch('/api/stripe/confirm-checkout-session', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({ poolId: pool.id, sessionId }),
-        })
-
-        const payload = (await response.json()) as { activated?: boolean; error?: string }
-        if (!response.ok || !payload.activated) {
-          throw new Error(payload.error || 'Payment confirmation failed.')
-        }
-
-        setNotice('Payment confirmed. Pool is active.')
-        await loadOverview(selectedWeek)
-        router.replace(`/pools/${pool.id}/admin`)
-      } catch (e: unknown) {
-        setError(getErrorMessage(e, 'Payment confirmation failed.'))
-      } finally {
-        setConfirmingCheckout(false)
-      }
-    }
-
-    confirmCheckout()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pool, isOwner, searchParams, confirmingCheckout, router])
 
   useEffect(() => {
     if (!loading && !error && pool && !isOwner) {
@@ -659,42 +608,6 @@ export default function PoolAdminPage() {
     }
   }
 
-  const startActivationCheckout = async () => {
-    if (!pool) return
-    setActivating(true)
-    setError(null)
-    setNotice(null)
-
-    try {
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession()
-
-      if (sessionError) throw sessionError
-      if (!session?.access_token) throw new Error('Please sign in again before activating this pool.')
-
-      const response = await fetch('/api/stripe/create-checkout-session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ poolId: pool.id }),
-      })
-
-      const payload = (await response.json()) as { url?: string; error?: string }
-      if (!response.ok || !payload.url) {
-        throw new Error(payload.error || 'Failed to start checkout.')
-      }
-
-      window.location.href = payload.url
-    } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Failed to start checkout.'))
-      setActivating(false)
-    }
-  }
-
   const finalizeLocked = () => {
     const confirmed = window.confirm('Finalize only picks whose deadlines have passed? Future picks will stay editable.')
     if (!confirmed) return
@@ -791,9 +704,9 @@ export default function PoolAdminPage() {
             <h1 className="text-2xl font-bold">Admin Panel</h1>
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-sm text-gray-600">{pool ? `${pool.name} - ${pool.season ?? 'Season not set'} - League admin` : 'League controls'}</p>
-              {isPoolActive && (
+              {isPoolJoinable && (
                 <span className="rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
-                  Active Pool
+                  Free League
                 </span>
               )}
             </div>
@@ -847,9 +760,9 @@ export default function PoolAdminPage() {
 
             <section className="grid gap-3 md:grid-cols-4">
               <div className="rounded-lg border bg-white p-4">
-                <div className="text-xs uppercase text-gray-500">Activation</div>
-                <div className={`text-sm font-semibold ${isPoolActive ? 'text-emerald-700' : 'text-amber-700'}`}>
-                  {isPoolActive ? 'Active and joinable' : 'Draft, payment required'}
+                <div className="text-xs uppercase text-gray-500">Access</div>
+                <div className={`text-sm font-semibold ${isPoolJoinable ? 'text-emerald-700' : 'text-amber-700'}`}>
+                  {isPoolJoinable ? 'Free and joinable' : 'Not accepting members'}
                 </div>
               </div>
               <div className="rounded-lg border bg-white p-4">
@@ -867,27 +780,6 @@ export default function PoolAdminPage() {
                 <div className="text-sm font-semibold">{doubleWeekCount ? `${doubleWeekCount} selected` : 'None'}</div>
               </div>
             </section>
-
-            {!isPoolActive && (
-              <section className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h2 className="font-semibold text-blue-950">Pool Activation</h2>
-                    <p className="text-sm text-blue-800">Players cannot join until the creator completes the $50 activation payment.</p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-full border border-blue-300 bg-white px-3 py-1 text-sm font-medium text-blue-800">Draft</span>
-                    <button
-                      onClick={startActivationCheckout}
-                      disabled={activating || confirmingCheckout}
-                      className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      {confirmingCheckout ? 'Confirming payment...' : activating ? 'Opening Stripe...' : 'Activate for $50'}
-                    </button>
-                  </div>
-                </div>
-              </section>
-            )}
 
             <section className="rounded-lg border bg-white p-4">
               <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -1092,8 +984,8 @@ export default function PoolAdminPage() {
                 </button>
                 <button
                   onClick={toggleArchive}
-                  disabled={archiving || settingsLocked || isPaidPool}
-                  title={isPaidPool ? 'Paid or active leagues cannot be archived.' : settingsLocked ? 'League settings are locked after the league starts.' : undefined}
+                  disabled={archiving || settingsLocked}
+                  title={settingsLocked ? 'League settings are locked after the league starts.' : undefined}
                   className="rounded-md bg-amber-600 px-3 py-2 text-sm text-white hover:bg-amber-700 disabled:opacity-50"
                 >
                   {archiving ? 'Updating...' : pool.archived ? 'Unarchive league' : 'Archive league'}

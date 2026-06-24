@@ -434,7 +434,7 @@ export default function SuperAdminPage() {
                 </div>
 
                 <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <Info label="Status" value={`${selectedPool.activation_status} / ${selectedPool.payment_status}`} />
+                  <Info label="Status" value={selectedPool.activation_status === 'cancelled' ? 'Closed' : 'Open'} />
                   <Info label="Visibility" value={selectedPool.is_public ? 'Public' : 'Private'} />
                   <Info label="Entries" value={`${selectedPool.entries_count}/${selectedPool.max_members || '-'}`} />
                   <Info label="Multi Entry" value={selectedPool.allow_multiple_entries ? `Up to ${selectedPool.max_entries_per_user}` : 'Single entry'} />

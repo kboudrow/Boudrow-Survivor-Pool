@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
   title: 'Contact | Survive Sunday',
-  description: 'Contact Survive Sunday for support, account questions, pool setup help, payments, privacy, and advertising questions.',
+  description: 'Contact Survive Sunday for support, account questions, pool setup help, privacy, and advertising questions.',
   alternates: {
     canonical: '/contact',
   },
@@ -17,7 +17,7 @@ export default function ContactPage() {
           <p className="text-sm font-bold uppercase tracking-wide text-[#d2ad5b]">Contact</p>
           <h1 className="mt-2 text-3xl font-extrabold tracking-normal sm:text-4xl">Need help with Survive Sunday?</h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-200 sm:text-base">
-            Send questions about pool setup, accounts, payments, privacy, or site feedback. We are building this to make survivor pools easier to run, so real-world notes are welcome.
+            Send questions about pool setup, accounts, privacy, or site feedback. We are building this to make survivor pools easier to run, so real-world notes are welcome.
           </p>
         </div>
 
@@ -34,7 +34,7 @@ export default function ContactPage() {
             <div className="mt-8 grid gap-3 sm:grid-cols-2">
               <Info title="Pool help" text="Questions about creating pools, invites, deadlines, picks, or admin tools." />
               <Info title="Account help" text="Sign-in, profile, privacy, or data questions." />
-              <Info title="Payment help" text="Pool activation, Stripe checkout, duplicate payments, or billing issues." />
+              <Info title="League help" text="Settings, member counts, private leagues, or anything that looks off inside a pool." />
               <Info title="Site feedback" text="Bug reports, confusing screens, or ideas that would make the app easier." />
             </div>
           </div>
@@ -44,7 +44,7 @@ export default function ContactPage() {
             <ul className="mt-3 space-y-3 text-sm leading-6 text-slate-600">
               <li>Include the pool name if the question is about a specific league.</li>
               <li>Use the email address tied to your account when possible.</li>
-              <li>Do not send passwords, payment card numbers, or private access codes.</li>
+              <li>Do not send passwords or private access codes.</li>
             </ul>
             <div className="mt-6 rounded-lg border border-[#d2ad5b]/40 bg-white p-4 text-sm text-slate-700">
               Survive Sunday is a pool-management tool, not a sportsbook or payout service.

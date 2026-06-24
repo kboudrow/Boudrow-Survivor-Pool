@@ -2,7 +2,7 @@ import Link from 'next/link'
 
 export const metadata = {
   title: 'Cookie Policy | Survive Sunday',
-  description: 'Cookie Policy for Survive Sunday authentication, payments, analytics, and advertising.',
+  description: 'Cookie Policy for Survive Sunday authentication, analytics, and advertising.',
 }
 
 const lastUpdated = 'Last updated: June 6, 2026'
@@ -46,13 +46,12 @@ export default function CookiesPage() {
           <li><span className="font-medium">Preference cookies:</span> used to remember choices such as UI settings or account preferences if enabled.</li>
           <li><span className="font-medium">Analytics cookies:</span> used to understand page views, feature usage, and performance if analytics tools are enabled.</li>
           <li><span className="font-medium">Advertising cookies:</span> used by ad networks such as Google AdSense or similar providers if ads are enabled.</li>
-          <li><span className="font-medium">Payment and fraud-prevention technologies:</span> used by payment providers such as Stripe during checkout.</li>
         </ul>
 
         <SectionTitle id="third-parties">3. Third-party cookies</SectionTitle>
         <p className="mt-3 leading-7 text-slate-700">
           Third-party providers may set or read cookies and similar technologies when you use features they support, such as Google
-          sign-in, ads, payment checkout, hosting, analytics, security, or fraud prevention. Their use of these technologies is
+          sign-in, ads, hosting, analytics, security, or fraud prevention. Their use of these technologies is
           governed by their own policies.
         </p>
 
@@ -65,7 +64,7 @@ export default function CookiesPage() {
 
         <SectionTitle id="choices">5. Your choices</SectionTitle>
         <p className="mt-3 leading-7 text-slate-700">
-          You can control cookies through your browser settings. Blocking necessary cookies may prevent sign-in, checkout, picks, or
+          You can control cookies through your browser settings. Blocking necessary cookies may prevent sign-in, picks, or
           other core features from working. If advertising or analytics tools are enabled, you may also have choices through those
           providers&apos; privacy settings and consent tools.
         </p>

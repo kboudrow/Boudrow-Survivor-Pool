@@ -72,6 +72,7 @@ type DraftPickRow = { entry_id: string; week: number; slot: number; team_abbr: s
 type FinalPickRow = { entry_id: string; week: number; slot: number; team_abbr: string; locked_at: string; result: 'win' | 'loss' | 'push' | null }
 type PickNotice = { team: Team; week: number; slot: number; action: 'saved' | 'cleared' }
 type PoolPickStatus = { week: number; made: number; needed: number; entries: number }
+type PoolMemberSummary = { total: number; alive: number }
 
 type MemberStats = {
   pool_id: string
@@ -546,6 +547,7 @@ function MyPoolsContent() {
   const [error, setError] = useState<string | null>(null)
   const [pools, setPools] = useState<Pool[]>([])
   const [poolPickStatuses, setPoolPickStatuses] = useState<Record<string, PoolPickStatus>>({})
+  const [poolMemberSummaries, setPoolMemberSummaries] = useState<Record<string, PoolMemberSummary>>({})
   const [userId, setUserId] = useState<string | null>(null)
 
   // modal + selection
@@ -608,7 +610,7 @@ function MyPoolsContent() {
   const poolStartMs = poolStartAt ? Date.parse(poolStartAt) : null
   const poolStartKnown = poolStartMs !== null && Number.isFinite(poolStartMs)
   const leagueHasStarted = poolStartKnown && Date.now() >= poolStartMs
-  const canInvite = !!pool && pool.activation_status === 'active' && poolStartKnown && !leagueHasStarted
+  const canInvite = !!pool && pool.activation_status !== 'cancelled' && poolStartKnown && !leagueHasStarted
   const myStats = selectedEntryId ? statsByUser[selectedEntryId] : undefined
   const isEliminated = leagueHasStarted && !!myStats?.eliminated
   const uniqueMemberCount = useMemo(() => new Set(members.map((member) => member.profile_id || member.id)).size || memberCount, [members, memberCount])
@@ -762,11 +764,6 @@ function MyPoolsContent() {
   }
   const [standingsLoading, setStandingsLoading] = useState(false)
 
-  // monetization flags
-  const isDraftPool = pool?.activation_status !== 'active'
-  const requiresUpgrade = false
-  const planIsFree = false
-
   /** ---------- Load user + pools ---------- */
   useEffect(() => {
     let alive = true
@@ -775,6 +772,7 @@ function MyPoolsContent() {
       setUserId(null)
       setPools([])
       setPoolPickStatuses({})
+      setPoolMemberSummaries({})
       setPool(null)
       setMembers([])
       setMembersLoadedFor(null)
@@ -838,8 +836,9 @@ function MyPoolsContent() {
         for (const p of memberPools) map.set(p.id, p)
 
         const nextPools = Array.from(map.values())
+        const poolIds = nextPools.map((pool) => pool.id)
         const seasons = Array.from(new Set(nextPools.map((pool) => pool.season ?? new Date().getFullYear())))
-        const [{ data: seasonRows }, { data: draftRows }, { data: finalRows }] = await Promise.all([
+        const [{ data: seasonRows }, { data: draftRows }, { data: finalRows }, { data: allMemberRows }, { data: allStatsRows }] = await Promise.all([
           seasons.length
             ? supabase.from('season_weeks').select('season, week, week_sunday_date').in('season', seasons)
             : Promise.resolve({ data: [] }),
@@ -848,6 +847,12 @@ function MyPoolsContent() {
             : Promise.resolve({ data: [] }),
           memberships?.length
             ? supabase.from('pool_picks').select('pool_id,entry_id,week,slot').in('entry_id', memberships.map((m) => m.id))
+            : Promise.resolve({ data: [] }),
+          poolIds.length
+            ? supabase.from('pool_members').select('pool_id,profile_id,status').in('pool_id', poolIds)
+            : Promise.resolve({ data: [] }),
+          poolIds.length
+            ? supabase.from('pool_member_stats').select('pool_id,user_id,entry_id,eliminated').in('pool_id', poolIds)
             : Promise.resolve({ data: [] }),
         ])
 
@@ -868,6 +873,30 @@ function MyPoolsContent() {
           pickedSlots.add(`${pick.pool_id}:${pick.entry_id}:${pick.week}:${pick.slot}`)
         }
         const statuses: Record<string, PoolPickStatus> = {}
+        const summaries: Record<string, PoolMemberSummary> = {}
+        const membersByPool = new Map<string, Set<string>>()
+        for (const member of (allMemberRows || []) as Array<{ pool_id: string; profile_id: string; status?: string | null }>) {
+          const members = membersByPool.get(member.pool_id) || new Set<string>()
+          members.add(member.profile_id)
+          membersByPool.set(member.pool_id, members)
+        }
+        const statsByPoolProfile = new Map<string, { anyStats: boolean; anyAlive: boolean }>()
+        for (const stat of (allStatsRows || []) as Array<{ pool_id: string; user_id: string; eliminated: boolean | null }>) {
+          const key = `${stat.pool_id}:${stat.user_id}`
+          const current = statsByPoolProfile.get(key) || { anyStats: false, anyAlive: false }
+          current.anyStats = true
+          if (!stat.eliminated) current.anyAlive = true
+          statsByPoolProfile.set(key, current)
+        }
+        for (const pool of nextPools) {
+          const members = membersByPool.get(pool.id) || new Set<string>()
+          let aliveMembers = 0
+          members.forEach((profileId) => {
+            const stat = statsByPoolProfile.get(`${pool.id}:${profileId}`)
+            if (!stat || stat.anyAlive) aliveMembers += 1
+          })
+          summaries[pool.id] = { total: members.size, alive: aliveMembers }
+        }
         for (const pool of nextPools) {
           const season = pool.season ?? new Date().getFullYear()
           const targetWeek = Math.max(pool.start_week, currentPickWeek(weeksBySeason.get(season) || []))
@@ -886,6 +915,7 @@ function MyPoolsContent() {
         if (!alive) return
         setPools(nextPools)
         setPoolPickStatuses(statuses)
+        setPoolMemberSummaries(summaries)
       } catch (e: unknown) {
         if (!alive) return
         setError(getErrorMessage(e, 'Failed to load pools.'))
@@ -1593,7 +1623,14 @@ function MyPoolsContent() {
       {!loading && !error && pools.length > 0 && (
         <>
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {pools.map((p) => (
+            {pools.map((p) => {
+              const memberSummary = poolMemberSummaries[p.id]
+              const memberAliveLabel =
+                memberSummary && memberSummary.total > 0
+                  ? `${memberSummary.alive}/${memberSummary.total} alive`
+                  : 'Loading'
+
+              return (
               <li key={p.id} className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
                 <div className="h-28 bg-slate-100">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1609,7 +1646,7 @@ function MyPoolsContent() {
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                     <InfoTile label="Starts" value={`Week ${p.start_week}`} />
                     <InfoTile label="Strikes" value={String(p.strikes_allowed)} />
-                    <InfoTile label="Tie" value={p.tie_rule === 'win' ? 'Win' : 'Loss'} />
+                    <InfoTile label="Members" value={memberAliveLabel} />
                     <InfoTile label="Your Entries" value={String(poolPickStatuses[p.id]?.entries ?? 0)} />
                   </div>
                   {poolPickStatuses[p.id] && (
@@ -1635,7 +1672,8 @@ function MyPoolsContent() {
                 </div>
                 </div>
               </li>
-            ))}
+              )
+            })}
           </ul>
           <AdSlot
             slot={process.env.NEXT_PUBLIC_AD_SLOT_SITE_INLINE}
@@ -1689,7 +1727,7 @@ function MyPoolsContent() {
               <div className="flex items-center gap-2 border-b">
                 <Tab label="Make Picks" active={activeTab === 'picks'} onClick={() => setActiveTab('picks')} />
                 <Tab label="Standings" active={activeTab === 'standings'} onClick={() => setActiveTab('standings')} />
-                <Tab label={`Pool Members (${memberCount})`} active={activeTab === 'members'} onClick={() => setActiveTab('members')} />
+                <Tab label={`Pool Members (${uniqueMemberCount})`} active={activeTab === 'members'} onClick={() => setActiveTab('members')} />
               </div>
             </div>
 
@@ -1703,24 +1741,6 @@ function MyPoolsContent() {
               {/* ----------- Make Picks ----------- */}
               {!detailsLoading && pool && activeTab === 'picks' && (
                 <>
-                  {requiresUpgrade && (
-                    <div className="mb-4 p-3 border rounded-md bg-yellow-50 text-sm">
-                      This pool has <b>{memberCount}</b> members. Upgrade to <b>Pro</b> to remove ads and unlock premium features.
-                      <button className="ml-3 px-3 py-1 rounded-md bg-yellow-600 text-white hover:bg-yellow-700">Upgrade to Pro</button>
-                    </div>
-                  )}
-                  {planIsFree && (
-                    <div className="mb-4 p-4 border rounded-md text-center text-sm text-gray-600">
-                      <em>Ad - your message here</em>
-                    </div>
-                  )}
-
-                  {isDraftPool && (
-                    <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                      This pool is still a draft. Only the creator can activate it from the admin panel before members can join.
-                    </div>
-                  )}
-
                   {isEliminated && (
                     <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                       You are eliminated in this pool. You can still view matchups and standings, but you cannot make more picks.
@@ -1982,7 +2002,7 @@ function MyPoolsContent() {
                       <summary className="cursor-pointer text-sm font-semibold text-slate-900">Pool rules and settings</summary>
                       <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         <InfoTile label="Visibility" value={pool.is_public ? 'Public' : 'Private'} />
-                        <InfoTile label="Status" value={pool.activation_status === 'active' ? 'Active' : 'Draft'} />
+                        <InfoTile label="Status" value={pool.activation_status === 'cancelled' ? 'Closed' : 'Open'} />
                         <InfoTile label="Member Limit" value={pool.max_members ? `${memberCount}/${pool.max_members}` : String(memberCount)} />
                         <InfoTile label="Entries" value={pool.allow_multiple_entries ? `Up to ${pool.max_entries_per_user ?? 1} per user` : 'Single entry'} />
                         <InfoTile label="Start Week" value={`Week ${pool.start_week}`} />

@@ -48,7 +48,7 @@ export default function JoinPoolPage() {
   const [joining, setJoining] = useState(false)
   const [password, setPassword] = useState('')
 
-  const isActive = pool?.activation_status === 'active'
+  const isJoinable = pool?.activation_status !== 'cancelled'
   const isFull = !!(pool?.max_members && memberCount >= pool.max_members)
   const authReturnTo = `/join/${poolId}`
   const signInHref = `/?auth=signin&returnTo=${encodeURIComponent(authReturnTo)}`
@@ -195,10 +195,10 @@ export default function JoinPoolPage() {
             <div className="grid sm:grid-cols-3 gap-3 mb-6">
               <Info label="Members" value={pool.max_members ? `${memberCount}/${pool.max_members}` : String(memberCount)} />
               <Info label="Visibility" value={pool.is_public ? 'Public' : 'Private'} />
-              <Info label="Status" value={isActive ? 'Active' : 'Draft'} />
+              <Info label="Status" value={isJoinable ? 'Open' : 'Closed'} />
             </div>
 
-            {!isActive && !isOwner && !alreadyMember && (
+            {!isJoinable && !isOwner && !alreadyMember && (
               <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                 This league is not accepting members yet.
               </div>
@@ -253,7 +253,7 @@ export default function JoinPoolPage() {
                 )}
                 <button
                   onClick={joinPool}
-                  disabled={joining || (!isActive && !isOwner) || (isFull && !isOwner) || (!pool.is_public && !password.trim())}
+                  disabled={joining || (!isJoinable && !isOwner) || (isFull && !isOwner) || (!pool.is_public && !password.trim())}
                   className="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
                 >
                   {joining ? 'Joining...' : 'Join League'}

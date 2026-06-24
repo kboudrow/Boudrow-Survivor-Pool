@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -77,6 +77,81 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      blog_permissions: {
+        Row: {
+          created_at: string
+          profile_id: string
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          profile_id: string
+          role: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          profile_id?: string
+          role?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      blog_posts: {
+        Row: {
+          author_id: string | null
+          author_name: string
+          category: string
+          created_at: string
+          description: string
+          hero_image_url: string | null
+          id: string
+          pinned: boolean
+          published_at: string | null
+          read_time: string
+          sections: Json
+          slug: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          author_id?: string | null
+          author_name?: string
+          category: string
+          created_at?: string
+          description: string
+          hero_image_url?: string | null
+          id?: string
+          pinned?: boolean
+          published_at?: string | null
+          read_time?: string
+          sections?: Json
+          slug: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string | null
+          author_name?: string
+          category?: string
+          created_at?: string
+          description?: string
+          hero_image_url?: string | null
+          id?: string
+          pinned?: boolean
+          published_at?: string | null
+          read_time?: string
+          sections?: Json
+          slug?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       emails_log: {
         Row: {
@@ -822,6 +897,7 @@ export type Database = {
           deadline_mode: string | null
           double_pick_weeks: number[]
           id: string
+          image_url: string | null
           include_playoffs: boolean
           is_public: boolean
           join_password_hash: string | null
@@ -864,6 +940,7 @@ export type Database = {
           deadline_mode?: string | null
           double_pick_weeks?: number[]
           id?: string
+          image_url?: string | null
           include_playoffs?: boolean
           is_public?: boolean
           join_password_hash?: string | null
@@ -906,6 +983,7 @@ export type Database = {
           deadline_mode?: string | null
           double_pick_weeks?: number[]
           id?: string
+          image_url?: string | null
           include_playoffs?: boolean
           is_public?: boolean
           join_password_hash?: string | null
@@ -1288,6 +1366,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      admin_update_pool_image: {
+        Args: { p_image_url: string; p_pool_id: string }
+        Returns: undefined
+      }
       admin_update_pool_member_limit: {
         Args: { p_max_members: number; p_pool_id: string }
         Returns: undefined
@@ -1320,6 +1402,17 @@ export type Database = {
       }
       auto_archive_completed_pools: { Args: never; Returns: number }
       backfill_eliminated_week: { Args: never; Returns: number }
+      blog_permission_overview: {
+        Args: never
+        Returns: {
+          created_at: string
+          display_name: string
+          email: string
+          profile_id: string
+          role: string
+        }[]
+      }
+      can_manage_blog: { Args: never; Returns: boolean }
       clear_entry_draft_pick: {
         Args: {
           p_entry_id: string
@@ -1334,6 +1427,7 @@ export type Database = {
         Returns: string
       }
       count_pool_members: { Args: { p_pool_id: string }; Returns: number }
+      current_blog_role: { Args: never; Returns: string }
       finalize_locked_picks: {
         Args: { p_pool_id: string; p_week: number }
         Returns: number
@@ -1406,6 +1500,11 @@ export type Database = {
           tie_rule: string
         }[]
       }
+      grant_blog_permission: {
+        Args: { p_email: string; p_role: string }
+        Returns: string
+      }
+      is_blog_superadmin: { Args: never; Returns: boolean }
       is_pool_member: { Args: { p: string }; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
       join_pool: {
@@ -1487,6 +1586,7 @@ export type Database = {
       search_pools: {
         Args: { p_term: string }
         Returns: {
+          activation_status: string
           allow_discovery: boolean
           created_at: string
           created_by: string
@@ -1495,6 +1595,8 @@ export type Database = {
           id: string
           include_playoffs: boolean
           is_public: boolean
+          max_members: number
+          member_count: number
           name: string
           notes: string
           start_week: number
@@ -1556,6 +1658,22 @@ export type Database = {
       superadmin_repair_pool_future_results: {
         Args: { p_pool_id: string }
         Returns: string
+      }
+      superadmin_schedule_integrity_audit: {
+        Args: { p_season?: number }
+        Returns: {
+          duplicate_event_count: number
+          duplicate_team_count: number
+          final_missing_winner_count: number
+          future_pick_result_count: number
+          future_result_count: number
+          game_count: number
+          invalid_winner_count: number
+          issue_count: number
+          season: number
+          team_appearance_count: number
+          week: number
+        }[]
       }
       update_my_profile: {
         Args: {
