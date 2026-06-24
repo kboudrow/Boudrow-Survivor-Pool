@@ -82,7 +82,11 @@ function isMissingFavoriteTeamColumn(error: unknown) {
 
 function isDuplicateUsernameError(error: unknown) {
   const message = getErrorMessage(error, '').toLowerCase()
-  return message.includes('profiles_username_lower_unique') || message.includes('duplicate key') || message.includes('unique constraint')
+  return message.includes('profiles_username_lower_unique') || message.includes('profiles_username_normalized_unique') || message.includes('duplicate key') || message.includes('unique constraint')
+}
+
+function normalizeUsername(value: string) {
+  return value.trim().replace(/\s+/g, ' ')
 }
 
 function computeBestFinish(rows: HistoryRow[]) {
@@ -292,11 +296,11 @@ export default function ProfilePage() {
     setUsernameMsg(null)
     setErr(null)
     try {
-      const cleaned = username.trim()
+      const cleaned = normalizeUsername(username)
       if (!cleaned) throw new Error('Username cannot be empty.')
       if (cleaned.length < 3) throw new Error('Username must be at least 3 characters.')
       if (cleaned.length > 30) throw new Error('Username must be 30 characters or fewer.')
-      if (!/^[A-Za-z0-9_.-]+$/.test(cleaned)) throw new Error('Username can only use letters, numbers, periods, underscores, and hyphens.')
+      if (!/^[A-Za-z0-9_. -]+$/.test(cleaned)) throw new Error('Username can only use letters, numbers, spaces, periods, underscores, and hyphens.')
 
       let { error } = await supabase
         .from('profiles')
@@ -560,7 +564,7 @@ export default function ProfilePage() {
                     className="w-full border rounded-md px-3 py-2"
                     placeholder="e.g. SundayCrew"
                   />
-                  <p className="mt-1 text-xs text-slate-500">Unique. Letters, numbers, periods, underscores, and hyphens only.</p>
+                  <p className="mt-1 text-xs text-slate-500">Unique. Spaces, letters, numbers, periods, underscores, and hyphens only.</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">First name</label>

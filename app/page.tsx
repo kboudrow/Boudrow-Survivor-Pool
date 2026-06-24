@@ -29,6 +29,7 @@ export default function Home() {
   const [authError, setAuthError] = useState<string | null>(null)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [username, setUsername] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [password2, setPassword2] = useState('')
@@ -49,6 +50,31 @@ export default function Home() {
     match: !!password && !!password2 && password === password2,
   }
   const allPwOk = pw.len && pw.upper && pw.lower && pw.num && pw.special && pw.match
+
+  const normalizeUsername = (value: string) => value.trim().replace(/\s+/g, ' ')
+  const isDuplicateUsernameError = (error: unknown) => {
+    const message = error && typeof error === 'object' && 'message' in error ? String((error as { message?: unknown }).message || '') : String(error || '')
+    return message.toLowerCase().includes('username') || message.toLowerCase().includes('duplicate key') || message.toLowerCase().includes('unique constraint')
+  }
+  const authMessage = (error: unknown, fallback: string) =>
+    error && typeof error === 'object' && 'message' in error ? String((error as { message?: unknown }).message || fallback) : fallback
+
+  const saveSignupProfile = async (userId: string, cleanUsername: string) => {
+    const supabase = await getSupabase()
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        username: cleanUsername,
+        display_name: cleanUsername,
+        first_name: firstName.trim() || null,
+        last_name: lastName.trim() || null,
+      })
+      .eq('id', userId)
+    if (error) {
+      if (isDuplicateUsernameError(error)) throw new Error('That username is already taken. Try another one.')
+      throw error
+    }
+  }
 
   const runEnsureProfileOnce = async (userId: string | null) => {
     if (!userId) {
@@ -137,16 +163,25 @@ export default function Home() {
   const signUpWithEmail = async () => {
     setAuthError(null)
     if (!firstName || !lastName) return setAuthError('Please enter your first and last name.')
+    const cleanUsername = normalizeUsername(username)
+    if (!cleanUsername) return setAuthError('Please choose a username.')
+    if (cleanUsername.length < 3) return setAuthError('Username must be at least 3 characters.')
+    if (cleanUsername.length > 30) return setAuthError('Username must be 30 characters or fewer.')
+    if (!/^[A-Za-z0-9_. -]+$/.test(cleanUsername)) return setAuthError('Username can only use letters, numbers, spaces, periods, underscores, and hyphens.')
     if (!email) return setAuthError('Please enter your email.')
     if (!password) return setAuthError('Please enter a password.')
     if (!password2) return setAuthError('Please re-enter your password.')
     if (!allPwOk) return setAuthError('Please meet all password requirements.')
 
     const supabase = await getSupabase()
+    const { data: available, error: availabilityErr } = await supabase.rpc('username_available', { p_username: cleanUsername })
+    if (availabilityErr) return setAuthError(availabilityErr.message)
+    if (!available) return setAuthError('That username is already taken. Try another one.')
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { first_name: firstName, last_name: lastName } },
+      options: { data: { first_name: firstName, last_name: lastName, username: cleanUsername } },
     })
     if (error) return setAuthError(error.message)
 
@@ -155,11 +190,21 @@ export default function Home() {
       const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email, password })
       if (signInErr) return setAuthError(signInErr.message)
       if (signInData.user) {
-        await runEnsureProfileOnce(signInData.user.id)
+        try {
+          await runEnsureProfileOnce(signInData.user.id)
+          await saveSignupProfile(signInData.user.id, cleanUsername)
+        } catch (e: unknown) {
+          return setAuthError(authMessage(e, 'Account created, but we could not save that username.'))
+        }
         router.push(returnToRef.current || '/pools')
       }
     } else {
-      await runEnsureProfileOnce(data.session.user.id)
+      try {
+        await runEnsureProfileOnce(data.session.user.id)
+        await saveSignupProfile(data.session.user.id, cleanUsername)
+      } catch (e: unknown) {
+        return setAuthError(authMessage(e, 'Account created, but we could not save that username.'))
+      }
       router.push(returnToRef.current || '/pools')
     }
   }
@@ -412,6 +457,17 @@ export default function Home() {
                       />
                     </label>
                   </div>
+
+                  <label className="text-sm block mt-2">
+                    Username
+                    <input
+                      className="mt-1 w-full border rounded px-3 py-2"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="e.g. Sunday Crew"
+                    />
+                    <span className="mt-1 block text-xs text-gray-500">This is what other users will see. Spaces are allowed.</span>
+                  </label>
 
                   <label className="text-sm block mt-2">
                     Email

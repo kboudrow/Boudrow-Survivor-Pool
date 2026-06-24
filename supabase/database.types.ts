@@ -1641,6 +1641,7 @@ export type Database = {
           profile_id: string
         }[]
       }
+      normalize_username: { Args: { p_username: string }; Returns: string }
       picks_allowed: {
         Args: { p_pool_id: string; p_week: number }
         Returns: number
@@ -1807,6 +1808,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      username_available: { Args: { p_username: string }; Returns: boolean }
     }
     Enums: {
       member_role: "member" | "admin"
