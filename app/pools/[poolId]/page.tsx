@@ -28,6 +28,16 @@ type Pool = {
   member_count?: number | null
 }
 
+type RosterExportRow = {
+  id: string
+  display_name: string | null
+  username: string | null
+  entry_number: number | null
+  role: string | null
+  status: string | null
+  joined_at: string | null
+}
+
 function isMissingAuthSession(error: unknown) {
   if (!error || typeof error !== 'object') return false
   const err = error as { name?: string; message?: string }
@@ -177,13 +187,19 @@ export default function PoolDetailPage() {
 
   const onExportCsv = async () => {
     if (!pool) return
-    const { data, error } = await supabase
-      .from('pool_members')
-      .select('profile_id')
-      .eq('pool_id', pool.id)
+    const { data, error } = await supabase.rpc('pool_entry_roster', { p_pool_id: pool.id })
 
     if (error) return alert(`Export failed: ${error.message}`)
-    const rows = [['profile_id'], ...(data || []).map(r => [r.profile_id])]
+    const rows = [
+      ['Username', 'Entry', 'Role', 'Status', 'Joined'],
+      ...((data || []) as RosterExportRow[]).map((member) => [
+        member.display_name || member.username || 'Player',
+        member.entry_number || 1,
+        member.role || 'member',
+        member.status || 'active',
+        member.joined_at ? new Date(member.joined_at).toLocaleDateString('en-US') : '',
+      ]),
+    ]
     const csv = rows.map(r => r.map(x => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)

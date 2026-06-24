@@ -134,6 +134,38 @@ export type Database = {
           },
         ]
       }
+      blog_comment_reports: {
+        Row: {
+          comment_id: string
+          created_at: string
+          id: string
+          profile_id: string
+          reason: string | null
+        }
+        Insert: {
+          comment_id: string
+          created_at?: string
+          id?: string
+          profile_id: string
+          reason?: string | null
+        }
+        Update: {
+          comment_id?: string
+          created_at?: string
+          id?: string
+          profile_id?: string
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blog_comment_reports_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "blog_comments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       blog_comments: {
         Row: {
           body: string
@@ -1499,6 +1531,23 @@ export type Database = {
       }
       auto_archive_completed_pools: { Args: never; Returns: number }
       backfill_eliminated_week: { Args: never; Returns: number }
+      blog_comment_moderation_queue: {
+        Args: never
+        Returns: {
+          author_name: string
+          avatar_url: string
+          body: string
+          created_at: string
+          down_count: number
+          id: string
+          latest_report_at: string
+          parent_comment_id: string
+          post_slug: string
+          profile_id: string
+          report_count: number
+          up_count: number
+        }[]
+      }
       blog_comments_for_post: {
         Args: { p_post_slug: string }
         Returns: {
@@ -1516,6 +1565,7 @@ export type Database = {
           viewer_reaction: string
         }[]
       }
+      blog_delete_comment: { Args: { p_comment_id: string }; Returns: string }
       blog_engagement_for_posts: {
         Args: { p_post_slugs: string[] }
         Returns: {

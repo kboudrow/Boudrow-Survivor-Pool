@@ -54,6 +54,7 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
   const [submitting, setSubmitting] = useState(false)
   const [submittingReply, setSubmittingReply] = useState(false)
   const [reactingId, setReactingId] = useState<string | null>(null)
+  const [reportingId, setReportingId] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -210,6 +211,24 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
     }
   }
 
+  const reportComment = async (comment: BlogComment) => {
+    if (!userId || reportingId) return
+    const confirmed = window.confirm('Report this comment for review?')
+    if (!confirmed) return
+    setReportingId(comment.id)
+    setError(null)
+    try {
+      const { error: reportErr } = await supabase
+        .from('blog_comment_reports')
+        .insert({ comment_id: comment.id, profile_id: userId, reason: 'reader_report' })
+      if (reportErr && reportErr.code !== '23505') throw reportErr
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to report comment.'))
+    } finally {
+      setReportingId(null)
+    }
+  }
+
   const shareSection = (
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -345,6 +364,14 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
                       >
                         Reply
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => reportComment(comment)}
+                        disabled={!userId || reportingId === comment.id}
+                        className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-semibold text-slate-500 transition hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        {reportingId === comment.id ? 'Reporting...' : 'Report'}
+                      </button>
                     </div>
                     {replyingTo === comment.id && (
                       <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -421,6 +448,14 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
                                     }`}
                                   >
                                     👎 {reply.down_count}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => reportComment(reply)}
+                                    disabled={!userId || reportingId === reply.id}
+                                    className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-500 transition hover:bg-slate-50 disabled:opacity-50"
+                                  >
+                                    {reportingId === reply.id ? 'Reporting...' : 'Report'}
                                   </button>
                                 </div>
                               </div>

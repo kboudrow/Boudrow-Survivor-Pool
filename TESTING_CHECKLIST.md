@@ -1,13 +1,19 @@
-# NFL Survivor Pool Testing Checklist
+# Survive Sunday Beta Testing Checklist
 
 Use this as a side-by-side checklist while testing. You do not need to test everything in one sitting.
 
 Recommended setup:
 - Use one admin/creator account.
 - Use one standard player account.
-- Create one fresh test pool.
-- Use Stripe sandbox/test mode only.
+- Create one fresh test league.
 - Keep notes under any item that fails, feels confusing, or looks ugly.
+
+Fast beta pass:
+- Create a league, invite one friend, confirm the member and entry counts match everywhere.
+- Make picks for every entry you own, then change one before it locks.
+- Open standings and confirm usernames, picks, results, and alive counts feel right.
+- Read a blog while signed out, then sign in and leave a comment/reply/reaction.
+- On mobile, check homepage, blog, join/search, pool page, and profile.
 
 ## 1. Sign In And Navigation
 
@@ -26,7 +32,10 @@ Recommended setup:
 - [ ] Email/password sign-in or account creation works if tested.
   - Notes:
 
-- [ ] Logged-out Create Pool / Join Pool paths send user to sign in or clearly explain sign-in is required.
+- [ ] New account creation asks for a username and prevents duplicate usernames.
+  - Notes:
+
+- [ ] Logged-out Create League / Join League paths send user to sign in or clearly explain sign-in is required.
   - Notes:
 
 - [ ] Top navigation buttons work after signing in.
@@ -38,54 +47,51 @@ Recommended setup:
 - [ ] Sign out works from the top bar.
   - Notes:
 
-## 2. Create Pool And Stripe Activation
+## 2. Create League
 
-- [ ] Admin can open Create Pool while signed in.
+- [ ] Admin can open Create League while signed in.
   - Notes:
 
-- [ ] New pool defaults Tie Counts As to Loss.
+- [ ] New league defaults Tie Counts As to Loss.
   - Notes:
 
-- [ ] Admin can create a new pool with a clear name.
-  - Test pool name:
+- [ ] Admin can create a new league with a clear name.
+  - Test league name:
   - Notes:
 
-- [ ] After creation, admin lands on the admin/pool area.
+- [ ] After creation, admin lands on the admin/league area.
   - Notes:
 
-- [ ] New pool shows draft/payment-required activation state before payment.
+- [ ] New league is active and joinable without payment.
   - Notes:
 
-- [ ] Activate for $50 opens Stripe checkout.
+- [ ] League image upload works, or a fallback image appears if none is uploaded.
   - Notes:
 
-- [ ] Stripe test payment succeeds with the test card.
+- [ ] Private league password field appears directly under the visibility setting.
   - Notes:
 
-- [ ] After payment, admin returns to the admin panel.
-  - Notes:
-
-- [ ] Activation bar disappears after successful payment.
-  - Notes:
-
-- [ ] Pool shows as active/paid and joinable.
+- [ ] Multiple-entry setting works, including the max entries dropdown.
   - Notes:
 
 ## 3. Join/Search Flow
 
-- [ ] Standard player can open Join Pool while signed in.
+- [ ] Standard player can open Join League while signed in.
   - Notes:
 
-- [ ] Search finds the test pool by name.
+- [ ] Search finds the test league by name.
   - Notes:
 
-- [ ] Search results show useful labels: public/private, joined, your pool, member limit.
+- [ ] Search finds public and private leagues.
   - Notes:
 
-- [ ] Public pool can be joined without a password.
+- [ ] Search results show useful labels: public/private, joined, your league, member limit, member count.
   - Notes:
 
-- [ ] Private pool asks for a password.
+- [ ] Public league can be joined without a password.
+  - Notes:
+
+- [ ] Private league asks for a password.
   - Notes:
 
 - [ ] Wrong private password shows a clear error inside the join modal.
@@ -94,21 +100,21 @@ Recommended setup:
 - [ ] Correct private password allows join.
   - Notes:
 
-- [ ] Full pool cannot be joined and shows a clear message.
+- [ ] Full league cannot be joined and shows a clear message.
   - Notes:
 
-- [ ] After joining, player is taken directly to that pool.
+- [ ] After joining, player is taken directly to that league.
   - Notes:
 
-- [ ] Joined pool appears under My Pools.
+- [ ] Joined league appears under My Pools.
   - Notes:
 
-- [ ] If player tries joining again, message makes sense and offers Open Pool.
+- [ ] If player tries joining again, message makes sense and offers Open League.
   - Notes:
 
 ## 4. Pool Members And Standings
 
-- [ ] My Pools opens a selected pool without Failed to load pool errors.
+- [ ] My Pools opens a selected league without Failed to load pool errors.
   - Notes:
 
 - [ ] Pool Members tab shows the admin/creator.
@@ -120,16 +126,22 @@ Recommended setup:
 - [ ] Member count matches the actual member list.
   - Notes:
 
-- [ ] Standings tab lists all pool members.
+- [ ] Entry count matches the actual number of entries.
+  - Notes:
+
+- [ ] Standings tab lists all entries with usernames only, not real names or emails.
   - Notes:
 
 - [ ] Alive vs eliminated count makes sense.
   - Notes:
 
-- [ ] Wins/losses/pushes display clearly.
+- [ ] Wins/losses/pushes display only after games have results.
   - Notes:
 
 - [ ] Strikes display clearly.
+  - Notes:
+
+- [ ] Weekly pick distribution shows comment-safe public data only after picks unlock for that week.
   - Notes:
 
 ## 5. Standard Player Picks
@@ -147,7 +159,7 @@ Recommended setup:
 - [ ] Selection shows a clear saved confirmation with the team/logo.
   - Notes:
 
-- [ ] Pick card shows Pick made after saving.
+- [ ] My Pools updates pick status automatically after saving, without manual refresh.
   - Notes:
 
 - [ ] Pick can be changed before lock.
@@ -182,16 +194,16 @@ Recommended setup:
 
 ## 6. Admin League Settings
 
-- [ ] Admin panel loads for the pool creator.
+- [ ] Admin panel loads for the league creator.
   - Notes:
 
-- [ ] Admin Panel button is visible to the pool creator.
+- [ ] Admin Panel button is visible to the league creator.
   - Notes:
 
 - [ ] Admin Panel button is not visible to a normal player.
   - Notes:
 
-- [ ] Admin setup summary shows activation, visibility, settings lock, and double-pick count.
+- [ ] Admin setup summary shows visibility, settings lock, member limit, and double-pick count.
   - Notes:
 
 - [ ] Member limit can be changed before the league starts.
@@ -201,13 +213,13 @@ Recommended setup:
 - [ ] Member limit cannot be set below the current member count.
   - Notes:
 
-- [ ] Public pool can be changed to private before league start.
+- [ ] Public league can be changed to private before league start.
   - Notes:
 
 - [ ] Switching to private requires a password.
   - Notes:
 
-- [ ] Private pool can be changed back to public before league start.
+- [ ] Private league can be changed back to public before league start.
   - Notes:
 
 - [ ] Double-pick weeks can be selected with the week buttons.
@@ -223,13 +235,13 @@ Recommended setup:
 - [ ] Archive/unarchive works before the league starts.
   - Notes:
 
-- [ ] New 2026 pools do not incorrectly show league settings as locked.
+- [ ] New 2026 leagues do not incorrectly show league settings as locked.
   - Notes:
 
 - [ ] Once the league reaches its configured start week, league settings are locked.
   - Notes:
 
-- [ ] After start, admin can still manage player picks/results.
+- [ ] After start, admin can still manage player picks/results where appropriate.
   - Notes:
 
 ## 7. Admin Pick Controls
@@ -237,32 +249,21 @@ Recommended setup:
 - [ ] Admin can select a week in Members & Picks.
   - Notes:
 
-- [ ] Pending draft column is understandable.
-  - Notes:
-
-- [ ] Official final pick column is understandable.
-  - Notes:
-
-- [ ] Admin can save a pending draft for a player before it is final.
+- [ ] Admin can submit or edit a user's pick before it locks.
   - Player:
   - Team:
   - Notes:
 
-- [ ] Once a pick is final, draft changes are locked for that slot.
+- [ ] Admin can remove a member before league start.
   - Notes:
 
-- [ ] Admin can override a final pick before kickoff.
-  - Player:
-  - Team:
+- [ ] Removing a member removes the intended user and no one else.
   - Notes:
 
-- [ ] Overriding an existing final pick asks for confirmation.
+- [ ] Admin panel refresh button reloads current member/pick data.
   - Notes:
 
-- [ ] If a result already exists, admin sees warning that override will clear it.
-  - Notes:
-
-- [ ] Remove member works before league start.
+- [ ] Admin page refreshes automatically after admin actions.
   - Notes:
 
 - [ ] Remove member is disabled after league start.
@@ -270,28 +271,19 @@ Recommended setup:
 
 ## 8. Results Maintenance
 
-- [ ] Admin Finalize due picks button asks for confirmation.
+- [ ] Results update automatically after final game data is available.
   - Notes:
 
-- [ ] Admin Finalize due picks button works when there are lockable picks.
+- [ ] Future games never show as wins or losses before they are played.
   - Notes:
 
-- [ ] Finalized player pick moves from Pick made to Locked after deadline.
+- [ ] Tie counts as loss leagues score ties as losses.
   - Notes:
 
-- [ ] Future picks do not become final when the admin finalizes due picks.
+- [ ] Tie counts as win/push leagues score ties correctly if tested.
   - Notes:
 
-- [ ] Admin Adjudicate results button asks for confirmation.
-  - Notes:
-
-- [ ] Admin Adjudicate results button works after game results exist.
-  - Notes:
-
-- [ ] Tie counts as loss pools score ties as losses.
-  - Notes:
-
-- [ ] Tie counts as win/push pools score ties correctly if tested.
+- [ ] Any repair or scoring tool is clearly scoped to one league, not the whole site.
   - Notes:
 
 ## 9. Profile And History
@@ -299,22 +291,25 @@ Recommended setup:
 - [ ] Profile page loads.
   - Notes:
 
-- [ ] Player Identity section shows complete/incomplete status.
+- [ ] Username section shows complete/incomplete status.
   - Notes:
 
-- [ ] Missing display name shows Profile incomplete.
+- [ ] Missing username shows Profile incomplete.
   - Notes:
 
-- [ ] Saving display name updates the profile.
+- [ ] Saving username updates the profile.
+  - Notes:
+
+- [ ] Duplicate username shows a clear error.
   - Notes:
 
 - [ ] Uploading a profile picture works.
   - Notes:
 
-- [ ] Profile picture appears in member lists/standings.
+- [ ] Profile picture appears in member lists/standings where avatars are shown.
   - Notes:
 
-- [ ] Display name appears in member lists/standings.
+- [ ] Username appears in member lists/standings.
   - Notes:
 
 - [ ] Mismatched password update shows a clear error.
@@ -332,7 +327,71 @@ Recommended setup:
 - [ ] History does not clutter the main navigation.
   - Notes:
 
-## 10. Mobile / Small Screen Quick Check
+## 10. Blog And Comments
+
+- [ ] Blog homepage loads while signed out.
+  - Notes:
+
+- [ ] Blog cards show category, summary, comment count, thumbs-up count, and thumbs-down count.
+  - Notes:
+
+- [ ] Category filters do not jump the page unexpectedly.
+  - Notes:
+
+- [ ] Individual article pages load while signed out.
+  - Notes:
+
+- [ ] Signed-out readers can read comments but must sign in to comment, reply, or react.
+  - Notes:
+
+- [ ] Signed-in readers can add a top-level comment.
+  - Notes:
+
+- [ ] Signed-in readers can reply to a comment.
+  - Notes:
+
+- [ ] Signed-in readers can use 👍 and 👎 reactions.
+  - Notes:
+
+- [ ] Report button submits a comment for review without exposing admin tools.
+  - Notes:
+
+- [ ] Comments appear above Share Article.
+  - Notes:
+
+- [ ] Share buttons work on desktop and mobile.
+  - Notes:
+
+## 11. Blog Admin
+
+- [ ] Blog Admin appears only for the superadmin and invited contributors.
+  - Notes:
+
+- [ ] Contributor can submit a draft and immediately see it listed without refreshing.
+  - Notes:
+
+- [ ] Contributor cannot publish, archive, delete, manage categories, manage access, or delete comments.
+  - Notes:
+
+- [ ] Superadmin can publish, archive, delete, and edit posts.
+  - Notes:
+
+- [ ] Superadmin can add categories.
+  - Notes:
+
+- [ ] Superadmin can add contributors.
+  - Notes:
+
+- [ ] Superadmin can open the Comments tab and see reported comments.
+  - Notes:
+
+- [ ] Superadmin can delete a comment.
+  - Notes:
+
+- [ ] Deleted comments disappear from public article pages.
+  - Notes:
+
+## 12. Mobile / Small Screen Quick Check
 
 - [ ] Homepage is usable on a phone-sized screen.
   - Notes:
@@ -349,10 +408,16 @@ Recommended setup:
 - [ ] Admin page is usable enough on a phone-sized screen.
   - Notes:
 
+- [ ] Blog homepage and article pages are usable on a phone-sized screen.
+  - Notes:
+
+- [ ] Blog Admin post list is usable on a phone-sized screen.
+  - Notes:
+
 - [ ] Profile page is usable on a phone-sized screen.
   - Notes:
 
-## 11. Issues To Bring Back To Codex
+## 13. Issues To Bring Back To Codex
 
 Use this section for anything that fails, feels confusing, or looks ugly.
 

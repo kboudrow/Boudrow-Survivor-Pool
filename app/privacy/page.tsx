@@ -34,7 +34,7 @@ export default function PrivacyPage() {
           <ul className="list-disc space-y-1 pl-5">
             <li>We use account, profile, pool, pick, and technical data to run the app.</li>
             <li>Your email is not shown to other pool members.</li>
-            <li>Your display name, pool membership, picks, status, and standings may be visible inside pools you join.</li>
+            <li>Your username, pool membership, picks, status, and standings may be visible inside pools you join.</li>
             <li>We do not sell your personal information.</li>
             <li>Ads, analytics, or similar tools may use cookies or identifiers if enabled.</li>
           </ul>
@@ -67,7 +67,7 @@ export default function PrivacyPage() {
         <SectionTitle id="info-we-collect">2. Information we collect</SectionTitle>
         <ul className="mt-3 list-disc space-y-1 pl-5 leading-7 text-slate-700">
           <li><span className="font-medium">Account information:</span> email address, authentication identifiers, login provider, and account timestamps.</li>
-          <li><span className="font-medium">Profile information:</span> display name, username, first name, last name, and profile settings you provide.</li>
+          <li><span className="font-medium">Profile information:</span> username, first name, last name, favorite team, profile image, and profile settings you provide.</li>
           <li><span className="font-medium">Pool information:</span> pools you create or join, pool names, visibility, settings, member lists, admin roles, invite data, and archived history.</li>
           <li><span className="font-medium">Pick and standings data:</span> weekly picks, draft picks, final picks, pick locks, used teams, wins, losses, pushes, strikes, eliminations, and related admin actions.</li>
           <li><span className="font-medium">Communications:</span> messages you send for support or account requests.</li>
@@ -88,7 +88,7 @@ export default function PrivacyPage() {
           Pool functionality requires some information to be visible to other pool participants and admins.
         </p>
         <ul className="mt-2 list-disc space-y-1 pl-5 leading-7 text-slate-700">
-          <li>Your display name or username may appear in member lists, standings, and history.</li>
+          <li>Your username may appear in member lists, standings, and history.</li>
           <li>Your pool participation, alive/eliminated status, record, strikes, and picks may be visible within pools you join, depending on pool rules and timing.</li>
           <li>Pool creators and admins may see information needed to manage the pool, including member status and pick controls.</li>
           <li>Your email address is not intentionally shown to other pool members.</li>

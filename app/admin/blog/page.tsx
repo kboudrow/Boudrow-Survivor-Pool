@@ -7,7 +7,7 @@ import { getErrorMessage } from '@/lib/errorMessage'
 import { supabase } from '@/lib/supabaseClient'
 
 type BlogRole = '' | 'contributor' | 'editor' | 'admin'
-type Tab = 'posts' | 'new' | 'categories' | 'access'
+type Tab = 'posts' | 'new' | 'categories' | 'access' | 'comments'
 type Status = 'draft' | 'published' | 'archived'
 
 type BlogPostRow = {
@@ -34,6 +34,28 @@ type PermissionRow = {
   display_name: string | null
   role: BlogRole
   created_at: string
+}
+
+type PostMetricRow = {
+  post_slug: string
+  comment_count: number
+  up_count: number
+  down_count: number
+}
+
+type CommentModerationRow = {
+  id: string
+  post_slug: string
+  profile_id: string
+  parent_comment_id: string | null
+  author_name: string | null
+  avatar_url: string | null
+  body: string
+  created_at: string
+  up_count: number
+  down_count: number
+  report_count: number
+  latest_report_at: string | null
 }
 
 type FormState = {
@@ -142,7 +164,11 @@ export default function BlogAdminPage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [posts, setPosts] = useState<BlogPostRow[]>([])
+  const [postMetrics, setPostMetrics] = useState<Record<string, PostMetricRow>>({})
   const [permissions, setPermissions] = useState<PermissionRow[]>([])
+  const [comments, setComments] = useState<CommentModerationRow[]>([])
+  const [commentsLoading, setCommentsLoading] = useState(false)
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm)
   const [activeTab, setActiveTab] = useState<Tab>('posts')
   const [saving, setSaving] = useState(false)
@@ -177,7 +203,18 @@ export default function BlogAdminPage() {
       .select('id, slug, title, description, category, status, author_id, author_name, read_time, pinned, hero_image_url, sections, published_at, created_at, updated_at')
       .order('updated_at', { ascending: false })
     if (postsErr) throw postsErr
-    setPosts((data || []) as BlogPostRow[])
+    const nextPosts = (data || []) as BlogPostRow[]
+    setPosts(nextPosts)
+    const slugs = nextPosts.map((post) => post.slug)
+    if (slugs.length === 0) {
+      setPostMetrics({})
+      return
+    }
+    const { data: metricsData, error: metricsErr } = await supabase.rpc('blog_engagement_for_posts', { p_slugs: slugs })
+    if (metricsErr) throw metricsErr
+    setPostMetrics(
+      Object.fromEntries(((metricsData || []) as PostMetricRow[]).map((metric) => [metric.post_slug, metric])),
+    )
   }
 
   const loadCategories = async () => {
@@ -200,6 +237,18 @@ export default function BlogAdminPage() {
     setPermissions((data || []) as PermissionRow[])
   }
 
+  const loadComments = async () => {
+    if (!isSuperAdmin) return
+    setCommentsLoading(true)
+    try {
+      const { data, error: commentsErr } = await supabase.rpc('blog_comment_moderation_queue')
+      if (commentsErr) throw commentsErr
+      setComments((data || []) as CommentModerationRow[])
+    } finally {
+      setCommentsLoading(false)
+    }
+  }
+
   useEffect(() => {
     let alive = true
     const init = async () => {
@@ -215,8 +264,18 @@ export default function BlogAdminPage() {
         if (!alive) return
         setUserId(userData.user?.id ?? null)
         setUserEmail(userData.user?.email ?? null)
+        const nextIsSuperAdmin = userData.user?.email?.toLowerCase() === SUPERADMIN_EMAIL
         setRole((roleData || '') as BlogRole)
-        if (roleData) await Promise.all([loadPosts(), loadCategories()])
+        if (roleData) {
+          await Promise.all([
+            loadPosts(),
+            loadCategories(),
+            nextIsSuperAdmin ? supabase.rpc('blog_comment_moderation_queue').then(({ data, error }) => {
+              if (error) throw error
+              setComments((data || []) as CommentModerationRow[])
+            }) : Promise.resolve(),
+          ])
+        }
       } catch (e: unknown) {
         if (!alive) return
         setError(getErrorMessage(e, 'Failed to load blog admin.'))
@@ -248,6 +307,25 @@ export default function BlogAdminPage() {
     setActiveTab('new')
     setNotice(null)
     setError(null)
+  }
+
+  const deleteComment = async (comment: CommentModerationRow) => {
+    if (!isSuperAdmin || deletingCommentId) return
+    const confirmed = window.confirm(`Delete this comment from ${comment.author_name || 'this reader'}?`)
+    if (!confirmed) return
+    setDeletingCommentId(comment.id)
+    setError(null)
+    setNotice(null)
+    try {
+      const { error: deleteErr } = await supabase.rpc('blog_delete_comment', { p_comment_id: comment.id })
+      if (deleteErr) throw deleteErr
+      setNotice('Comment deleted.')
+      await Promise.all([loadComments(), loadPosts()])
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to delete comment.'))
+    } finally {
+      setDeletingCommentId(null)
+    }
   }
 
   const uploadHeroImage = async (file: File) => {
@@ -453,6 +531,7 @@ export default function BlogAdminPage() {
         <div className="mb-5 flex flex-wrap gap-2 border-b border-slate-200">
           <TabButton label="Posts" active={activeTab === 'posts'} onClick={() => setActiveTab('posts')} />
           <TabButton label={form.id ? 'Edit Post' : 'Write New Blog'} active={activeTab === 'new'} onClick={startNewPost} />
+          {isSuperAdmin && <TabButton label="Comments" active={activeTab === 'comments'} onClick={() => { setActiveTab('comments'); loadComments().catch((e) => setError(getErrorMessage(e, 'Failed to load comments.'))) }} />}
           {isSuperAdmin && <TabButton label="Categories" active={activeTab === 'categories'} onClick={() => setActiveTab('categories')} />}
           {isSuperAdmin && <TabButton label="Access" active={activeTab === 'access'} onClick={() => setActiveTab('access')} />}
         </div>
@@ -490,6 +569,11 @@ export default function BlogAdminPage() {
                     <span>{post.author_name || 'Survive Sunday'}</span>
                     <span>Updated {prettyDate(post.updated_at)}</span>
                   </div>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
+                    <span>{postMetrics[post.slug]?.comment_count || 0} comments</span>
+                    <span>{postMetrics[post.slug]?.up_count || 0} 👍</span>
+                    <span>{postMetrics[post.slug]?.down_count || 0} 👎</span>
+                  </div>
                   <div className="mt-3 inline-flex rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800">
                     {post.status === 'published' ? 'Open / manage' : 'Open / edit'}
                   </div>
@@ -508,6 +592,7 @@ export default function BlogAdminPage() {
                     <th className="px-3 py-2">Category</th>
                     <th className="px-3 py-2">Status</th>
                     <th className="px-3 py-2">Author</th>
+                    <th className="px-3 py-2">Engagement</th>
                     <th className="px-3 py-2">Updated</th>
                     <th className="px-3 py-2"></th>
                   </tr>
@@ -530,6 +615,13 @@ export default function BlogAdminPage() {
                         <StatusPill status={post.status} />
                       </td>
                       <td className="px-3 py-3">{post.author_name || 'Survive Sunday'}</td>
+                      <td className="px-3 py-3 text-xs text-slate-600">
+                        <span className="font-semibold">{postMetrics[post.slug]?.comment_count || 0}</span> comments
+                        <span className="mx-1">/</span>
+                        <span className="font-semibold">{postMetrics[post.slug]?.up_count || 0}</span> 👍
+                        <span className="mx-1">/</span>
+                        <span className="font-semibold">{postMetrics[post.slug]?.down_count || 0}</span> 👎
+                      </td>
                       <td className="px-3 py-3">{prettyDate(post.updated_at)}</td>
                       <td className="px-3 py-3 text-right">
                         <button onClick={() => selectPost(post)} className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50">
@@ -540,11 +632,66 @@ export default function BlogAdminPage() {
                   ))}
                   {filteredPosts.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-3 py-8 text-center text-sm text-slate-500">No posts found.</td>
+                      <td colSpan={7} className="px-3 py-8 text-center text-sm text-slate-500">No posts found.</td>
                     </tr>
                   )}
                 </tbody>
               </table>
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'comments' && isSuperAdmin && (
+          <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold text-slate-950">Comment Moderation</h2>
+                <p className="mt-1 text-sm text-slate-600">Only the superadmin can delete comments. Reports are reader flags, not automatic removals.</p>
+              </div>
+              <button
+                onClick={() => loadComments().catch((e) => setError(getErrorMessage(e, 'Failed to load comments.')))}
+                className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+              >
+                {commentsLoading ? 'Refreshing...' : 'Refresh'}
+              </button>
+            </div>
+            <div className="grid gap-3">
+              {comments.map((comment) => (
+                <div key={comment.id} className="rounded-lg border border-slate-200 bg-white p-4">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className="font-semibold text-slate-950">{comment.author_name || 'Reader'}</div>
+                      <div className="text-xs text-slate-500">
+                        /blog/{comment.post_slug} / {prettyDate(comment.created_at)}
+                        {comment.parent_comment_id ? ' / reply' : ''}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+                      <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-800">{comment.report_count} reports</span>
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">{comment.up_count} 👍</span>
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">{comment.down_count} 👎</span>
+                    </div>
+                  </div>
+                  <p className="whitespace-pre-wrap rounded-md bg-slate-50 p-3 text-sm leading-6 text-slate-800">{comment.body}</p>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                    <Link href={`/blog/${comment.post_slug}`} className="text-sm font-semibold text-[#c5161d] hover:underline">
+                      Open post
+                    </Link>
+                    <button
+                      onClick={() => deleteComment(comment)}
+                      disabled={deletingCommentId === comment.id}
+                      className="rounded-md bg-slate-950 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                    >
+                      {deletingCommentId === comment.id ? 'Deleting...' : 'Delete Comment'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {comments.length === 0 && (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
+                  No comments to review yet.
+                </div>
+              )}
             </div>
           </section>
         )}
