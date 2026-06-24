@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '../../lib/supabaseClient'
+import { getErrorMessage } from '../../lib/errorMessage'
 
 export default function ResetPage() {
   const [ready, setReady] = useState(false)
@@ -38,7 +39,7 @@ export default function ResetPage() {
 
       if (code) {
         const { error } = await supabase.auth.exchangeCodeForSession(window.location.href)
-        if (error) setExchangeError(error.message)
+        if (error) setExchangeError(getErrorMessage(error, 'This reset link could not be opened. Please request a new one.'))
         setReady(true)
         return
       }
@@ -51,7 +52,7 @@ export default function ResetPage() {
 
       if (type === 'recovery' && access_token && refresh_token) {
         const { error } = await supabase.auth.setSession({ access_token, refresh_token })
-        if (error) setExchangeError(error.message)
+        if (error) setExchangeError(getErrorMessage(error, 'This reset link could not be opened. Please request a new one.'))
         setReady(true)
         return
       }
@@ -74,7 +75,7 @@ export default function ResetPage() {
     setSaving(true)
     const { error } = await supabase.auth.updateUser({ password })
     setSaving(false)
-    if (error) { setError(error.message); return }
+    if (error) { setError(getErrorMessage(error, 'Password could not be updated. Please try again.')); return }
     setStatus('Password updated. You can now return to the home page.')
   }
 

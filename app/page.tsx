@@ -5,6 +5,7 @@ import Link from 'next/link'
 import NextImage from 'next/image'
 import { useRouter } from 'next/navigation'
 import { authCallbackUrl, safeReturnTo } from '@/lib/authRedirect'
+import { getErrorMessage } from '@/lib/errorMessage'
 
 type Mode = 'idle' | 'signin' | 'signup'
 type SupabaseClientModule = typeof import('@/lib/supabaseClient')
@@ -56,8 +57,7 @@ export default function Home() {
     const message = error && typeof error === 'object' && 'message' in error ? String((error as { message?: unknown }).message || '') : String(error || '')
     return message.toLowerCase().includes('username') || message.toLowerCase().includes('duplicate key') || message.toLowerCase().includes('unique constraint')
   }
-  const authMessage = (error: unknown, fallback: string) =>
-    error && typeof error === 'object' && 'message' in error ? String((error as { message?: unknown }).message || fallback) : fallback
+  const authMessage = (error: unknown, fallback: string) => getErrorMessage(error, fallback)
 
   const saveSignupProfile = async (userId: string, cleanUsername: string) => {
     const supabase = await getSupabase()
@@ -145,7 +145,7 @@ export default function Home() {
         queryParams: { prompt: 'select_account' },
       },
     })
-    if (error) setAuthError(error.message)
+    if (error) setAuthError(getErrorMessage(error, 'Could not start Google sign-in.'))
   }
 
   const signInWithEmail = async () => {
@@ -153,7 +153,7 @@ export default function Home() {
     if (!email || !password) return setAuthError('Please enter email and password.')
     const supabase = await getSupabase()
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) return setAuthError(error.message)
+    if (error) return setAuthError(getErrorMessage(error, 'Could not sign in. Check your email and password.'))
     if (data.user) {
       await runEnsureProfileOnce(data.user.id)
       router.push(returnToRef.current || '/pools')
@@ -175,7 +175,7 @@ export default function Home() {
 
     const supabase = await getSupabase()
     const { data: available, error: availabilityErr } = await supabase.rpc('username_available', { p_username: cleanUsername })
-    if (availabilityErr) return setAuthError(availabilityErr.message)
+    if (availabilityErr) return setAuthError(getErrorMessage(availabilityErr, 'Could not check that username. Please try again.'))
     if (!available) return setAuthError('That username is already taken. Try another one.')
 
     const { data, error } = await supabase.auth.signUp({
@@ -183,12 +183,12 @@ export default function Home() {
       password,
       options: { data: { first_name: firstName, last_name: lastName, username: cleanUsername } },
     })
-    if (error) return setAuthError(error.message)
+    if (error) return setAuthError(getErrorMessage(error, 'Could not create that account. Please try again.'))
 
     // If no session returned (email confirm disabled / etc.), sign in immediately
     if (!data?.session) {
       const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email, password })
-      if (signInErr) return setAuthError(signInErr.message)
+      if (signInErr) return setAuthError(getErrorMessage(signInErr, 'Account created, but sign-in failed. Please sign in manually.'))
       if (signInData.user) {
         try {
           await runEnsureProfileOnce(signInData.user.id)
@@ -216,7 +216,7 @@ export default function Home() {
       const { data: { user }, error } = await supabase.auth.getUser()
       if (error) {
         setIsAuthed(false)
-        setStatus(`Auth error: ${error.message}`)
+        setStatus('Sign-in check failed')
       } else if (user) {
         setIsAuthed(true)
         setStatus('Signed in')

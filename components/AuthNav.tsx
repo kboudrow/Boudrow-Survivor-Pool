@@ -142,10 +142,10 @@ export function AuthNav() {
         Blog
       </Link>
       <Link href="/pools" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
-        My Pools
+        My Leagues
       </Link>
       <Link href="/join/search" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
-        Join Pool
+        Join League
       </Link>
       {hasBlogAccess && (
         <Link href="/admin/blog" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
@@ -158,7 +158,7 @@ export function AuthNav() {
         </Link>
       )}
       <Link href="/pools/new" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
-        Create Pool
+        Create League
       </Link>
       <Link
         href="/profile"

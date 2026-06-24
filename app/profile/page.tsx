@@ -740,7 +740,6 @@ export default function ProfilePage() {
                             <Link href={`/pools/${r.pool_id}`} className="font-medium underline">
                               {r.pool_name}
                             </Link>
-                            <div className="text-xs text-gray-500">{r.pool_id.slice(0, 8)}...</div>
                           </td>
                           <td className="p-2 border">{r.season ?? '-'}</td>
                           <td className="p-2 border">{r.status ?? '-'}</td>

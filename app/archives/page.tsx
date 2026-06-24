@@ -221,11 +221,7 @@ export default function ArchivesPage() {
                       <div className="text-xs text-gray-500 mt-1">
                         Season: {seasonLabel} · Archived: {archivedLabel}
                       </div>
-                      {p.cloned_from_pool_id && (
-                        <div className="text-xs text-gray-500 mt-1">
-                          Cloned from: {p.cloned_from_pool_id.slice(0, 8)}…
-                        </div>
-                      )}
+                      {p.cloned_from_pool_id && <div className="text-xs text-gray-500 mt-1">Created from a previous league</div>}
                     </div>
 
                     <div className="flex flex-col items-end gap-2">

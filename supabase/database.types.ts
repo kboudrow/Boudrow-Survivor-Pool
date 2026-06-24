@@ -1784,6 +1784,14 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      superadmin_foundation_integrity_audit: {
+        Args: { p_season?: number }
+        Returns: {
+          check_name: string
+          detail: string
+          status: string
+        }[]
+      }
       superadmin_pool_entries: {
         Args: { p_pool_id: string }
         Returns: {
@@ -1847,6 +1855,14 @@ export type Database = {
           season: number
           team_appearance_count: number
           week: number
+        }[]
+      }
+      superadmin_security_audit: {
+        Args: never
+        Returns: {
+          check_name: string
+          detail: string
+          status: string
         }[]
       }
       update_my_profile: {

@@ -150,7 +150,7 @@ export default function PoolDetailPage() {
         queryParams: { prompt: 'select_account' },
       }
     })
-    if (error) setError(error.message)
+    if (error) setError(getErrorMessage(error, 'Could not start Google sign-in.'))
   }
 
   const joinPool = async () => {
@@ -167,7 +167,7 @@ export default function PoolDetailPage() {
         p_password: pool.is_public ? null : password || null,
       })
       if (error) {
-        setError(error.message)
+        setError(getErrorMessage(error, 'Could not join this league.'))
         return
       }
       router.push(`/pools?pool=${pool.id}`)
@@ -189,7 +189,7 @@ export default function PoolDetailPage() {
     if (!pool) return
     const { data, error } = await supabase.rpc('pool_entry_roster', { p_pool_id: pool.id })
 
-    if (error) return alert(`Export failed: ${error.message}`)
+    if (error) return alert(getErrorMessage(error, 'Export failed. Please try again.'))
     const rows = [
       ['Username', 'Entry', 'Role', 'Status', 'Joined'],
       ...((data || []) as RosterExportRow[]).map((member) => [
@@ -205,7 +205,7 @@ export default function PoolDetailPage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${pool.name.replace(/\s+/g, '_')}_members.csv`
+    a.download = `${pool.name.replace(/\s+/g, '_')}_league_roster.csv`
     a.click()
     URL.revokeObjectURL(url)
   }

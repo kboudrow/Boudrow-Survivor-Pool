@@ -113,7 +113,7 @@ export default function JoinPoolPage() {
         queryParams: { prompt: 'select_account' },
       }
     })
-    if (error) setError(error.message)
+    if (error) setError(getErrorMessage(error, 'Could not start Google sign-in.'))
   }
 
   const joinPool = async () => {
@@ -135,7 +135,7 @@ export default function JoinPoolPage() {
       })
 
       if (error) {
-        setError(error.message)
+        setError(getErrorMessage(error, 'Could not join this league.'))
         return
       }
 

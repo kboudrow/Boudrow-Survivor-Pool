@@ -91,7 +91,7 @@ export default function JoinSearchPage() {
         error,
       } = await supabase.auth.getUser()
       if (error && !isMissingAuthSession(error)) {
-        setError(error.message)
+        setError(getErrorMessage(error, 'Could not check your sign-in status.'))
         setAuthed(false)
         setUserId(null)
         return
@@ -251,7 +251,7 @@ export default function JoinSearchPage() {
       error,
     } = await supabase.auth.getUser()
     if (error && !isMissingAuthSession(error)) {
-      setError(error.message)
+      setError(getErrorMessage(error, 'Could not check your sign-in status.'))
       return false
     }
 
@@ -270,7 +270,7 @@ export default function JoinSearchPage() {
         queryParams: { prompt: 'select_account' },
       },
     })
-    if (error) setModalError(error.message)
+    if (error) setModalError(getErrorMessage(error, 'Could not start Google sign-in.'))
   }
 
   const askConfirm = (message: string, action: () => Promise<void>) => {

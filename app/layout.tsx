@@ -34,6 +34,12 @@ export const metadata: Metadata = {
     images: ["/survive-sunday-logo.png"],
     type: "website",
   },
+  twitter: {
+    card: "summary_large_image",
+    title: "Survive Sunday",
+    description: "Create, join, and manage NFL survivor pools with automatic pick locks, standings, and commissioner tools.",
+    images: ["/survive-sunday-logo.png"],
+  },
 };
 
 export default function RootLayout({

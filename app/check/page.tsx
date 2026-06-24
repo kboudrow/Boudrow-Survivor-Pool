@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { authCallbackUrl } from '@/lib/authRedirect'
 import { ensureProfile } from '@/lib/ensureProfile'
+import { getErrorMessage } from '@/lib/errorMessage'
 import { supabase } from '@/lib/supabaseClient'
 
 export default function CheckPage() {
@@ -32,7 +33,7 @@ export default function CheckPage() {
         queryParams: { prompt: 'select_account' },
       },
     })
-    if (error) setError(error.message)
+    if (error) setError(getErrorMessage(error, 'Could not start Google sign-in.'))
   }
 
   const signOut = async () => {
@@ -50,7 +51,7 @@ export default function CheckPage() {
       } = await supabase.auth.getUser()
       if (error) {
         setStatus('Not signed in')
-        setError(error.message)
+        setError(getErrorMessage(error, 'Could not check your sign-in status.'))
         return
       }
       if (!user) {

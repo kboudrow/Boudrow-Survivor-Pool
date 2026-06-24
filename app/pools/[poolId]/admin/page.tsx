@@ -660,9 +660,8 @@ export default function PoolAdminPage() {
         throw new Error('Members cannot be removed after the league has started.')
       }
       const label = memberLabel(row)
-      const shortProfileId = row.user_id.slice(0, 8)
       const confirmed = window.confirm(
-        `Remove ${label} from ${pool.name}?\n\nProfile ID: ${shortProfileId}\nEntries removed: ${entryCount}\n\nThis removes that member's entries and all of their picks. It cannot be undone from this screen.`,
+        `Remove ${label} from ${pool.name}?\n\nEntries removed: ${entryCount}\n\nThis removes that member's entries and all of their picks. It cannot be undone from this screen.`,
       )
       if (!confirmed) return 'Remove member canceled.'
 

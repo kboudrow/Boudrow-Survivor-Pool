@@ -213,7 +213,7 @@ export default function SuperAdminPage() {
     const label = entry.display_name
     const entryCount = entries.filter((candidate) => candidate.profile_id === entry.profile_id).length
     const confirmed = window.confirm(
-      `Remove ${label} from ${selectedPool.name}?\n\nProfile ID: ${entry.profile_id.slice(0, 8)}\nEntries removed: ${entryCount}\n\nThis removes that member's entries and all of their picks.`,
+      `Remove ${label} from ${selectedPool.name}?\n\nEntries removed: ${entryCount}\n\nThis removes that member's entries and all of their picks.`,
     )
     if (!confirmed) return
     setRunningAction(entry.profile_id)
