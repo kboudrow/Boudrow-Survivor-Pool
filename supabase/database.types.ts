@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -1048,6 +1048,8 @@ export type Database = {
           strikes_allowed: string | null
           stripe_checkout_session_id: string | null
           stripe_payment_intent_id: string | null
+          test_current_week: number | null
+          test_mode: boolean
           tie_rule: string | null
           ties: Database["public"]["Enums"]["ties_rule"]
           visibility: Database["public"]["Enums"]["pool_visibility"]
@@ -1091,6 +1093,8 @@ export type Database = {
           strikes_allowed?: string | null
           stripe_checkout_session_id?: string | null
           stripe_payment_intent_id?: string | null
+          test_current_week?: number | null
+          test_mode?: boolean
           tie_rule?: string | null
           ties?: Database["public"]["Enums"]["ties_rule"]
           visibility?: Database["public"]["Enums"]["pool_visibility"]
@@ -1134,6 +1138,8 @@ export type Database = {
           strikes_allowed?: string | null
           stripe_checkout_session_id?: string | null
           stripe_payment_intent_id?: string | null
+          test_current_week?: number | null
+          test_mode?: boolean
           tie_rule?: string | null
           ties?: Database["public"]["Enums"]["ties_rule"]
           visibility?: Database["public"]["Enums"]["pool_visibility"]
@@ -1276,6 +1282,62 @@ export type Database = {
           week_sunday_date?: string
         }
         Relationships: []
+      }
+      test_pool_team_results: {
+        Row: {
+          created_by: string | null
+          pool_id: string
+          result: string
+          team_abbr: string
+          updated_at: string
+          week: number
+        }
+        Insert: {
+          created_by?: string | null
+          pool_id: string
+          result: string
+          team_abbr: string
+          updated_at?: string
+          week: number
+        }
+        Update: {
+          created_by?: string | null
+          pool_id?: string
+          result?: string
+          team_abbr?: string
+          updated_at?: string
+          week?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_pool_team_results_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_pool_team_results_pool_id_fkey"
+            columns: ["pool_id"]
+            isOneToOne: false
+            referencedRelation: "pools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_pool_team_results_pool_id_fkey"
+            columns: ["pool_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_pool_history"
+            referencedColumns: ["pool_id"]
+          },
+          {
+            foreignKeyName: "test_pool_team_results_pool_id_fkey"
+            columns: ["pool_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_pools"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -1810,6 +1872,18 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      superadmin_assert_test_pool: {
+        Args: { p_pool_id: string }
+        Returns: undefined
+      }
+      superadmin_clear_test_week_results: {
+        Args: { p_pool_id: string; p_week: number }
+        Returns: string
+      }
+      superadmin_finalize_test_week_drafts: {
+        Args: { p_pool_id: string; p_week: number }
+        Returns: number
+      }
       superadmin_foundation_integrity_audit: {
         Args: { p_season?: number }
         Returns: {
@@ -1860,10 +1934,16 @@ export type Database = {
           season: number
           start_week: number
           stats_rows_count: number
+          test_current_week: number
+          test_mode: boolean
           unique_members_count: number
         }[]
       }
       superadmin_repair_pool_future_results: {
+        Args: { p_pool_id: string }
+        Returns: string
+      }
+      superadmin_reset_test_pool: {
         Args: { p_pool_id: string }
         Returns: string
       }
@@ -1883,12 +1963,44 @@ export type Database = {
           week: number
         }[]
       }
+      superadmin_score_test_pool_week: {
+        Args: { p_pool_id: string; p_week: number }
+        Returns: string
+      }
       superadmin_security_audit: {
         Args: never
         Returns: {
           check_name: string
           detail: string
           status: string
+        }[]
+      }
+      superadmin_set_pool_test_mode: {
+        Args: { p_enabled: boolean; p_pool_id: string }
+        Returns: string
+      }
+      superadmin_set_test_pool_week: {
+        Args: { p_pool_id: string; p_week: number }
+        Returns: string
+      }
+      superadmin_set_test_team_result: {
+        Args: {
+          p_pool_id: string
+          p_result: string
+          p_team_abbr: string
+          p_week: number
+        }
+        Returns: string
+      }
+      superadmin_test_pool_week_options: {
+        Args: { p_pool_id: string; p_week: number }
+        Returns: {
+          fake_result: string
+          game_time: string
+          opponent_abbr: string
+          pick_count: number
+          team_abbr: string
+          team_name: string
         }[]
       }
       update_my_profile: {

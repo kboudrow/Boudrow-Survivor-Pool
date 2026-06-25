@@ -30,6 +30,8 @@ type Pool = {
   allow_multiple_entries?: boolean | null
   max_entries_per_user?: number | null
   image_url?: string | null
+  test_mode?: boolean | null
+  test_current_week?: number | null
 }
 
 type Profile = {
@@ -146,7 +148,7 @@ const NFL_TEAMS: Team[] = [
   { abbr: 'WAS', name: 'Washington Commanders', logo: espnLogo('WSH') },
 ]
 
-const POOL_CARD_SELECT = 'id,name,season,is_public,start_week,strikes_allowed,tie_rule,image_url,max_members,allow_multiple_entries,max_entries_per_user,activation_status,double_pick_weeks'
+const POOL_CARD_SELECT = 'id,name,season,is_public,start_week,strikes_allowed,tie_rule,image_url,max_members,allow_multiple_entries,max_entries_per_user,activation_status,double_pick_weeks,test_mode,test_current_week'
 const teamByAbbr = (abbr?: string | null) => NFL_TEAMS.find((t) => t.abbr === abbr) || null
 const isNoPick = (abbr?: string | null) => !!abbr?.startsWith('NO_PICK')
 const toAbbr = (input: string): string => {
@@ -247,6 +249,12 @@ function currentPickWeek(rows: SeasonWeek[], now = new Date()): number {
   }
 
   return Math.min(Math.max(current, 1), 18)
+}
+function currentWeekForPool(pool: Pick<Pool, 'start_week' | 'test_mode' | 'test_current_week'>, rows: SeasonWeek[]) {
+  if (pool.test_mode && pool.test_current_week) {
+    return Math.min(18, Math.max(pool.start_week || 1, pool.test_current_week))
+  }
+  return Math.max(pool.start_week || 1, currentPickWeek(rows))
 }
 function msToCountdown(ms: number) {
   if (ms <= 0) return '00:00:00'
@@ -716,7 +724,7 @@ function MyPoolsContent() {
         supabase.from('pool_picks').select('pool_id,entry_id,week,slot').eq('pool_id', poolToRefresh.id).in('entry_id', entryIds),
       ])
 
-      const targetWeek = Math.max(poolToRefresh.start_week, currentPickWeek(((seasonRows || []) as SeasonWeek[]).filter((week) => week.week >= 1 && week.week <= 18)))
+      const targetWeek = currentWeekForPool(poolToRefresh, ((seasonRows || []) as SeasonWeek[]).filter((week) => week.week >= 1 && week.week <= 18))
       const required = poolToRefresh.double_pick_weeks?.includes(targetWeek) ? 2 : 1
       const needed = entryIds.length * required
       const pickedSlots = new Set<string>()
@@ -918,7 +926,7 @@ function MyPoolsContent() {
         }
         for (const pool of nextPools) {
           const season = pool.season ?? new Date().getFullYear()
-          const targetWeek = Math.max(pool.start_week, currentPickWeek(weeksBySeason.get(season) || []))
+          const targetWeek = currentWeekForPool(pool, weeksBySeason.get(season) || [])
           const entryIds = entriesByPool.get(pool.id) || []
           const required = pool.double_pick_weeks?.includes(targetWeek) ? 2 : 1
           const needed = entryIds.length * required
@@ -1631,7 +1639,7 @@ function MyPoolsContent() {
       setCanManagePool(!!canManage)
 
       const nextSeasonWeeks = ((weekRows || []) as SeasonWeek[]).filter((row) => row.week >= 1 && row.week <= 18)
-      const currentWeek = Math.max(poolRow.start_week, currentPickWeek(nextSeasonWeeks))
+      const currentWeek = currentWeekForPool(poolRow, nextSeasonWeeks)
       setSelectedPickWeek(currentWeek)
       setStandingsWeek(currentWeek)
 
