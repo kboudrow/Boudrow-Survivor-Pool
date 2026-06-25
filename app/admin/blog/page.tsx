@@ -210,7 +210,7 @@ export default function BlogAdminPage() {
       setPostMetrics({})
       return
     }
-    const { data: metricsData, error: metricsErr } = await supabase.rpc('blog_engagement_for_posts', { p_slugs: slugs })
+    const { data: metricsData, error: metricsErr } = await supabase.rpc('blog_engagement_for_posts', { p_post_slugs: slugs })
     if (metricsErr) throw metricsErr
     setPostMetrics(
       Object.fromEntries(((metricsData || []) as PostMetricRow[]).map((metric) => [metric.post_slug, metric])),
@@ -569,7 +569,7 @@ export default function BlogAdminPage() {
                     <span>{post.author_name || 'Survive Sunday'}</span>
                     <span>Updated {prettyDate(post.updated_at)}</span>
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
+                  <div className="mt-3 flex flex-wrap gap-3 text-xs font-semibold text-slate-600 sm:flex-nowrap">
                     <span>{postMetrics[post.slug]?.comment_count || 0} comments</span>
                     <span>{postMetrics[post.slug]?.up_count || 0} 👍</span>
                     <span>{postMetrics[post.slug]?.down_count || 0} 👎</span>
@@ -615,12 +615,14 @@ export default function BlogAdminPage() {
                         <StatusPill status={post.status} />
                       </td>
                       <td className="px-3 py-3">{post.author_name || 'Survive Sunday'}</td>
-                      <td className="px-3 py-3 text-xs text-slate-600">
-                        <span className="font-semibold">{postMetrics[post.slug]?.comment_count || 0}</span> comments
-                        <span className="mx-1">/</span>
-                        <span className="font-semibold">{postMetrics[post.slug]?.up_count || 0}</span> 👍
-                        <span className="mx-1">/</span>
-                        <span className="font-semibold">{postMetrics[post.slug]?.down_count || 0}</span> 👎
+                      <td className="min-w-44 px-3 py-3 text-xs text-slate-600">
+                        <div className="flex flex-nowrap items-center gap-2 whitespace-nowrap">
+                          <span><span className="font-semibold">{postMetrics[post.slug]?.comment_count || 0}</span> comments</span>
+                          <span>/</span>
+                          <span><span className="font-semibold">{postMetrics[post.slug]?.up_count || 0}</span> 👍</span>
+                          <span>/</span>
+                          <span><span className="font-semibold">{postMetrics[post.slug]?.down_count || 0}</span> 👎</span>
+                        </div>
                       </td>
                       <td className="px-3 py-3">{prettyDate(post.updated_at)}</td>
                       <td className="px-3 py-3 text-right">

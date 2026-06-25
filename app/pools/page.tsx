@@ -72,7 +72,16 @@ type DraftPickRow = { entry_id: string; week: number; slot: number; team_abbr: s
 type FinalPickRow = { entry_id: string; week: number; slot: number; team_abbr: string; locked_at: string; result: 'win' | 'loss' | 'push' | null }
 type PickNotice = { team: Team; week: number; slot: number; action: 'saved' | 'cleared' }
 type PoolPickStatus = { week: number; made: number; needed: number; entries: number }
-type PoolMemberSummary = { total: number; alive: number }
+type PoolMemberSummary = { total: number; alive: number; totalEntries: number; aliveEntries: number }
+type PoolWeekPickCompletion = {
+  total_entries: number
+  complete_entries: number
+  partial_entries: number
+  missing_entries: number
+  required_picks: number
+  made_slots: number
+  needed_slots: number
+}
 
 type MemberStats = {
   pool_id: string
@@ -597,6 +606,7 @@ function MyPoolsContent() {
   const [standingsResultsVisible, setStandingsResultsVisible] = useState(false)
   const [standingsRevealAt, setStandingsRevealAt] = useState<string | null>(null)
   const [standingsGamesForWeek, setStandingsGamesForWeek] = useState<Game[]>([])
+  const [standingsCompletion, setStandingsCompletion] = useState<PoolWeekPickCompletion | null>(null)
   const [statsByUser, setStatsByUser] = useState<Record<string, MemberStats>>({})
   const [aliveCount, setAliveCount] = useState(0)
   const [elimCount, setElimCount] = useState(0)
@@ -836,7 +846,7 @@ function MyPoolsContent() {
         const nextPools = Array.from(map.values())
         const poolIds = nextPools.map((pool) => pool.id)
         const seasons = Array.from(new Set(nextPools.map((pool) => pool.season ?? new Date().getFullYear())))
-        const [{ data: seasonRows }, { data: draftRows }, { data: finalRows }, { data: allMemberRows }, { data: allStatsRows }] = await Promise.all([
+        const [{ data: seasonRows }, { data: draftRows }, { data: finalRows }, { data: allMemberRows }, { data: allStatsRows }, { data: summaryRows }] = await Promise.all([
           seasons.length
             ? supabase.from('season_weeks').select('season, week, week_sunday_date').in('season', seasons)
             : Promise.resolve({ data: [] }),
@@ -851,6 +861,9 @@ function MyPoolsContent() {
             : Promise.resolve({ data: [] }),
           poolIds.length
             ? supabase.from('pool_member_stats').select('pool_id,user_id,entry_id,eliminated').in('pool_id', poolIds)
+            : Promise.resolve({ data: [] }),
+          poolIds.length
+            ? supabase.rpc('pool_member_summaries', { p_pool_ids: poolIds })
             : Promise.resolve({ data: [] }),
         ])
 
@@ -893,7 +906,15 @@ function MyPoolsContent() {
             const stat = statsByPoolProfile.get(`${pool.id}:${profileId}`)
             if (!stat || stat.anyAlive) aliveMembers += 1
           })
-          summaries[pool.id] = { total: members.size, alive: aliveMembers }
+          summaries[pool.id] = { total: members.size, alive: aliveMembers, totalEntries: 0, aliveEntries: 0 }
+        }
+        for (const summary of (summaryRows || []) as Array<{ pool_id: string; total_members: number; alive_members: number; total_entries: number; alive_entries: number }>) {
+          summaries[summary.pool_id] = {
+            total: summary.total_members,
+            alive: summary.alive_members,
+            totalEntries: summary.total_entries,
+            aliveEntries: summary.alive_entries,
+          }
         }
         for (const pool of nextPools) {
           const season = pool.season ?? new Date().getFullYear()
@@ -1076,14 +1097,17 @@ function MyPoolsContent() {
     for (const s of (stats || []) as MemberStats[]) map[s.entry_id] = s
     setStatsByUser(map)
 
-    const [{ data: picks, error: picksErr }, { data: historyPicks, error: historyErr }] = await Promise.all([
+    const [{ data: picks, error: picksErr }, { data: historyPicks, error: historyErr }, { data: completionRows, error: completionErr }] = await Promise.all([
       supabase.rpc('pool_visible_picks', { p_pool_id: pid, p_week: week, p_through_week: false }),
       supabase.rpc('pool_visible_picks', { p_pool_id: pid, p_week: week, p_through_week: true }),
+      supabase.rpc('pool_week_pick_completion', { p_pool_id: pid, p_week: week }),
     ])
     if (picksErr) throw picksErr
     if (historyErr) throw historyErr
+    if (completionErr) throw completionErr
     setPicksThisWeek((picks || []) as PickRow[])
     setStandingsHistoryPicks((historyPicks || []) as PickRow[])
+    setStandingsCompletion(((completionRows || []) as PoolWeekPickCompletion[])[0] ?? null)
 
     let alive = 0,
       elim = 0
@@ -1404,6 +1428,15 @@ function MyPoolsContent() {
   const visiblePickedCount = visiblePicksThisWeek.filter((pick) => !isNoPick(pick.team_abbr)).length
   const visibleNoPickCount = visiblePicksThisWeek.length - visiblePickedCount
   const weekPickCompletion = useMemo(() => {
+    if (standingsCompletion) {
+      return {
+        complete: standingsCompletion.complete_entries,
+        partial: standingsCompletion.partial_entries,
+        missing: standingsCompletion.missing_entries,
+        needed: standingsCompletion.required_picks,
+        total: standingsCompletion.total_entries,
+      }
+    }
     const needed = picksAllowedForWeek(standingsWeek)
     const counts = new Map<string, number>()
     for (const pick of visiblePicksThisWeek) {
@@ -1418,8 +1451,8 @@ function MyPoolsContent() {
       else if (made > 0) partial += 1
     }
     const missing = Math.max(0, members.length - complete - partial)
-    return { complete, partial, missing, needed }
-  }, [members, picksAllowedForWeek, standingsWeek, visiblePicksThisWeek])
+    return { complete, partial, missing, needed, total: members.length }
+  }, [members, picksAllowedForWeek, standingsCompletion, standingsWeek, visiblePicksThisWeek])
   const teamPickChartRows = useMemo(() => {
     const counts = new Map<string, number>()
     for (const pick of visiblePicksThisWeek) {
@@ -1555,9 +1588,10 @@ function MyPoolsContent() {
     setStandingsHistoryPicks([])
     setStandingsPicksVisible(false)
     setStandingsResultsVisible(false)
-    setStandingsRevealAt(null)
-    setStatsByUser({})
-    setAliveCount(0)
+      setStandingsRevealAt(null)
+      setStatsByUser({})
+      setStandingsCompletion(null)
+      setAliveCount(0)
     setElimCount(0)
     backgroundRefreshRef.current = null
 
@@ -1684,8 +1718,12 @@ function MyPoolsContent() {
               const memberSummary = poolMemberSummaries[p.id]
               const memberAliveLabel =
                 memberSummary && memberSummary.total > 0
-                  ? `${memberSummary.alive}/${memberSummary.total} alive`
+                  ? `${memberSummary.alive}/${memberSummary.total} members alive`
                   : 'Loading'
+              const entryAliveLabel =
+                memberSummary && memberSummary.totalEntries > 0
+                  ? `${memberSummary.aliveEntries}/${memberSummary.totalEntries} active entries`
+                  : String(poolPickStatuses[p.id]?.entries ?? 0)
 
               return (
               <li key={p.id} className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -1704,7 +1742,7 @@ function MyPoolsContent() {
                     <InfoTile label="Starts" value={`Week ${p.start_week}`} />
                     <InfoTile label="Strikes" value={String(p.strikes_allowed)} />
                     <InfoTile label="Members" value={memberAliveLabel} />
-                    <InfoTile label="Your Entries" value={String(poolPickStatuses[p.id]?.entries ?? 0)} />
+                    <InfoTile label="Entries" value={entryAliveLabel} />
                   </div>
                   {poolPickStatuses[p.id] && (
                     <div
@@ -2139,12 +2177,10 @@ function MyPoolsContent() {
                     <div className="rounded-lg border border-gray-200 bg-white p-4">
                       <div className="text-xs uppercase text-gray-500">Week Pick Completion</div>
                       <div className="mt-2 text-2xl font-bold">
-                        {weekPickCompletion.complete}/{members.length}
+                        {weekPickCompletion.complete}/{weekPickCompletion.total}
                       </div>
                       <div className="mt-1 text-xs text-gray-500">
-                        {standingsPicksVisible
-                          ? `${weekPickCompletion.partial} partial / ${weekPickCompletion.missing} missing`
-                          : 'Hidden until this week opens.'}
+                        {weekPickCompletion.partial} partial / {weekPickCompletion.missing} missing
                       </div>
                     </div>
                     <div className="rounded-lg border border-gray-200 bg-white p-4">

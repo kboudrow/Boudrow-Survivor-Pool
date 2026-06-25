@@ -1727,6 +1727,16 @@ export type Database = {
           username: string
         }[]
       }
+      pool_member_summaries: {
+        Args: { p_pool_ids: string[] }
+        Returns: {
+          alive_entries: number
+          alive_members: number
+          pool_id: string
+          total_entries: number
+          total_members: number
+        }[]
+      }
       pool_visible_picks: {
         Args: { p_pool_id: string; p_through_week?: boolean; p_week?: number }
         Returns: {
@@ -1742,6 +1752,18 @@ export type Database = {
       pool_week_deadline_at: {
         Args: { p_pool_id: string; p_week: number }
         Returns: string
+      }
+      pool_week_pick_completion: {
+        Args: { p_pool_id: string; p_week: number }
+        Returns: {
+          complete_entries: number
+          made_slots: number
+          missing_entries: number
+          needed_slots: number
+          partial_entries: number
+          required_picks: number
+          total_entries: number
+        }[]
       }
       restore_unlocked_picks_for_pool: {
         Args: { p_pool_id: string }
