@@ -33,6 +33,34 @@ to authenticated
 using (public.is_super_admin())
 with check (public.is_super_admin());
 
+create or replace function public.test_pool_game_outcome(
+  p_pool_id uuid,
+  p_week integer,
+  p_home_team text,
+  p_away_team text
+)
+returns text
+language sql
+security definer
+set search_path to 'public'
+as $function$
+  select case
+    when home_result.result = 'win' and away_result.result = 'loss' then 'home'
+    when away_result.result = 'win' and home_result.result = 'loss' then 'away'
+    when home_result.result = 'push' and away_result.result = 'push' then 'tie'
+    else null
+  end
+  from (select 1) seed
+  left join public.test_pool_team_results home_result
+    on home_result.pool_id = p_pool_id
+   and home_result.week = p_week
+   and home_result.team_abbr = p_home_team
+  left join public.test_pool_team_results away_result
+    on away_result.pool_id = p_pool_id
+   and away_result.week = p_week
+   and away_result.team_abbr = p_away_team
+$function$;
+
 create or replace function public.superadmin_assert_test_pool(p_pool_id uuid)
 returns void
 language plpgsql
@@ -117,17 +145,22 @@ begin
 end;
 $function$;
 
-create or replace function public.superadmin_test_pool_week_options(
+drop function if exists public.superadmin_test_pool_week_options(uuid, integer);
+
+create function public.superadmin_test_pool_week_options(
   p_pool_id uuid,
   p_week integer
 )
 returns table (
-  team_abbr text,
-  team_name text,
-  opponent_abbr text,
+  game_id text,
+  season integer,
+  week integer,
+  away_team text,
+  home_team text,
   game_time timestamptz,
-  pick_count integer,
-  fake_result text
+  away_pick_count integer,
+  home_pick_count integer,
+  fake_outcome text
 )
 language plpgsql
 security definer
@@ -144,24 +177,7 @@ begin
   where id = p_pool_id;
 
   return query
-  with game_teams as (
-    select
-      g.away_team::text as team_abbr,
-      g.home_team::text as opponent_abbr,
-      coalesce(g.kickoff_at_utc, g.game_time) as game_time
-    from public.nfl_games g
-    where g.season = v_season
-      and g.week = p_week
-    union all
-    select
-      g.home_team::text as team_abbr,
-      g.away_team::text as opponent_abbr,
-      coalesce(g.kickoff_at_utc, g.game_time) as game_time
-    from public.nfl_games g
-    where g.season = v_season
-      and g.week = p_week
-  ),
-  pick_counts as (
+  with pick_counts as (
     select picked_teams.team_abbr, count(*)::integer as pick_count
     from (
       select d.team_abbr
@@ -178,19 +194,88 @@ begin
     group by picked_teams.team_abbr
   )
   select
-    gt.team_abbr,
-    gt.team_abbr as team_name,
-    gt.opponent_abbr,
-    gt.game_time,
-    coalesce(pc.pick_count, 0)::integer as pick_count,
-    tr.result::text as fake_result
-  from game_teams gt
-  left join pick_counts pc on pc.team_abbr = gt.team_abbr
-  left join public.test_pool_team_results tr
-    on tr.pool_id = p_pool_id
-   and tr.week = p_week
-   and tr.team_abbr = gt.team_abbr
-  order by gt.game_time, gt.team_abbr;
+    g.id::text as game_id,
+    g.season,
+    g.week,
+    g.away_team::text,
+    g.home_team::text,
+    coalesce(g.kickoff_at_utc, g.game_time) as game_time,
+    coalesce(away_counts.pick_count, 0)::integer as away_pick_count,
+    coalesce(home_counts.pick_count, 0)::integer as home_pick_count,
+    public.test_pool_game_outcome(p_pool_id, p_week, g.home_team::text, g.away_team::text) as fake_outcome
+  from public.nfl_games g
+  left join pick_counts away_counts on away_counts.team_abbr = g.away_team
+  left join pick_counts home_counts on home_counts.team_abbr = g.home_team
+  where g.season = v_season
+    and g.week = p_week
+  order by coalesce(g.kickoff_at_utc, g.game_time), g.away_team, g.home_team;
+end;
+$function$;
+
+create or replace function public.superadmin_set_test_game_outcome(
+  p_pool_id uuid,
+  p_week integer,
+  p_away_team text,
+  p_home_team text,
+  p_outcome text
+)
+returns text
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+declare
+  v_away text := upper(trim(p_away_team));
+  v_home text := upper(trim(p_home_team));
+  v_outcome text := lower(coalesce(trim(p_outcome), ''));
+begin
+  perform public.superadmin_assert_test_pool(p_pool_id);
+
+  if p_week < 1 or p_week > 18 then
+    raise exception 'Week must be between 1 and 18.';
+  end if;
+
+  if v_away = '' or v_home = '' or v_away = v_home then
+    raise exception 'Invalid matchup.';
+  end if;
+
+  delete from public.test_pool_team_results
+  where pool_id = p_pool_id
+    and week = p_week
+    and team_abbr in (v_away, v_home);
+
+  if v_outcome = '' then
+    return 'Test game outcome cleared.';
+  end if;
+
+  if v_outcome not in ('away', 'home', 'tie') then
+    raise exception 'Outcome must be away, home, or tie.';
+  end if;
+
+  insert into public.test_pool_team_results (pool_id, week, team_abbr, result, created_by, updated_at)
+  values
+    (
+      p_pool_id,
+      p_week,
+      v_away,
+      case when v_outcome = 'away' then 'win' when v_outcome = 'home' then 'loss' else 'push' end,
+      auth.uid(),
+      now()
+    ),
+    (
+      p_pool_id,
+      p_week,
+      v_home,
+      case when v_outcome = 'home' then 'win' when v_outcome = 'away' then 'loss' else 'push' end,
+      auth.uid(),
+      now()
+    )
+  on conflict (pool_id, week, team_abbr) do update
+  set result = excluded.result,
+      created_by = excluded.created_by,
+      updated_at = now();
+
+  return 'Test game outcome saved.';
 end;
 $function$;
 
@@ -613,6 +698,8 @@ grant execute on function public.superadmin_set_pool_test_mode(uuid, boolean) to
 grant execute on function public.superadmin_set_test_pool_week(uuid, integer) to authenticated;
 grant execute on function public.superadmin_test_pool_week_options(uuid, integer) to authenticated;
 grant execute on function public.superadmin_set_test_team_result(uuid, integer, text, text) to authenticated;
+grant execute on function public.superadmin_set_test_game_outcome(uuid, integer, text, text, text) to authenticated;
+grant execute on function public.test_pool_game_outcome(uuid, integer, text, text) to authenticated;
 grant execute on function public.superadmin_clear_test_week_results(uuid, integer) to authenticated;
 grant execute on function public.superadmin_finalize_test_week_drafts(uuid, integer) to authenticated;
 grant execute on function public.superadmin_score_test_pool_week(uuid, integer) to authenticated;

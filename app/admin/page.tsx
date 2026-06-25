@@ -50,13 +50,16 @@ type PoolEntry = {
   eliminated_week: number | null
 }
 
-type TestTeamOption = {
-  team_abbr: string
-  team_name: string
-  opponent_abbr: string
+type TestGameOption = {
+  game_id: string
+  season: number
+  week: number
+  away_team: string
+  home_team: string
   game_time: string | null
-  pick_count: number
-  fake_result: string | null
+  away_pick_count: number
+  home_pick_count: number
+  fake_outcome: string | null
 }
 
 type ScheduleAuditRow = {
@@ -101,7 +104,7 @@ export default function SuperAdminPage() {
   const [scheduleAudit, setScheduleAudit] = useState<ScheduleAuditRow[]>([])
   const [auditSeason, setAuditSeason] = useState('2026')
   const [testWeek, setTestWeek] = useState('1')
-  const [testTeams, setTestTeams] = useState<TestTeamOption[]>([])
+  const [testGames, setTestGames] = useState<TestGameOption[]>([])
   const [testToolsLoading, setTestToolsLoading] = useState(false)
 
   const selectedPool = pools.find((pool) => pool.pool_id === selectedPoolId) || null
@@ -176,7 +179,7 @@ export default function SuperAdminPage() {
         p_week: week,
       })
       if (optionsErr) throw optionsErr
-      setTestTeams((data || []) as TestTeamOption[])
+      setTestGames((data || []) as TestGameOption[])
     } catch (e: unknown) {
       setError(getErrorMessage(e, 'Failed to load test week options.'))
     } finally {
@@ -229,7 +232,7 @@ export default function SuperAdminPage() {
     if (selectedPool.test_mode) {
       loadTestOptions(selectedPool.pool_id, nextWeek)
     } else {
-      setTestTeams([])
+      setTestGames([])
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPool?.pool_id, selectedPool?.test_mode, selectedPool?.test_current_week])
@@ -339,18 +342,19 @@ export default function SuperAdminPage() {
     }
   }
 
-  const saveTestResult = async (team: TestTeamOption, result: string) => {
+  const saveTestOutcome = async (game: TestGameOption, outcome: string) => {
     if (!selectedPool) return
     const week = parseInt(testWeek, 10)
-    setRunningAction(`result-${team.team_abbr}`)
+    setRunningAction(`result-${game.game_id}`)
     setError(null)
     setNotice(null)
     try {
-      const { error: resultErr } = await supabase.rpc('superadmin_set_test_team_result', {
+      const { error: resultErr } = await supabase.rpc('superadmin_set_test_game_outcome', {
         p_pool_id: selectedPool.pool_id,
         p_week: week,
-        p_team_abbr: team.team_abbr,
-        p_result: result,
+        p_away_team: game.away_team,
+        p_home_team: game.home_team,
+        p_outcome: outcome,
       })
       if (resultErr) throw resultErr
       await loadTestOptions(selectedPool.pool_id, testWeek)
@@ -695,38 +699,41 @@ export default function SuperAdminPage() {
                         <table className="w-full min-w-[760px] text-sm">
                           <thead className="bg-violet-50 text-slate-700">
                             <tr>
-                              <th className="border-b border-violet-100 p-2 text-left">Team</th>
-                              <th className="border-b border-violet-100 p-2 text-left">Opponent</th>
+                              <th className="border-b border-violet-100 p-2 text-left">Matchup</th>
                               <th className="border-b border-violet-100 p-2 text-left">Kickoff</th>
-                              <th className="border-b border-violet-100 p-2 text-left">Picks</th>
-                              <th className="border-b border-violet-100 p-2 text-left">Fake Result</th>
+                              <th className="border-b border-violet-100 p-2 text-left">Pick Split</th>
+                              <th className="border-b border-violet-100 p-2 text-left">Fake Outcome</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {testTeams.map((team) => (
-                              <tr key={`${team.team_abbr}-${team.opponent_abbr}`} className="hover:bg-slate-50">
-                                <td className="border-b border-slate-100 p-2 font-semibold">{team.team_abbr}</td>
-                                <td className="border-b border-slate-100 p-2">{team.opponent_abbr}</td>
-                                <td className="border-b border-slate-100 p-2">{fmt(team.game_time)}</td>
-                                <td className="border-b border-slate-100 p-2">{team.pick_count}</td>
+                            {testGames.map((game) => (
+                              <tr key={game.game_id} className="hover:bg-slate-50">
+                                <td className="border-b border-slate-100 p-2">
+                                  <div className="font-semibold">{game.away_team} @ {game.home_team}</div>
+                                  <div className="text-xs text-slate-500">Season {game.season}, Week {game.week}</div>
+                                </td>
+                                <td className="border-b border-slate-100 p-2">{fmt(game.game_time)}</td>
+                                <td className="border-b border-slate-100 p-2">
+                                  {game.away_team}: {game.away_pick_count} / {game.home_team}: {game.home_pick_count}
+                                </td>
                                 <td className="border-b border-slate-100 p-2">
                                   <select
-                                    value={team.fake_result || ''}
-                                    onChange={(event) => saveTestResult(team, event.target.value)}
+                                    value={game.fake_outcome || ''}
+                                    onChange={(event) => saveTestOutcome(game, event.target.value)}
                                     disabled={!!runningAction}
-                                    className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
+                                    className="w-full min-w-36 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
                                   >
                                     <option value="">Not set</option>
-                                    <option value="win">Win</option>
-                                    <option value="loss">Loss</option>
-                                    <option value="push">Push</option>
+                                    <option value="away">{game.away_team} wins</option>
+                                    <option value="home">{game.home_team} wins</option>
+                                    <option value="tie">Tie</option>
                                   </select>
                                 </td>
                               </tr>
                             ))}
-                            {testTeams.length === 0 && (
+                            {testGames.length === 0 && (
                               <tr>
-                                <td colSpan={5} className="p-4 text-sm text-slate-500">
+                                <td colSpan={4} className="p-4 text-sm text-slate-500">
                                   No games found for this week yet.
                                 </td>
                               </tr>

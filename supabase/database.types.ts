@@ -1979,6 +1979,16 @@ export type Database = {
         Args: { p_enabled: boolean; p_pool_id: string }
         Returns: string
       }
+      superadmin_set_test_game_outcome: {
+        Args: {
+          p_away_team: string
+          p_home_team: string
+          p_outcome: string
+          p_pool_id: string
+          p_week: number
+        }
+        Returns: string
+      }
       superadmin_set_test_pool_week: {
         Args: { p_pool_id: string; p_week: number }
         Returns: string
@@ -1995,13 +2005,25 @@ export type Database = {
       superadmin_test_pool_week_options: {
         Args: { p_pool_id: string; p_week: number }
         Returns: {
-          fake_result: string
+          away_pick_count: number
+          away_team: string
+          fake_outcome: string
+          game_id: string
           game_time: string
-          opponent_abbr: string
-          pick_count: number
-          team_abbr: string
-          team_name: string
+          home_pick_count: number
+          home_team: string
+          season: number
+          week: number
         }[]
+      }
+      test_pool_game_outcome: {
+        Args: {
+          p_away_team: string
+          p_home_team: string
+          p_pool_id: string
+          p_week: number
+        }
+        Returns: string
       }
       update_my_profile: {
         Args: {
