@@ -171,10 +171,10 @@ declare
 begin
   perform public.superadmin_assert_test_pool(p_pool_id);
 
-  select coalesce(season, extract(year from now())::integer)
+  select coalesce(p.season, extract(year from now())::integer)
     into v_season
-  from public.pools
-  where id = p_pool_id;
+  from public.pools p
+  where p.id = p_pool_id;
 
   return query
   with pick_counts as (
