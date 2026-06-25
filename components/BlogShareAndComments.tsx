@@ -29,6 +29,9 @@ type BlogShareAndCommentsProps = {
   commentsFirst?: boolean
 }
 
+const THUMBS_UP = '\u{1F44D}'
+const THUMBS_DOWN = '\u{1F44E}'
+
 function initials(name: string | null) {
   if (!name) return 'SS'
   const words = name.trim().split(/\s+/).filter(Boolean)
@@ -358,7 +361,7 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
                           comment.viewer_reaction === 'up' ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-white'
                         }`}
                       >
-                        <span aria-hidden="true">&#128077;</span> {comment.up_count}
+                        <span aria-hidden="true">{THUMBS_UP}</span> {comment.up_count}
                       </button>
                       <button
                         type="button"
@@ -369,7 +372,7 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
                           comment.viewer_reaction === 'down' ? 'border-red-300 bg-red-50 text-red-700' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-white'
                         }`}
                       >
-                        <span aria-hidden="true">&#128078;</span> {comment.down_count}
+                        <span aria-hidden="true">{THUMBS_DOWN}</span> {comment.down_count}
                       </button>
                       <button
                         type="button"
@@ -464,7 +467,7 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
                                       reply.viewer_reaction === 'up' ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                                     }`}
                                   >
-                                    <span aria-hidden="true">&#128077;</span> {reply.up_count}
+                                    <span aria-hidden="true">{THUMBS_UP}</span> {reply.up_count}
                                   </button>
                                   <button
                                     type="button"
@@ -475,7 +478,7 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
                                       reply.viewer_reaction === 'down' ? 'border-red-300 bg-red-50 text-red-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                                     }`}
                                   >
-                                    <span aria-hidden="true">&#128078;</span> {reply.down_count}
+                                    <span aria-hidden="true">{THUMBS_DOWN}</span> {reply.down_count}
                                   </button>
                                   <button
                                     type="button"

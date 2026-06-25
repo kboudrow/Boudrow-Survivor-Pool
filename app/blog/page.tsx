@@ -19,6 +19,9 @@ type BlogPageProps = {
   }>
 }
 
+const THUMBS_UP = '\u{1F44D}'
+const THUMBS_DOWN = '\u{1F44E}'
+
 export default async function BlogPage({ searchParams }: BlogPageProps) {
   const params = (await searchParams) || {}
   const selectedCategory = params.category || 'All'
@@ -82,8 +85,8 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
                 <p className="mt-3 max-w-2xl leading-7 text-slate-600">{featured.description}</p>
                 <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
                   <span className="rounded-full bg-slate-100 px-2.5 py-1">{featured.commentCount ?? 0} comments</span>
-                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">ðŸ‘ {featured.upCount ?? 0}</span>
-                  <span className="rounded-full bg-red-50 px-2.5 py-1 text-red-700">ðŸ‘Ž {featured.downCount ?? 0}</span>
+                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">{THUMBS_UP} {featured.upCount ?? 0}</span>
+                  <span className="rounded-full bg-red-50 px-2.5 py-1 text-red-700">{THUMBS_DOWN} {featured.downCount ?? 0}</span>
                 </div>
               </>
             ) : (
@@ -207,8 +210,8 @@ function BlogCard({ post }: { post: PublicBlogPost }) {
       <p className="mt-2 text-sm leading-6 text-slate-600">{post.description}</p>
       <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
         <span className="rounded-full bg-slate-100 px-2 py-1">{post.commentCount ?? 0} comments</span>
-        <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">ðŸ‘ {post.upCount ?? 0}</span>
-        <span className="rounded-full bg-red-50 px-2 py-1 text-red-700">ðŸ‘Ž {post.downCount ?? 0}</span>
+        <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">{THUMBS_UP} {post.upCount ?? 0}</span>
+        <span className="rounded-full bg-red-50 px-2 py-1 text-red-700">{THUMBS_DOWN} {post.downCount ?? 0}</span>
       </div>
       <Link href={`/blog/${post.slug}`} className="mt-4 inline-flex text-sm font-semibold text-[#c5161d] hover:text-[#a91218]">
         Read article

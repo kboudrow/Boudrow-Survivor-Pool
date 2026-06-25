@@ -72,6 +72,8 @@ type FormState = {
 }
 
 const SUPERADMIN_EMAIL = 'survivesunday1@gmail.com'
+const THUMBS_UP = '\u{1F44D}'
+const THUMBS_DOWN = '\u{1F44E}'
 
 const emptyForm: FormState = {
   id: null,
@@ -571,8 +573,8 @@ export default function BlogAdminPage() {
                   </div>
                   <div className="mt-3 flex flex-wrap gap-3 text-xs font-semibold text-slate-600 sm:flex-nowrap">
                     <span>{postMetrics[post.slug]?.comment_count || 0} comments</span>
-                    <span>{postMetrics[post.slug]?.up_count || 0} 👍</span>
-                    <span>{postMetrics[post.slug]?.down_count || 0} 👎</span>
+                    <span>{postMetrics[post.slug]?.up_count || 0} {THUMBS_UP}</span>
+                    <span>{postMetrics[post.slug]?.down_count || 0} {THUMBS_DOWN}</span>
                   </div>
                   <div className="mt-3 inline-flex rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800">
                     {post.status === 'published' ? 'Open / manage' : 'Open / edit'}
@@ -619,9 +621,9 @@ export default function BlogAdminPage() {
                         <div className="flex flex-nowrap items-center gap-2 whitespace-nowrap">
                           <span><span className="font-semibold">{postMetrics[post.slug]?.comment_count || 0}</span> comments</span>
                           <span>/</span>
-                          <span><span className="font-semibold">{postMetrics[post.slug]?.up_count || 0}</span> 👍</span>
+                          <span><span className="font-semibold">{postMetrics[post.slug]?.up_count || 0}</span> {THUMBS_UP}</span>
                           <span>/</span>
-                          <span><span className="font-semibold">{postMetrics[post.slug]?.down_count || 0}</span> 👎</span>
+                          <span><span className="font-semibold">{postMetrics[post.slug]?.down_count || 0}</span> {THUMBS_DOWN}</span>
                         </div>
                       </td>
                       <td className="px-3 py-3">{prettyDate(post.updated_at)}</td>
@@ -670,8 +672,8 @@ export default function BlogAdminPage() {
                     </div>
                     <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
                       <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-800">{comment.report_count} reports</span>
-                      <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">{comment.up_count} 👍</span>
-                      <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">{comment.down_count} 👎</span>
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">{comment.up_count} {THUMBS_UP}</span>
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">{comment.down_count} {THUMBS_DOWN}</span>
                     </div>
                   </div>
                   <p className="whitespace-pre-wrap rounded-md bg-slate-50 p-3 text-sm leading-6 text-slate-800">{comment.body}</p>
