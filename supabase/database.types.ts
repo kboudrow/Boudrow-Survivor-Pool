@@ -1566,6 +1566,10 @@ export type Database = {
         }[]
       }
       blog_delete_comment: { Args: { p_comment_id: string }; Returns: string }
+      blog_delete_own_comment: {
+        Args: { p_comment_id: string }
+        Returns: string
+      }
       blog_engagement_for_posts: {
         Args: { p_post_slugs: string[] }
         Returns: {

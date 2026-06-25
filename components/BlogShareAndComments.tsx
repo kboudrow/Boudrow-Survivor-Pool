@@ -55,6 +55,7 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
   const [submittingReply, setSubmittingReply] = useState(false)
   const [reactingId, setReactingId] = useState<string | null>(null)
   const [reportingId, setReportingId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -229,6 +230,23 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
     }
   }
 
+  const deleteOwnComment = async (comment: BlogComment) => {
+    if (!userId || deletingId || comment.profile_id !== userId) return
+    const confirmed = window.confirm('Delete this comment?')
+    if (!confirmed) return
+    setDeletingId(comment.id)
+    setError(null)
+    try {
+      const { error: deleteErr } = await supabase.rpc('blog_delete_own_comment', { p_comment_id: comment.id })
+      if (deleteErr) throw deleteErr
+      await loadComments()
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to delete comment.'))
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   const shareSection = (
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -340,7 +358,7 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
                           comment.viewer_reaction === 'up' ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-white'
                         }`}
                       >
-                        ðŸ‘ {comment.up_count}
+                        <span aria-hidden="true">&#128077;</span> {comment.up_count}
                       </button>
                       <button
                         type="button"
@@ -351,7 +369,7 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
                           comment.viewer_reaction === 'down' ? 'border-red-300 bg-red-50 text-red-700' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-white'
                         }`}
                       >
-                        ðŸ‘Ž {comment.down_count}
+                        <span aria-hidden="true">&#128078;</span> {comment.down_count}
                       </button>
                       <button
                         type="button"
@@ -372,6 +390,16 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
                       >
                         {reportingId === comment.id ? 'Reporting...' : 'Report'}
                       </button>
+                      {comment.profile_id === userId && (
+                        <button
+                          type="button"
+                          onClick={() => deleteOwnComment(comment)}
+                          disabled={deletingId === comment.id}
+                          className="rounded-full border border-red-200 bg-white px-3 py-1 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+                        >
+                          {deletingId === comment.id ? 'Deleting...' : 'Delete'}
+                        </button>
+                      )}
                     </div>
                     {replyingTo === comment.id && (
                       <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -436,7 +464,7 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
                                       reply.viewer_reaction === 'up' ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                                     }`}
                                   >
-                                    ðŸ‘ {reply.up_count}
+                                    <span aria-hidden="true">&#128077;</span> {reply.up_count}
                                   </button>
                                   <button
                                     type="button"
@@ -447,7 +475,7 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
                                       reply.viewer_reaction === 'down' ? 'border-red-300 bg-red-50 text-red-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                                     }`}
                                   >
-                                    ðŸ‘Ž {reply.down_count}
+                                    <span aria-hidden="true">&#128078;</span> {reply.down_count}
                                   </button>
                                   <button
                                     type="button"
@@ -457,6 +485,16 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
                                   >
                                     {reportingId === reply.id ? 'Reporting...' : 'Report'}
                                   </button>
+                                  {reply.profile_id === userId && (
+                                    <button
+                                      type="button"
+                                      onClick={() => deleteOwnComment(reply)}
+                                      disabled={deletingId === reply.id}
+                                      className="rounded-full border border-red-200 bg-white px-2.5 py-1 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+                                    >
+                                      {deletingId === reply.id ? 'Deleting...' : 'Delete'}
+                                    </button>
+                                  )}
                                 </div>
                               </div>
                             </div>
