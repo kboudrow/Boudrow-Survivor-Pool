@@ -162,7 +162,7 @@ begin
       and g.week = p_week
   ),
   pick_counts as (
-    select team_abbr, count(*)::integer as pick_count
+    select picked_teams.team_abbr, count(*)::integer as pick_count
     from (
       select d.team_abbr
       from public.pool_pick_drafts d
@@ -174,8 +174,8 @@ begin
       where pp.pool_id = p_pool_id
         and pp.week = p_week
         and pp.team_abbr not like 'NO_PICK%'
-    ) picks
-    group by team_abbr
+    ) picked_teams
+    group by picked_teams.team_abbr
   )
   select
     gt.team_abbr,
