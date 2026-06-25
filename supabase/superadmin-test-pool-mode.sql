@@ -228,6 +228,8 @@ declare
   v_away text := upper(trim(p_away_team));
   v_home text := upper(trim(p_home_team));
   v_outcome text := lower(coalesce(trim(p_outcome), ''));
+  v_season integer;
+  v_match_count integer;
 begin
   perform public.superadmin_assert_test_pool(p_pool_id);
 
@@ -237,6 +239,23 @@ begin
 
   if v_away = '' or v_home = '' or v_away = v_home then
     raise exception 'Invalid matchup.';
+  end if;
+
+  select coalesce(p.season, extract(year from now())::integer)
+    into v_season
+  from public.pools p
+  where p.id = p_pool_id;
+
+  select count(*)::integer
+    into v_match_count
+  from public.nfl_games g
+  where g.season = v_season
+    and g.week = p_week
+    and g.away_team = v_away
+    and g.home_team = v_home;
+
+  if coalesce(v_match_count, 0) <> 1 then
+    raise exception 'Schedule integrity problem: expected one % @ % game in Week %, found %.', v_away, v_home, p_week, coalesce(v_match_count, 0);
   end if;
 
   delete from public.test_pool_team_results
