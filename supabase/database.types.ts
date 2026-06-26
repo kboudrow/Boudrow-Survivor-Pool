@@ -1666,6 +1666,27 @@ export type Database = {
         Returns: string
       }
       count_pool_members: { Args: { p_pool_id: string }; Returns: number }
+      create_pool_with_owner: {
+        Args: {
+          p_allow_multiple_entries?: boolean
+          p_deadline_fixed?: string
+          p_deadline_mode?: string
+          p_double_pick_weeks?: number[]
+          p_image_url?: string
+          p_include_playoffs?: boolean
+          p_is_public?: boolean
+          p_max_entries_per_user?: number
+          p_max_members?: number
+          p_name: string
+          p_notes?: string
+          p_password?: string
+          p_season?: number
+          p_start_week?: number
+          p_strikes_allowed?: string
+          p_tie_rule?: string
+        }
+        Returns: string
+      }
       current_blog_role: { Args: never; Returns: string }
       finalize_locked_picks: {
         Args: { p_pool_id: string; p_week: number }

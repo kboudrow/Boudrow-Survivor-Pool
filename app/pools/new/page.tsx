@@ -160,7 +160,9 @@ export default function CreatePoolPage() {
       cacheControl: '3600',
       upsert: true,
     })
-    if (uploadError) throw uploadError
+    if (uploadError) {
+      throw new Error(`Pool image upload failed: ${uploadError.message}. Try creating the pool without an image, then add it later from the admin panel.`)
+    }
 
     const { data } = supabase.storage.from('pool-images').getPublicUrl(path)
     return data.publicUrl
@@ -204,56 +206,29 @@ export default function CreatePoolPage() {
       if (pickDeadline === 'Rolling: each game locks at kickoff') deadline_mode = 'rolling'
       const leagueImageUrl = imageFile ? await uploadLeagueImage(imageFile, user.id) : defaultPoolImage(trimmedName)
 
-      // 1) create pool
-      const { data: pool, error: insErr } = await supabase
-        .from('pools')
-        .insert({
-          name: trimmedName,
-          is_public: isPublic,
-          allow_discovery: true,
-          start_week,
-          include_playoffs,
-          strikes_allowed,
-          tie_rule,
-          deadline_mode,
-          deadline_fixed,
-          notes: notes?.trim() ? notes.trim() : null,
-          image_url: leagueImageUrl,
-          created_by: user.id,
-          season: DEFAULT_SEASON,
-          double_pick_weeks: validDoubleWeeks,
-          plan: 'free',
-          pick_privacy: 'hidden',
-          activation_status: 'active',
-          payment_status: 'not_required',
-          max_members,
-          allow_multiple_entries: allowMultipleEntries,
-          max_entries_per_user,
-        })
-        .select('*')
-        .single()
-
-      if (insErr) throw insErr
-      if (!pool) throw new Error('Failed to create pool.')
-
-      // 2) if private, set password via RPC (hash in DB)
-      if (!isPublic) {
-        const { error: pwdErr } = await supabase.rpc('set_pool_password', {
-          p_pool_id: pool.id,
-          p_plain: password,
-        })
-        if (pwdErr) throw pwdErr
-      }
-
-      // 3) join creator through the same secure path used by every player
-      const { error: joinErr } = await supabase.rpc('join_pool', {
-        p_pool_id: pool.id,
+      const { data: poolId, error: createErr } = await supabase.rpc('create_pool_with_owner', {
+        p_name: trimmedName,
+        p_is_public: isPublic,
         p_password: isPublic ? null : password,
+        p_start_week: start_week,
+        p_include_playoffs: include_playoffs,
+        p_strikes_allowed: strikes_allowed,
+        p_tie_rule: tie_rule,
+        p_deadline_mode: deadline_mode,
+        p_deadline_fixed: deadline_fixed,
+        p_notes: notes?.trim() ? notes.trim() : null,
+        p_image_url: leagueImageUrl,
+        p_season: DEFAULT_SEASON,
+        p_double_pick_weeks: validDoubleWeeks,
+        p_max_members: max_members,
+        p_allow_multiple_entries: allowMultipleEntries,
+        p_max_entries_per_user: max_entries_per_user,
       })
 
-      if (joinErr) throw joinErr
+      if (createErr) throw createErr
+      if (!poolId) throw new Error('Failed to create pool.')
 
-      router.push(`/pools/${pool.id}/admin`)
+      router.push(`/pools/${poolId}/admin`)
     } catch (e: unknown) {
       const msg = formatCreatePoolError(e)
       setError(msg)
