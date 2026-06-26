@@ -16,6 +16,14 @@ async function getSupabase() {
   return supabase
 }
 
+function cleanEmail(value: string) {
+  return value.trim().toLowerCase()
+}
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+}
+
 export default function Home() {
   const router = useRouter()
 
@@ -28,6 +36,7 @@ export default function Home() {
 
   // auth form state
   const [authError, setAuthError] = useState<string | null>(null)
+  const [authNotice, setAuthNotice] = useState<string | null>(null)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [username, setUsername] = useState('')
@@ -92,6 +101,7 @@ export default function Home() {
 
   const openSignIn = () => {
     setAuthError(null)
+    setAuthNotice(null)
     setMode('signin')
     requestAnimationFrame(() => {
       signInPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -101,6 +111,7 @@ export default function Home() {
 
   const openSignUp = () => {
     setAuthError(null)
+    setAuthNotice(null)
     setMode('signup')
     requestAnimationFrame(() => {
       signUpPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -136,6 +147,7 @@ export default function Home() {
   // auth handlers
   const signInWithGoogle = async () => {
     setAuthError(null)
+    setAuthNotice(null)
     const redirectTo = authCallbackUrl(returnToRef.current || returnTo || '/pools')
     const supabase = await getSupabase()
     const { error } = await supabase.auth.signInWithOAuth({
@@ -150,9 +162,12 @@ export default function Home() {
 
   const signInWithEmail = async () => {
     setAuthError(null)
-    if (!email || !password) return setAuthError('Please enter email and password.')
+    setAuthNotice(null)
+    const trimmedEmail = cleanEmail(email)
+    if (!trimmedEmail || !password) return setAuthError('Please enter email and password.')
+    if (!isValidEmail(trimmedEmail)) return setAuthError('Enter a valid email address.')
     const supabase = await getSupabase()
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error } = await supabase.auth.signInWithPassword({ email: trimmedEmail, password })
     if (error) return setAuthError(getErrorMessage(error, 'Could not sign in. Check your email and password.'))
     if (data.user) {
       await runEnsureProfileOnce(data.user.id)
@@ -162,13 +177,16 @@ export default function Home() {
 
   const signUpWithEmail = async () => {
     setAuthError(null)
+    setAuthNotice(null)
     if (!firstName || !lastName) return setAuthError('Please enter your first and last name.')
     const cleanUsername = normalizeUsername(username)
+    const trimmedEmail = cleanEmail(email)
     if (!cleanUsername) return setAuthError('Please choose a username.')
     if (cleanUsername.length < 3) return setAuthError('Username must be at least 3 characters.')
     if (cleanUsername.length > 30) return setAuthError('Username must be 30 characters or fewer.')
     if (!/^[A-Za-z0-9_. -]+$/.test(cleanUsername)) return setAuthError('Username can only use letters, numbers, spaces, periods, underscores, and hyphens.')
-    if (!email) return setAuthError('Please enter your email.')
+    if (!trimmedEmail) return setAuthError('Please enter your email.')
+    if (!isValidEmail(trimmedEmail)) return setAuthError('Enter a valid email address.')
     if (!password) return setAuthError('Please enter a password.')
     if (!password2) return setAuthError('Please re-enter your password.')
     if (!allPwOk) return setAuthError('Please meet all password requirements.')
@@ -179,25 +197,22 @@ export default function Home() {
     if (!available) return setAuthError('That username is already taken. Try another one.')
 
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: trimmedEmail,
       password,
-      options: { data: { first_name: firstName, last_name: lastName, username: cleanUsername } },
+      options: {
+        emailRedirectTo: authCallbackUrl(returnToRef.current || returnTo || '/pools'),
+        data: { first_name: firstName.trim(), last_name: lastName.trim(), username: cleanUsername },
+      },
     })
     if (error) return setAuthError(getErrorMessage(error, 'Could not create that account. Please try again.'))
 
-    // If no session returned (email confirm disabled / etc.), sign in immediately
     if (!data?.session) {
-      const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email, password })
-      if (signInErr) return setAuthError(getErrorMessage(signInErr, 'Account created, but sign-in failed. Please sign in manually.'))
-      if (signInData.user) {
-        try {
-          await runEnsureProfileOnce(signInData.user.id)
-          await saveSignupProfile(signInData.user.id, cleanUsername)
-        } catch (e: unknown) {
-          return setAuthError(authMessage(e, 'Account created, but we could not save that username.'))
-        }
-        router.push(returnToRef.current || '/pools')
-      }
+      setEmail(trimmedEmail)
+      setPassword('')
+      setPassword2('')
+      setMode('signin')
+      setAuthNotice('Check your email to confirm your account, then sign in.')
+      return
     } else {
       try {
         await runEnsureProfileOnce(data.session.user.id)
@@ -420,6 +435,7 @@ export default function Home() {
                     </button>
                   </div>
 
+                  {authNotice && <p className="mb-2 rounded-md border border-green-200 bg-green-50 p-2 text-sm text-green-800">{authNotice}</p>}
                   {authError && <p className="text-red-600 mb-2">{authError}</p>}
 
                   <div className="flex gap-2">
@@ -508,6 +524,7 @@ export default function Home() {
                     <li className={pw.match ? 'text-green-700' : ''}>Passwords match</li>
                   </ul>
 
+                  {authNotice && <p className="mt-2 rounded-md border border-green-200 bg-green-50 p-2 text-sm text-green-800">{authNotice}</p>}
                   {authError && <p className="text-red-600 mt-2">{authError}</p>}
 
                   <div className="mt-2 flex gap-2">

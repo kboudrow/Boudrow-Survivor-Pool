@@ -28,9 +28,15 @@ function formatCreatePoolError(e: unknown): string {
   const hint = typeof errorInfo?.hint === 'string' ? errorInfo.hint : undefined
   const code = typeof errorInfo?.code === 'string' ? errorInfo.code : undefined
 
-  const full = [msg, details, hint].filter(Boolean).join(' â€” ')
+  const full = [msg, details, hint].filter(Boolean).join(' - ')
   const lower = full.toLowerCase()
 
+  if (lower.includes('pool image upload failed')) {
+    return 'We could not upload that pool image. Remove it and create the pool without an image, or try a different image. You can add a pool image later from the admin panel.'
+  }
+  if (lower.includes('row-level security') || lower.includes('rls')) {
+    return 'We could not save that yet. Please refresh, sign in again, and try once more.'
+  }
   if (lower.includes('already exists') || code === '23505') {
     return 'That pool name is already taken. Try a different name.'
   }
@@ -65,6 +71,7 @@ export default function CreatePoolPage() {
   /** Scroll/focus helpers */
   const topRef = useRef<HTMLDivElement | null>(null)
   const nameInputRef = useRef<HTMLInputElement | null>(null)
+  const imageInputRef = useRef<HTMLInputElement | null>(null)
 
   // Pool fields
   const [poolName, setPoolName] = useState('')
@@ -150,6 +157,15 @@ export default function CreatePoolPage() {
     })
   }
 
+  const clearImageSelection = () => {
+    setImageFile(null)
+    setImagePreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return null
+    })
+    if (imageInputRef.current) imageInputRef.current.value = ''
+  }
+
   const uploadLeagueImage = async (file: File, userId: string) => {
     if (!file.type.startsWith('image/')) throw new Error('Choose an image file for the pool image.')
     if (file.size > 5 * 1024 * 1024) throw new Error('Pool image must be 5 MB or smaller.')
@@ -161,7 +177,8 @@ export default function CreatePoolPage() {
       upsert: true,
     })
     if (uploadError) {
-      throw new Error(`Pool image upload failed: ${uploadError.message}. Try creating the pool without an image, then add it later from the admin panel.`)
+      console.error('Pool image upload failed', uploadError)
+      throw new Error('Pool image upload failed')
     }
 
     const { data } = supabase.storage.from('pool-images').getPublicUrl(path)
@@ -280,7 +297,7 @@ export default function CreatePoolPage() {
             className={nameError ? 'inputError' : ''}
           />
           <p className="hint">
-            Names must be <b>unique</b> and canâ€™t contain restricted terms (e.g., â€œsurvivorâ€, â€œpoolâ€, â€œabcâ€, â€œ123â€).
+            Names must be <b>unique</b> and cannot include restricted terms like survivor, pool, abc, or 123.
           </p>
           {nameError && (
             <p className="fieldError" role="alert" aria-live="polite">{error}</p>
@@ -478,6 +495,7 @@ export default function CreatePoolPage() {
             </div>
             <div>
               <input
+                ref={imageInputRef}
                 id="leagueImage"
                 type="file"
                 accept="image/png,image/jpeg,image/webp,image/gif"
@@ -488,6 +506,11 @@ export default function CreatePoolPage() {
                 Choose image
               </label>
               <span className="fileName">{imageFile ? imageFile.name : 'No image selected'}</span>
+              {imageFile && (
+                <button type="button" className="removeImageButton" onClick={clearImageSelection}>
+                  Remove image
+                </button>
+              )}
               <p className="hint">Optional. Upload a logo or pool image up to 5 MB.</p>
             </div>
           </div>
@@ -591,6 +614,22 @@ export default function CreatePoolPage() {
           cursor: pointer;
         }
         .fileButton:hover { background: #1f2937; }
+        .removeImageButton {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 34px;
+          margin-left: 8px;
+          padding: 7px 10px;
+          border: 1px solid #d1d5db;
+          border-radius: 8px;
+          background: #fff;
+          color: #374151;
+          font-size: 13px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+        .removeImageButton:hover { background: #f3f4f6; }
         .fileName {
           display: inline-block;
           max-width: min(100%, 360px);
