@@ -49,6 +49,19 @@ function appTeam(espnAbbr) {
   return mapped
 }
 
+function validateKickoffForSeason(isoValue, week) {
+  const date = new Date(isoValue)
+  const year = date.getUTCFullYear()
+  const allowedYears = week === 18 ? new Set([season, season + 1]) : new Set([season])
+
+  if (!allowedYears.has(year)) {
+    throw new Error(
+      `ESPN returned a ${year} kickoff for requested season ${season}, week ${week}: ${isoValue}. ` +
+        'Stop instead of writing stale games under the wrong season.',
+    )
+  }
+}
+
 function getWeekSundayDate(events) {
   const sunday = events
     .map((event) => new Date(event.date))
@@ -100,10 +113,13 @@ for (let week = 1; week <= 18; week += 1) {
       throw new Error(`Missing competition/home/away data for ESPN event ${event.id}`)
     }
 
+    const gameTime = competition.startDate || competition.date || event.date
+    validateKickoffForSeason(gameTime, week)
+
     games.push({
       season,
       week,
-      gameTime: competition.startDate || competition.date || event.date,
+      gameTime,
       homeTeam: appTeam(home.team.abbreviation),
       awayTeam: appTeam(away.team.abbreviation),
       espnEventId: String(event.id),
