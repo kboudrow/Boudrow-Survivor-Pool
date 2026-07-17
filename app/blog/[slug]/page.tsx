@@ -2,12 +2,22 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { BlogShareAndComments } from '@/components/BlogShareAndComments'
-import { getPublicBlogPost, getRelatedPublicBlogPosts } from '@/lib/blogDb'
+import { getPublicBlogPost, getPublicBlogPosts, getRelatedPublicBlogPosts } from '@/lib/blogDb'
+import { SITE_URL, absoluteUrl } from '@/lib/site'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 300
 
 type Props = {
   params: Promise<{ slug: string }>
+}
+
+export async function generateStaticParams() {
+  try {
+    const posts = await getPublicBlogPosts()
+    return posts.map((post) => ({ slug: post.slug }))
+  } catch {
+    return []
+  }
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -35,7 +45,6 @@ export default async function BlogPostPage({ params }: Props) {
   const post = await getPublicBlogPost(slug)
   if (!post) notFound()
 
-  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://www.survivesunday.com').replace(/\/$/, '')
   const relatedPosts = await getRelatedPublicBlogPosts(post)
   const visibleSections = post.sections.filter((section) => section.heading !== 'Article')
   const showContents = visibleSections.length > 1
@@ -46,18 +55,18 @@ export default async function BlogPostPage({ params }: Props) {
     description: post.description,
     datePublished: post.updatedAt,
     dateModified: post.updatedAt,
-    mainEntityOfPage: `${siteUrl}/blog/${post.slug}`,
+    mainEntityOfPage: absoluteUrl(`/blog/${post.slug}`),
     author: {
       '@type': 'Organization',
       name: 'Survive Sunday',
-      url: siteUrl,
+      url: SITE_URL,
     },
     publisher: {
       '@type': 'Organization',
       name: 'Survive Sunday',
       logo: {
         '@type': 'ImageObject',
-        url: `${siteUrl}/survive-sunday-logo.png`,
+        url: absoluteUrl('/survive-sunday-logo.png'),
       },
     },
   }
@@ -152,7 +161,7 @@ export default async function BlogPostPage({ params }: Props) {
           postSlug={post.slug}
           title={post.title}
           description={post.description}
-          shareUrl={`${siteUrl}/blog/${post.slug}`}
+          shareUrl={absoluteUrl(`/blog/${post.slug}`)}
           commentsFirst
         />
 

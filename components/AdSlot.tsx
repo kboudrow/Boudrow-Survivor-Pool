@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { cleanEnvValue } from '@/lib/env'
 
 type AdSlotProps = {
   slot?: string
@@ -17,14 +18,16 @@ declare global {
   }
 }
 
-const cleanAdValue = (value?: string) => (value || '').replace(/\uFEFF/g, '').trim()
-const adsenseClient = cleanAdValue(process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT || process.env.NEXT_PUBLIC_ADSENSE_CLIENT || 'ca-pub-7635962482487315')
+const cleanAdValue = (value?: string) => cleanEnvValue(value) || ''
+const isValidPublisherId = (value: string) => /^ca-pub-\d+$/.test(value)
+const isValidSlotId = (value: string) => /^\d+$/.test(value)
+const adsenseClient = cleanAdValue(process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT || process.env.NEXT_PUBLIC_ADSENSE_CLIENT)
 const showPreview = process.env.NODE_ENV !== 'production'
 
 export function AdSlot({ slot, label = 'Advertisement', format = 'auto', layout, className = '', minHeight = '90px' }: AdSlotProps) {
   const allowAds = process.env.NEXT_PUBLIC_ENABLE_ADSENSE === 'true'
   const cleanSlot = cleanAdValue(slot)
-  const enabled = Boolean(allowAds && adsenseClient && cleanSlot)
+  const enabled = Boolean(allowAds && isValidPublisherId(adsenseClient) && isValidSlotId(cleanSlot))
   const adAttributes = layout
     ? { 'data-ad-layout': layout }
     : {}

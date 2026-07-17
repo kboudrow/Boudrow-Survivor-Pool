@@ -8,8 +8,8 @@ function isAuthorized(request: NextRequest) {
   const secret = cleanEnvValue(process.env.CRON_SECRET)
   const auth = request.headers.get('authorization')
 
-  if (secret) return auth === `Bearer ${secret}`
-  return request.headers.get('user-agent')?.includes('vercel-cron') ?? false
+  if (!secret) return false
+  return auth === `Bearer ${secret}`
 }
 
 export async function GET(request: NextRequest) {

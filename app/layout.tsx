@@ -5,14 +5,15 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import { AppHeader } from "@/components/AppHeader";
 import { SiteFooter } from "@/components/SiteFooter";
+import { cleanEnvValue } from "@/lib/env";
+import { SITE_URL } from "@/lib/site";
 
 const enableAdsense = process.env.NEXT_PUBLIC_ENABLE_ADSENSE === "true";
-const adsenseClient = (process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT || process.env.NEXT_PUBLIC_ADSENSE_CLIENT || "ca-pub-7635962482487315")
-  .replace(/\uFEFF/g, "")
-  .trim();
+const adsenseClient = cleanEnvValue(process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT || process.env.NEXT_PUBLIC_ADSENSE_CLIENT);
+const shouldLoadAdsense = enableAdsense && Boolean(adsenseClient && /^ca-pub-\d+$/.test(adsenseClient));
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://www.survivesunday.com"),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "Survive Sunday",
     template: "%s | Survive Sunday",
@@ -29,7 +30,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Survive Sunday",
     description: "Create, join, and manage NFL survivor pools with automatic pick locks, standings, and commissioner tools.",
-    url: "https://www.survivesunday.com",
+    url: SITE_URL,
     siteName: "Survive Sunday",
     images: ["/survive-sunday-logo.png"],
     type: "website",
@@ -50,7 +51,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="flex min-h-screen flex-col bg-slate-50 text-slate-950 antialiased">
-        {enableAdsense && (
+        {shouldLoadAdsense && (
           <Script
             async
             src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsenseClient}`}

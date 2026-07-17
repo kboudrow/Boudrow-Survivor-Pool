@@ -118,13 +118,25 @@ export async function getDatabaseBlogPosts(status = 'published') {
   }
 }
 
+async function getDatabaseBlogSlugs() {
+  if (!publicBlogClient) return new Set<string>()
+
+  try {
+    const { data, error } = await withTimeout(publicBlogClient.from('blog_posts').select('slug'))
+    if (error) throw error
+    return new Set((data || []).map((row) => row.slug).filter((slug): slug is string => typeof slug === 'string'))
+  } catch {
+    return new Set<string>()
+  }
+}
+
 export async function getPublicBlogPosts() {
-  const dbPosts = await getDatabaseBlogPosts('published')
+  const [dbPosts, dbSlugs] = await Promise.all([getDatabaseBlogPosts('published'), getDatabaseBlogSlugs()])
   const merged = new Map<string, PublicBlogPost>()
 
   for (const post of dbPosts) merged.set(post.slug, post)
   for (const post of blogPosts) {
-    if (!merged.has(post.slug)) merged.set(post.slug, { ...post, source: 'seed', authorName: 'Survive Sunday' })
+    if (!merged.has(post.slug) && !dbSlugs.has(post.slug)) merged.set(post.slug, { ...post, source: 'seed', authorName: 'Survive Sunday' })
   }
 
   const posts = sortBlogPosts(Array.from(merged.values()))
@@ -170,6 +182,14 @@ export async function getPublicBlogPost(slug: string) {
 
       if (error) throw error
       if (data) return rowToBlogPost(data as BlogPostRow)
+
+      const { data: existing, error: existingError } = await withTimeout(publicBlogClient
+        .from('blog_posts')
+        .select('id')
+        .eq('slug', slug)
+        .maybeSingle())
+      if (existingError) throw existingError
+      if (existing) return null
     } catch {}
   }
 

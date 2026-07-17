@@ -1,4 +1,4 @@
-const target = process.env.LOAD_TEST_TARGET || 'https://survivesunday.com'
+const target = process.env.LOAD_TEST_TARGET
 const concurrency = Number(process.env.LOAD_TEST_CONCURRENCY || 25)
 const rounds = Number(process.env.LOAD_TEST_ROUNDS || 4)
 const authHeader = process.env.LOAD_TEST_AUTH_HEADER || ''
@@ -8,6 +8,11 @@ const paths = (process.env.LOAD_TEST_PATHS || '/,/join/search,/blog,/faq')
   .filter(Boolean)
 
 const headers = authHeader ? { authorization: authHeader } : {}
+
+if (!target) {
+  console.error('Set LOAD_TEST_TARGET before running load tests. Example: LOAD_TEST_TARGET=http://localhost:3000 npm run load:test')
+  process.exit(1)
+}
 
 function percentile(values, pct) {
   if (!values.length) return 0

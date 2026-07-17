@@ -655,18 +655,8 @@ function MyPoolsContent() {
     pickNoticeTimerRef.current = window.setTimeout(() => setPickNotice(null), 3600)
   }
 
-  const finalizeLockedPicks = async (poolId: string) => {
-    const { error } = await supabase.rpc('finalize_locked_picks_for_pool', { p_pool_id: poolId })
-    if (error) throw error
-  }
-
   const restoreUnlockedPicks = async (poolId: string) => {
     const { error } = await supabase.rpc('restore_unlocked_picks_for_pool', { p_pool_id: poolId })
-    if (error) throw error
-  }
-
-  const adjudicateCompletedWeeks = async (season?: number | null) => {
-    const { error } = await supabase.rpc('adjudicate_completed_weeks', { p_season: season ?? new Date().getFullYear() })
     if (error) throw error
   }
 
@@ -1046,7 +1036,6 @@ function MyPoolsContent() {
         roster = await loadMembers(pid)
       }
       await restoreUnlockedPicks(pid)
-      await finalizeLockedPicks(pid)
 
       const season = poolSeason ?? pool?.season ?? new Date().getFullYear()
       const [{ data: standingsGames }, { data: seasonWeek }] = await Promise.all([
@@ -1088,9 +1077,6 @@ function MyPoolsContent() {
       setStandingsPicksVisible(picksVisible)
       setStandingsResultsVisible(showResults)
 
-      if (showResults) {
-        await adjudicateCompletedWeeks(season)
-      }
       await loadMyPicks(pid, poolStartWeek)
     } catch (e: unknown) {
       console.warn('Failed to refresh finalized picks or standings results', e)
@@ -1155,7 +1141,6 @@ function MyPoolsContent() {
     const refreshLockedPicks = async () => {
       try {
         await restoreUnlockedPicks(selectedId)
-        await finalizeLockedPicks(selectedId)
         await loadMyPicks(selectedId, pool.start_week, selectedEntryId)
 
         const { data: myStat } = await supabase
@@ -1539,14 +1524,14 @@ function MyPoolsContent() {
       const pushes = weekPicks.filter((pick) => pick.result === 'push').length
       let eliminatedThisWeek = 0
       for (const member of members) {
-        const before = (strikesByEntry.get(member.id) || 0) >= (pool?.strikes_allowed ?? 1)
+        const before = (strikesByEntry.get(member.id) || 0) > (pool?.strikes_allowed ?? 1)
         const entryPicks = weekPicks.filter((pick) => pick.entry_id === member.id)
         const strikes = entryPicks.filter((pick) => pick.result === 'loss' || (pick.result === 'push' && pool?.tie_rule === 'loss')).length
         strikesByEntry.set(member.id, (strikesByEntry.get(member.id) || 0) + strikes)
-        const after = (strikesByEntry.get(member.id) || 0) >= (pool?.strikes_allowed ?? 1)
+        const after = (strikesByEntry.get(member.id) || 0) > (pool?.strikes_allowed ?? 1)
         if (!before && after) eliminatedThisWeek += 1
       }
-      const eliminated = Array.from(strikesByEntry.values()).filter((strikes) => strikes >= (pool?.strikes_allowed ?? 1)).length
+      const eliminated = Array.from(strikesByEntry.values()).filter((strikes) => strikes > (pool?.strikes_allowed ?? 1)).length
       rows.push({ week, picks: weekPicks.length, wins, losses, pushes, alive: Math.max(0, members.length - eliminated), eliminated, eliminatedThisWeek })
     }
     return rows.slice(-5).reverse()
@@ -2231,7 +2216,7 @@ function MyPoolsContent() {
                       <div>
                         <div className="text-xs uppercase text-gray-500">Week {standingsWeek} Pick Distribution</div>
                         <div className="mt-1 text-sm text-gray-600">
-                          Percentage of active entry picks on each team. This goes live when the pool week opens.
+                          Pick counts are tracked now. Team choices and charts stay private until the pool week opens.
                         </div>
                       </div>
                       <div className="text-xs text-gray-500">
@@ -2240,7 +2225,7 @@ function MyPoolsContent() {
                     </div>
                     {!standingsPicksVisible ? (
                       <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">
-                        This chart goes live when Week {standingsWeek} opens.
+                        Team distribution, matchup impact, and weekly charts unlock when Week {standingsWeek} opens.
                       </div>
                     ) : (
                       <div className="grid gap-2 lg:grid-cols-2">
@@ -2279,7 +2264,8 @@ function MyPoolsContent() {
                     )}
                   </div>
 
-                  <div className="mb-6 grid gap-3 lg:grid-cols-2">
+                  {standingsPicksVisible && (
+                    <div className="mb-6 grid gap-3 lg:grid-cols-2">
                     <div className="rounded-lg border border-gray-200 bg-white p-4">
                       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                         <div>
@@ -2362,7 +2348,8 @@ function MyPoolsContent() {
                         </div>
                       )}
                     </div>
-                  </div>
+                    </div>
+                  )}
 
                   <details className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
                     <summary className="cursor-pointer text-sm font-semibold text-slate-900">Teams Still Available</summary>
@@ -2463,7 +2450,7 @@ function MyPoolsContent() {
                               </td>
                               <td className="p-2 border">
                                 {!canSeeEntryPick ? (
-                                  <span className="text-gray-500">Hidden until deadline</span>
+                                  <span className="text-gray-400" aria-label="Pick stays private until the pool week opens">-</span>
                                 ) : memberPicks.length > 0 ? (
                                   <div className="space-y-2">
                                     {memberPicks.map((pick) => {
