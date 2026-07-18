@@ -1,0 +1,14 @@
+-- Baseline marker for the existing production database.
+--
+-- This project pre-dated Supabase migration tracking, so the live database already
+-- contains schema created by the one-off SQL files in /supabase. Those historical
+-- scripts include data repair and cleanup operations, so they should not be
+-- replayed blindly as migrations.
+--
+-- When Docker Desktop is available, replace this marker with a full remote schema
+-- dump generated from the linked project:
+--
+--   npx supabase db dump --linked --schema public --file supabase/migrations/20260718000100_existing_remote_baseline.sql
+--
+-- New forward-only schema changes should live in timestamped files after this one.
+

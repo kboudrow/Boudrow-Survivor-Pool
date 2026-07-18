@@ -78,6 +78,67 @@ export type Database = {
           },
         ]
       }
+      app_event_logs: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          message: string | null
+          metadata: Json
+          pool_id: string | null
+          route: string | null
+          severity: string
+          source: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          message?: string | null
+          metadata?: Json
+          pool_id?: string | null
+          route?: string | null
+          severity?: string
+          source?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          message?: string | null
+          metadata?: Json
+          pool_id?: string | null
+          route?: string | null
+          severity?: string
+          source?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_event_logs_pool_id_fkey"
+            columns: ["pool_id"]
+            isOneToOne: false
+            referencedRelation: "pools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "app_event_logs_pool_id_fkey"
+            columns: ["pool_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_pool_history"
+            referencedColumns: ["pool_id"]
+          },
+          {
+            foreignKeyName: "app_event_logs_pool_id_fkey"
+            columns: ["pool_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_pools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       blog_categories: {
         Row: {
           created_at: string
@@ -1893,6 +1954,21 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      superadmin_app_event_logs: {
+        Args: { p_limit?: number }
+        Returns: {
+          created_at: string
+          event_type: string
+          id: string
+          message: string
+          metadata: Json
+          pool_id: string
+          route: string
+          severity: string
+          source: string
+          user_id: string
+        }[]
+      }
       superadmin_assert_test_pool: {
         Args: { p_pool_id: string }
         Returns: undefined

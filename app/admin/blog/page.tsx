@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { blogCategories as seedBlogCategories, type BlogPost } from '@/lib/blogPosts'
 import { getErrorMessage } from '@/lib/errorMessage'
+import { logAppEvent } from '@/lib/monitoring'
 import { supabase } from '@/lib/supabaseClient'
 
 type BlogRole = '' | 'contributor' | 'editor' | 'admin'
@@ -280,6 +281,7 @@ export default function BlogAdminPage() {
         }
       } catch (e: unknown) {
         if (!alive) return
+        void logAppEvent({ eventType: 'blog_admin_load_failed', error: e })
         setError(getErrorMessage(e, 'Failed to load blog admin.'))
       } finally {
         if (alive) setLoading(false)
@@ -324,6 +326,7 @@ export default function BlogAdminPage() {
       setNotice('Comment deleted.')
       await Promise.all([loadComments(), loadPosts()])
     } catch (e: unknown) {
+      void logAppEvent({ eventType: 'blog_comment_delete_failed', error: e, metadata: { comment_id: comment.id, slug: comment.post_slug } })
       setError(getErrorMessage(e, 'Failed to delete comment.'))
     } finally {
       setDeletingCommentId(null)
@@ -347,6 +350,7 @@ export default function BlogAdminPage() {
       setForm((current) => ({ ...current, heroImageUrl: data.publicUrl }))
       setNotice('Hero image uploaded.')
     } catch (e: unknown) {
+      void logAppEvent({ eventType: 'blog_image_upload_failed', error: e, metadata: { file_type: file.type, file_size: file.size } })
       setError(getErrorMessage(e, 'Failed to upload hero image.'))
     } finally {
       setUploading(false)
@@ -418,6 +422,11 @@ export default function BlogAdminPage() {
       setActiveTab('posts')
       setForm({ ...emptyForm })
     } catch (e: unknown) {
+      void logAppEvent({
+        eventType: 'blog_post_save_failed',
+        error: e,
+        metadata: { id: form.id || null, slug: form.slug, title: form.title, requested_status: nextStatus },
+      })
       setError(getErrorMessage(e, 'Failed to save post.'))
     } finally {
       setSaving(false)
@@ -438,6 +447,7 @@ export default function BlogAdminPage() {
       setActiveTab('posts')
       setForm({ ...emptyForm })
     } catch (e: unknown) {
+      void logAppEvent({ eventType: 'blog_post_delete_failed', error: e, metadata: { id: form.id, slug: form.slug } })
       setError(getErrorMessage(e, 'Failed to delete post.'))
     } finally {
       setSaving(false)
@@ -458,6 +468,7 @@ export default function BlogAdminPage() {
       setGrantEmail('')
       await loadPermissions()
     } catch (e: unknown) {
+      void logAppEvent({ eventType: 'blog_contributor_add_failed', error: e, metadata: { email: grantEmail.trim() } })
       setError(getErrorMessage(e, 'Failed to add contributor.'))
     }
   }
@@ -485,6 +496,7 @@ export default function BlogAdminPage() {
       setNotice(`Added ${name} category.`)
       await loadCategories()
     } catch (e: unknown) {
+      void logAppEvent({ eventType: 'blog_category_add_failed', error: e, metadata: { name } })
       setError(getErrorMessage(e, 'Failed to add category.'))
     } finally {
       setSavingCategory(false)

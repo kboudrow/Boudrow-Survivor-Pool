@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import { AdSlot } from '@/components/AdSlot'
 import { InviteModal } from '@/components/InviteModal'
 import { getErrorMessage } from '@/lib/errorMessage'
+import { logAppEvent } from '@/lib/monitoring'
 import { poolImageUrl } from '@/lib/poolImages'
 import { supabase } from '@/lib/supabaseClient'
 
@@ -737,6 +738,7 @@ function MyPoolsContent() {
         [poolToRefresh.id]: { week: targetWeek, made, needed, entries: entryIds.length },
       }))
     } catch (e) {
+      void logAppEvent({ eventType: 'dashboard_pick_status_refresh_failed', error: e, poolId: poolToRefresh.id })
       console.warn('Pool pick status refresh failed', e)
     }
   }
@@ -935,6 +937,7 @@ function MyPoolsContent() {
         setPoolMemberSummaries(summaries)
       } catch (e: unknown) {
         if (!alive) return
+        void logAppEvent({ eventType: 'my_pools_load_failed', error: e })
         setError(getErrorMessage(e, 'Failed to load pools.'))
       } finally {
         if (alive) setLoading(false)
@@ -1079,6 +1082,7 @@ function MyPoolsContent() {
 
       await loadMyPicks(pid, poolStartWeek)
     } catch (e: unknown) {
+      void logAppEvent({ eventType: 'pool_results_refresh_failed', error: e, poolId: pid })
       console.warn('Failed to refresh finalized picks or standings results', e)
     }
 
@@ -1151,6 +1155,7 @@ function MyPoolsContent() {
           .maybeSingle<MemberStats>()
         setStatsByUser((prev) => (myStat ? { ...prev, [myStat.entry_id]: myStat } : prev))
       } catch (e) {
+        void logAppEvent({ eventType: 'background_pick_refresh_failed', error: e, poolId: selectedId })
         console.warn('Background pick refresh failed', e)
       }
     }
@@ -1200,6 +1205,12 @@ function MyPoolsContent() {
       return true
     } catch (e: unknown) {
       const message = getErrorMessage(e, 'Failed to save pick')
+      void logAppEvent({
+        eventType: 'pick_save_failed',
+        error: e,
+        poolId: selectedId,
+        metadata: { week, slot, team_abbr: team?.abbr || null, entry_id: selectedEntryId },
+      })
       if (team && message.toLowerCase().includes('already selected for week')) {
         await loadMyPicks(selectedId, pool?.start_week ?? 1)
         setDraftSavedAt(new Date().toISOString())
@@ -1287,6 +1298,7 @@ function MyPoolsContent() {
       setDraftSavedAt(new Date().toISOString())
       await refreshPoolPickStatus()
     } catch (e: unknown) {
+      void logAppEvent({ eventType: 'pick_clear_failed', error: e, poolId: selectedId, metadata: { selected_week: selectedPickWeek, entry_id: selectedEntryId } })
       alert(getErrorMessage(e, 'Failed to clear picks'))
     }
   }
@@ -1329,6 +1341,7 @@ function MyPoolsContent() {
       setMemberCount(roster.length)
       await refreshPoolPickStatus(pool, roster.filter((member) => member.profile_id === userId))
     } catch (e: unknown) {
+      void logAppEvent({ eventType: 'pool_add_entry_failed', error: e, poolId: pool.id })
       alert(getErrorMessage(e, 'Failed to add entry.'))
     } finally {
       setAddingEntry(false)
@@ -1355,6 +1368,7 @@ function MyPoolsContent() {
       setPools((prev) => prev.filter((p) => p.id !== pool.id))
       closeModal()
     } catch (e: unknown) {
+      void logAppEvent({ eventType: 'pool_leave_failed', error: e, poolId: pool.id })
       alert(getErrorMessage(e, 'Failed to leave pool.'))
     } finally {
       setLeavingPool(false)
@@ -1635,6 +1649,7 @@ function MyPoolsContent() {
       setStatsByUser(myStat ? { [myStat.entry_id]: myStat } : {})
       if (nextEntryId) await loadMyPicks(id, poolRow.start_week, nextEntryId)
     } catch (e: unknown) {
+      void logAppEvent({ eventType: 'pool_details_load_failed', error: e, poolId: id })
       setDetailError(getErrorMessage(e, 'Failed to load pool details.'))
     } finally {
       setDetailsLoading(false)

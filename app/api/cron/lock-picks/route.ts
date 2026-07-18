@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
 import { cleanEnvValue } from '@/lib/env'
+import { getErrorMessage } from '@/lib/errorMessage'
+import type { Json } from '@/supabase/database.types'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,6 +20,20 @@ export async function GET(request: NextRequest) {
   }
 
   const supabaseAdmin = getSupabaseAdmin()
+  const logCronEvent = async (eventType: string, message: string, metadata: Record<string, unknown> = {}, poolId?: string) => {
+    try {
+      await supabaseAdmin.from('app_event_logs').insert({
+        event_type: eventType,
+        severity: 'error',
+        source: 'cron',
+        pool_id: poolId || null,
+        message,
+        metadata: metadata as Json,
+      })
+    } catch (e: unknown) {
+      console.error('Cron monitoring insert failed:', getErrorMessage(e, 'Unknown monitoring failure.'))
+    }
+  }
 
   const { data: pools, error: poolsError } = await supabaseAdmin
     .from('pools')
@@ -26,6 +42,7 @@ export async function GET(request: NextRequest) {
     .eq('activation_status', 'active')
 
   if (poolsError) {
+    await logCronEvent('cron_pool_load_failed', poolsError.message)
     return NextResponse.json({ error: poolsError.message }, { status: 500 })
   }
 
@@ -37,6 +54,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabaseAdmin.rpc('finalize_locked_picks_for_pool', { p_pool_id: pool.id })
     if (error) {
       errors.push(`${pool.id}: ${error.message}`)
+      await logCronEvent('cron_finalize_pool_failed', error.message, { season: pool.season }, pool.id)
       continue
     }
     finalized += typeof data === 'number' ? data : 0
@@ -48,6 +66,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabaseAdmin.rpc('adjudicate_completed_weeks', { p_season: season })
     if (error) {
       errors.push(`season ${season}: ${error.message}`)
+      await logCronEvent('cron_adjudicate_season_failed', error.message, { season })
       continue
     }
     adjudicated += typeof data === 'number' ? data : 0

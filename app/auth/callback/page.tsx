@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { getErrorMessage } from '@/lib/errorMessage'
 import { ensureProfile } from '@/lib/ensureProfile'
 import { safeReturnTo } from '@/lib/authRedirect'
+import { logAppEvent } from '@/lib/monitoring'
 import { supabase } from '@/lib/supabaseClient'
 
 function AuthCallbackContent() {
@@ -33,6 +34,7 @@ function AuthCallbackContent() {
         await ensureProfile()
         if (alive) router.replace(returnTo)
       } catch (e: unknown) {
+        void logAppEvent({ eventType: 'auth_callback_failed', error: e, metadata: { return_to: returnTo } })
         if (alive) setError(getErrorMessage(e, 'Sign-in failed.'))
       }
     }

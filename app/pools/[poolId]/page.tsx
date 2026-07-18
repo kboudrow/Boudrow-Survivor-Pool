@@ -7,6 +7,7 @@ import NextImage from 'next/image'
 import { InviteModal } from '@/components/InviteModal'
 import { authCallbackUrl } from '@/lib/authRedirect'
 import { getErrorMessage } from '@/lib/errorMessage'
+import { logAppEvent } from '@/lib/monitoring'
 import { supabase } from '@/lib/supabaseClient'
 
 type Pool = {
@@ -132,6 +133,7 @@ export default function PoolDetailPage() {
         }
       } catch (e: unknown) {
         if (!alive) return
+        void logAppEvent({ eventType: 'pool_join_page_load_failed', error: e, poolId })
         setError(getErrorMessage(e, 'Failed to load pool.'))
       } finally {
         if (alive) setLoading(false)
@@ -150,7 +152,10 @@ export default function PoolDetailPage() {
         queryParams: { prompt: 'select_account' },
       }
     })
-    if (error) setError(getErrorMessage(error, 'Could not start Google sign-in.'))
+    if (error) {
+      void logAppEvent({ eventType: 'pool_join_google_signin_failed', error, poolId })
+      setError(getErrorMessage(error, 'Could not start Google sign-in.'))
+    }
   }
 
   const joinPool = async () => {
@@ -167,11 +172,13 @@ export default function PoolDetailPage() {
         p_password: pool.is_public ? null : password || null,
       })
       if (error) {
+        void logAppEvent({ eventType: 'pool_join_failed', error, poolId: pool.id, metadata: { is_public: pool.is_public } })
         setError(getErrorMessage(error, 'Could not join this pool.'))
         return
       }
       router.push(`/pools?pool=${pool.id}`)
     } catch (e: unknown) {
+      void logAppEvent({ eventType: 'pool_join_exception', error: e, poolId: pool.id, metadata: { is_public: pool.is_public } })
       setError(getErrorMessage(e, 'Failed to join.'))
     } finally {
       setJoining(false)

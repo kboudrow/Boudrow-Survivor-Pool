@@ -9,11 +9,11 @@
     "lint": "eslint",
     "load:test": "node scripts/load-test.mjs",
     "schedule:sql": "node scripts/write-nfl-schedule-sql.mjs",
-    "supabase": "set SUPABASE_TELEMETRY_DISABLED=1&& supabase",
-    "supabase:login": "set SUPABASE_TELEMETRY_DISABLED=1&& supabase login",
+    "supabase": "node scripts/supabase-cli.mjs",
+    "supabase:login": "node scripts/supabase-cli.mjs login",
     "supabase:types": "node scripts/generate-supabase-types.mjs",
-    "supabase:link": "set SUPABASE_TELEMETRY_DISABLED=1&& supabase link",
-    "supabase:status": "set SUPABASE_TELEMETRY_DISABLED=1&& supabase status"
+    "supabase:link": "node scripts/supabase-cli.mjs link",
+    "supabase:status": "node scripts/supabase-cli.mjs status"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.55.0",

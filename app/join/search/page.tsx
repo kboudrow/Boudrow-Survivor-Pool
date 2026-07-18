@@ -6,6 +6,7 @@ import NextImage from 'next/image'
 import { AdSlot } from '@/components/AdSlot'
 import { authCallbackUrl } from '@/lib/authRedirect'
 import { getErrorMessage } from '@/lib/errorMessage'
+import { logAppEvent } from '@/lib/monitoring'
 import { supabase } from '@/lib/supabaseClient'
 
 type Pool = {
@@ -161,6 +162,7 @@ export default function JoinSearchPage() {
         setRecent((data || []) as Pool[])
       } catch (e: unknown) {
         if (!alive) return
+        void logAppEvent({ eventType: 'pool_search_recent_failed', error: e })
         setError(getErrorMessage(e, 'Failed to load pools.'))
       } finally {
         if (alive) setRecentLoading(false)
@@ -203,6 +205,7 @@ export default function JoinSearchPage() {
           return next
         })
       } catch (e: unknown) {
+        void logAppEvent({ eventType: 'pool_search_failed', error: e, metadata: { query: trimmed } })
         setError(getErrorMessage(e, 'Search failed.'))
       } finally {
         setSearching(false)
@@ -270,7 +273,10 @@ export default function JoinSearchPage() {
         queryParams: { prompt: 'select_account' },
       },
     })
-    if (error) setModalError(getErrorMessage(error, 'Could not start Google sign-in.'))
+    if (error) {
+      void logAppEvent({ eventType: 'pool_search_google_signin_failed', error })
+      setModalError(getErrorMessage(error, 'Could not start Google sign-in.'))
+    }
   }
 
   const askConfirm = (message: string, action: () => Promise<void>) => {
@@ -304,6 +310,12 @@ export default function JoinSearchPage() {
       setJoinedPoolIds((prev) => new Set(prev).add(selected.id))
       router.push(`/pools?pool=${selected.id}`)
     } catch (e: unknown) {
+      void logAppEvent({
+        eventType: 'pool_search_join_failed',
+        error: e,
+        poolId: selected.id,
+        metadata: { is_public: selected.is_public },
+      })
       setModalError(getErrorMessage(e, 'Join failed.'))
     } finally {
       setJoining(false)

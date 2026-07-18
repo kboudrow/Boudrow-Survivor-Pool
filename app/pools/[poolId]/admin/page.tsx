@@ -189,7 +189,8 @@ export default function PoolAdminPage() {
     }
     return Array.from(grouped.values()).sort((a, b) => memberLabel(a.row).localeCompare(memberLabel(b.row)))
   }, [entryRows])
-  const memberCount = entryRows.length
+  const entryCount = entryRows.length
+  const uniqueMemberCount = memberRows.length
   const stats = useMemo(() => {
     const alive = entryRows.filter((row) => !row.eliminated).length
     return { alive, eliminated: entryRows.length - alive }
@@ -413,11 +414,11 @@ export default function PoolAdminPage() {
     }
     const nextLimit = parseInt(maxMembersText.trim(), 10)
     if (!Number.isFinite(nextLimit) || nextLimit < 2 || nextLimit > 500) {
-      setError('Member limit must be between 2 and 500.')
+      setError('Pool capacity must be between 2 and 500 entries.')
       return
     }
-    if (nextLimit < memberCount) {
-      setError(`Member limit cannot be lower than the current member count (${memberCount}).`)
+    if (nextLimit < entryCount) {
+      setError(`Pool capacity cannot be lower than the current entry count (${entryCount}).`)
       return
     }
 
@@ -431,9 +432,9 @@ export default function PoolAdminPage() {
       })
       if (error) throw error
       setPool({ ...pool, max_members: nextLimit })
-      setNotice('Member limit saved.')
+      setNotice('Pool capacity saved.')
     } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Failed to save member limit.'))
+      setError(getErrorMessage(e, 'Failed to save pool capacity.'))
     } finally {
       setSavingLimit(false)
     }
@@ -661,7 +662,7 @@ export default function PoolAdminPage() {
       }
       const label = memberLabel(row)
       const confirmed = window.confirm(
-        `Remove ${label} from ${pool.name}?\n\nEntries removed: ${entryCount}\n\nThis removes that member's entries and all of their picks. It cannot be undone from this screen.`,
+        `Remove ${label} from ${pool.name}?\n\nEntries removed: ${entryCount}\n\nThis removes the member, every entry, and all picks from this pool. It cannot be undone from this screen.`,
       )
       if (!confirmed) return 'Remove member canceled.'
 
@@ -719,7 +720,8 @@ export default function PoolAdminPage() {
             <section className="grid gap-3 md:grid-cols-4">
               <div className="rounded-lg border bg-white p-4">
                 <div className="text-xs uppercase text-gray-500">Entries</div>
-                <div className="text-2xl font-bold">{pool.max_members ? `${memberCount}/${pool.max_members}` : memberCount}</div>
+                <div className="text-2xl font-bold">{pool.max_members ? `${entryCount}/${pool.max_members}` : entryCount}</div>
+                <div className="text-xs text-gray-500">{uniqueMemberCount} unique members</div>
               </div>
               <div className="rounded-lg border bg-white p-4">
                 <div className="text-xs uppercase text-gray-500">Alive</div>
@@ -814,7 +816,7 @@ export default function PoolAdminPage() {
                 </div>
 
                 <div className="rounded-md border border-gray-200 bg-gray-50 p-3 lg:col-span-2 xl:col-span-4">
-                  <label className="mb-1 block text-sm font-medium">Member limit</label>
+                  <label className="mb-1 block text-sm font-medium">Pool capacity</label>
                   <div className="flex gap-2">
                     <select
                       value={maxMembersPreset}
@@ -826,7 +828,7 @@ export default function PoolAdminPage() {
                       className="w-full rounded-md border px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-500"
                     >
                       {MEMBER_LIMIT_OPTIONS.map((limit) => (
-                        <option key={limit} value={String(limit)}>{limit} members</option>
+                        <option key={limit} value={String(limit)}>{limit} entries</option>
                       ))}
                       <option value="custom">Custom</option>
                     </select>
@@ -844,7 +846,9 @@ export default function PoolAdminPage() {
                       {savingLimit ? 'Saving...' : 'Save'}
                     </button>
                   </div>
-                  <p className="mt-2 text-xs text-gray-600">Current members: {memberCount}. Limit must be 2-500 and cannot be below the current member count.</p>
+                  <p className="mt-2 text-xs text-gray-600">
+                    Current entries: {entryCount}. Unique members: {uniqueMemberCount}. Capacity must be 2-500 and cannot be below current entries.
+                  </p>
                 </div>
 
                 <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
@@ -981,13 +985,13 @@ export default function PoolAdminPage() {
                           <span className="text-xs text-slate-500">{fmtShort(action.created_at)}</span>
                         </div>
                         <div className="mt-1 text-xs text-slate-600">
-                          Admin {shortId(action.admin_id)} â†’ Target {shortId(action.target_user_id)}
-                          {action.week ? ` Â· W${action.week}` : ''}
-                          {action.slot ? ` Â· Pick ${action.slot}` : ''}
+                          Admin {shortId(action.admin_id)} - Target {shortId(action.target_user_id)}
+                          {action.week ? ` - W${action.week}` : ''}
+                          {action.slot ? ` - Pick ${action.slot}` : ''}
                         </div>
                         {(action.old_team_abbr || action.new_team_abbr) && (
                           <div className="mt-1 text-xs text-slate-600">
-                            {action.old_team_abbr || '-'} â†’ {action.new_team_abbr || '-'}
+                            {action.old_team_abbr || '-'} {'->'} {action.new_team_abbr || '-'}
                           </div>
                         )}
                         {action.reason && <div className="mt-1 text-xs text-slate-500">{action.reason}</div>}
@@ -1007,14 +1011,14 @@ export default function PoolAdminPage() {
                           <span className="text-xs text-slate-500">{fmtShort(event.created_at)}</span>
                         </div>
                         <div className="mt-1 text-xs text-slate-600">
-                          User {shortId(event.user_id)} Â· Actor {shortId(event.actor_user_id || event.user_id)}
-                          {event.week ? ` Â· W${event.week}` : ''}
-                          {event.slot ? ` Â· Pick ${event.slot}` : ''}
-                          {event.source_table ? ` Â· ${event.source_table}` : ''}
+                          User {shortId(event.user_id)} - Actor {shortId(event.actor_user_id || event.user_id)}
+                          {event.week ? ` - W${event.week}` : ''}
+                          {event.slot ? ` - Pick ${event.slot}` : ''}
+                          {event.source_table ? ` - ${event.source_table}` : ''}
                         </div>
                         {(event.old_team_abbr || event.new_team_abbr) && (
                           <div className="mt-1 text-xs text-slate-600">
-                            {event.old_team_abbr || '-'} â†’ {event.new_team_abbr || '-'}
+                            {event.old_team_abbr || '-'} {'->'} {event.new_team_abbr || '-'}
                           </div>
                         )}
                         {event.result && <div className="mt-1 text-xs text-slate-500">Result: {event.result}</div>}
@@ -1029,8 +1033,8 @@ export default function PoolAdminPage() {
             <section className="rounded-lg border bg-white p-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="font-semibold">Members & Picks</h2>
-                  <p className="text-sm text-gray-600">Choose a week, then submit, edit, or remove an entry before the pool starts.</p>
+                  <h2 className="font-semibold">Members, Entries & Picks</h2>
+                  <p className="text-sm text-gray-600">Choose a week, submit or edit picks, or remove a member before the pool starts.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <input
@@ -1063,8 +1067,8 @@ export default function PoolAdminPage() {
               <div className="mb-5 rounded-md border border-slate-200 bg-slate-50">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-3 py-2">
                   <div>
-                    <h3 className="text-sm font-semibold text-slate-950">Entry Management</h3>
-                    <p className="text-xs text-slate-600">Remove a full entry before the pool starts. Pick edits stay in the weekly table below.</p>
+                    <h3 className="text-sm font-semibold text-slate-950">Member Removal</h3>
+                    <p className="text-xs text-slate-600">Remove a member and all of their entries before the pool starts. Pick edits stay in the weekly table below.</p>
                   </div>
                   <span className="rounded-full bg-white px-2 py-1 text-xs text-slate-600">
                     {visibleMemberRows.length} {visibleMemberRows.length === 1 ? 'member' : 'members'}

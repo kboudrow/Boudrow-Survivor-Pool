@@ -76,6 +76,19 @@ type ScheduleAuditRow = {
   issue_count: number
 }
 
+type AppEventLogRow = {
+  id: string
+  created_at: string
+  event_type: string
+  severity: string
+  source: string
+  route: string | null
+  pool_id: string | null
+  user_id: string | null
+  message: string | null
+  metadata: Record<string, unknown> | null
+}
+
 function fmt(value?: string | null) {
   if (!value) return '-'
   return new Date(value).toLocaleString()
@@ -85,7 +98,21 @@ function statusClass(status: string) {
   const lower = status.toLowerCase()
   if (lower === 'active' || lower === 'paid') return 'border-emerald-200 bg-emerald-50 text-emerald-700'
   if (lower === 'draft' || lower === 'unpaid') return 'border-amber-200 bg-amber-50 text-amber-700'
+  if (lower === 'error') return 'border-red-200 bg-red-50 text-red-700'
+  if (lower === 'warning') return 'border-amber-200 bg-amber-50 text-amber-700'
+  if (lower === 'info') return 'border-blue-200 bg-blue-50 text-blue-700'
   return 'border-slate-200 bg-slate-50 text-slate-700'
+}
+
+function compactJson(value: unknown) {
+  if (!value) return '-'
+  try {
+    const text = JSON.stringify(value)
+    if (!text || text === '{}') return '-'
+    return text.length > 220 ? `${text.slice(0, 220)}...` : text
+  } catch {
+    return '-'
+  }
 }
 
 export default function SuperAdminPage() {
@@ -106,6 +133,8 @@ export default function SuperAdminPage() {
   const [testWeek, setTestWeek] = useState('1')
   const [testGames, setTestGames] = useState<TestGameOption[]>([])
   const [testToolsLoading, setTestToolsLoading] = useState(false)
+  const [eventLogs, setEventLogs] = useState<AppEventLogRow[]>([])
+  const [eventLogsLoading, setEventLogsLoading] = useState(false)
 
   const selectedPool = pools.find((pool) => pool.pool_id === selectedPoolId) || null
 
@@ -152,6 +181,19 @@ export default function SuperAdminPage() {
     })
     if (auditErr) throw auditErr
     setScheduleAudit((data || []) as ScheduleAuditRow[])
+  }
+
+  const loadEventLogs = async () => {
+    setEventLogsLoading(true)
+    try {
+      const { data, error: logsErr } = await supabase.rpc('superadmin_app_event_logs', { p_limit: 80 })
+      if (logsErr) throw logsErr
+      setEventLogs((data || []) as AppEventLogRow[])
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to load production event logs.'))
+    } finally {
+      setEventLogsLoading(false)
+    }
   }
 
   const loadEntries = async (poolId: string) => {
@@ -205,7 +247,7 @@ export default function SuperAdminPage() {
         const canAccess = userEmail === SUPERADMIN_EMAIL
         setAuthorized(canAccess)
         if (!canAccess) return
-        await Promise.all([loadPools(), loadScheduleAudit()])
+        await Promise.all([loadPools(), loadScheduleAudit(), loadEventLogs()])
       } catch (e: unknown) {
         if (!alive) return
         setError(getErrorMessage(e, 'Failed to load superadmin dashboard.'))
@@ -239,6 +281,7 @@ export default function SuperAdminPage() {
 
   const refreshSelectedPool = async () => {
     const nextPools = await loadPools()
+    await loadEventLogs()
     if (selectedPoolId) {
       await loadEntries(selectedPoolId)
       const refreshed = nextPools.find((pool) => pool.pool_id === selectedPoolId) || selectedPool
@@ -248,7 +291,7 @@ export default function SuperAdminPage() {
 
   const repairSelectedPool = async () => {
     if (!selectedPool) return
-    const confirmed = window.confirm(`Repair future results for "${selectedPool.name}"? This clears this pool's stat rows and moves future final picks back to editable drafts. It does not change other pools.`)
+    const confirmed = window.confirm(`Repair future results for the selected pool "${selectedPool.name}"? This clears only this pool's stat rows and moves future final picks back to editable drafts. It does not change other pools.`)
     if (!confirmed) return
     setRunningAction('repair-selected')
     setError(null)
@@ -266,12 +309,12 @@ export default function SuperAdminPage() {
     }
   }
 
-  const removeEntry = async (entry: PoolEntry) => {
+  const removeMember = async (entry: PoolEntry) => {
     if (!selectedPool) return
     const label = entry.display_name
     const entryCount = entries.filter((candidate) => candidate.profile_id === entry.profile_id).length
     const confirmed = window.confirm(
-      `Remove ${label} from ${selectedPool.name}?\n\nEntries removed: ${entryCount}\n\nThis removes that member's entries and all of their picks.`,
+      `Remove ${label} from ${selectedPool.name}?\n\nEntries removed: ${entryCount}\n\nThis removes the member, every entry, and all picks from this pool.`,
     )
     if (!confirmed) return
     setRunningAction(entry.profile_id)
@@ -287,7 +330,7 @@ export default function SuperAdminPage() {
       await loadPools()
       await loadEntries(selectedPool.pool_id)
     } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Failed to remove entry.'))
+      setError(getErrorMessage(e, 'Failed to remove member.'))
     } finally {
       setRunningAction(null)
     }
@@ -523,6 +566,62 @@ export default function SuperAdminPage() {
           )}
         </details>
 
+        <details className="mb-5 rounded-lg border border-slate-200 bg-white p-4">
+          <summary className="cursor-pointer font-semibold text-slate-950">Production event logs</summary>
+          <div className="mt-3 mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-slate-950">Recent App Errors</h2>
+              <p className="text-sm text-slate-600">Client, cron, and server errors recorded from production flows like joins, picks, auth callbacks, and blog admin actions.</p>
+            </div>
+            <button
+              onClick={() => loadEventLogs()}
+              disabled={eventLogsLoading}
+              className="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {eventLogsLoading ? 'Refreshing...' : 'Refresh logs'}
+            </button>
+          </div>
+          {eventLogs.length === 0 ? (
+            <p className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+              No production events recorded yet.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[920px] border text-sm">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="border p-2 text-left">Time</th>
+                    <th className="border p-2 text-left">Event</th>
+                    <th className="border p-2 text-left">Source</th>
+                    <th className="border p-2 text-left">Route</th>
+                    <th className="border p-2 text-left">Pool</th>
+                    <th className="border p-2 text-left">Message</th>
+                    <th className="border p-2 text-left">Metadata</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {eventLogs.map((event) => (
+                    <tr key={event.id} className="align-top hover:bg-slate-50">
+                      <td className="border p-2 whitespace-nowrap">{fmt(event.created_at)}</td>
+                      <td className="border p-2">
+                        <div className="font-semibold text-slate-950">{event.event_type}</div>
+                        <div className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${statusClass(event.severity)}`}>
+                          {event.severity}
+                        </div>
+                      </td>
+                      <td className="border p-2">{event.source}</td>
+                      <td className="border p-2 max-w-[220px] break-words">{event.route || '-'}</td>
+                      <td className="border p-2 max-w-[140px] break-words">{event.pool_id || '-'}</td>
+                      <td className="border p-2 max-w-[280px] break-words">{event.message || '-'}</td>
+                      <td className="border p-2 max-w-[280px] break-words font-mono text-xs">{compactJson(event.metadata)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </details>
+
         <div className="grid gap-5 lg:grid-cols-[minmax(360px,460px)_1fr]">
           <section className="rounded-lg border border-slate-200 bg-white">
             <div className="border-b border-slate-200 p-3">
@@ -595,7 +694,7 @@ export default function SuperAdminPage() {
                       disabled={runningAction === 'repair-selected'}
                       className="rounded-md bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
                     >
-                      {runningAction === 'repair-selected' ? 'Repairing...' : 'Repair This Pool'}
+                      {runningAction === 'repair-selected' ? 'Repairing...' : 'Repair Selected Pool'}
                     </button>
                     <button
                       onClick={toggleTestMode}
@@ -784,11 +883,11 @@ export default function SuperAdminPage() {
                           </td>
                           <td className="border p-2">
                             <button
-                              onClick={() => removeEntry(entry)}
+                              onClick={() => removeMember(entry)}
                               disabled={!!runningAction}
                               className="rounded-md bg-red-50 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
                             >
-                              Remove
+                              Remove member
                             </button>
                           </td>
                         </tr>
