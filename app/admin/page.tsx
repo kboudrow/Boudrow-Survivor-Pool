@@ -59,7 +59,9 @@ type TestGameOption = {
   game_time: string | null
   away_pick_count: number
   home_pick_count: number
+  total_pick_count: number
   fake_outcome: string | null
+  needs_outcome: boolean
 }
 
 type ScheduleAuditRow = {
@@ -163,6 +165,24 @@ export default function SuperAdminPage() {
     )
   }, [pools])
   const auditIssues = useMemo(() => scheduleAudit.filter((row) => row.issue_count > 0), [scheduleAudit])
+  const testStartWeek = selectedPool?.start_week || 1
+  const testWeekOptions = useMemo(
+    () => Array.from({ length: Math.max(0, 19 - testStartWeek) }, (_, index) => testStartWeek + index),
+    [testStartWeek],
+  )
+  const testGamesWithPicks = useMemo(
+    () => testGames.filter((game) => (game.total_pick_count ?? game.away_pick_count + game.home_pick_count) > 0),
+    [testGames],
+  )
+  const testGamesWithOutcomes = useMemo(() => testGames.filter((game) => !!game.fake_outcome), [testGames])
+  const testGamesNeedingOutcome = useMemo(
+    () =>
+      testGames.filter((game) => {
+        const totalPicks = game.total_pick_count ?? game.away_pick_count + game.home_pick_count
+        return totalPicks > 0 && !game.fake_outcome
+      }),
+    [testGames],
+  )
 
   const loadPools = async () => {
     setError(null)
@@ -408,14 +428,23 @@ export default function SuperAdminPage() {
     }
   }
 
-  const runTestAction = async (action: 'finalize' | 'score' | 'clear' | 'reset') => {
+  const runTestAction = async (action: 'randomize' | 'score' | 'clear' | 'reset') => {
     if (!selectedPool) return
     const week = parseInt(testWeek, 10)
     const copy: Record<typeof action, string> = {
-      finalize: `Finalize drafts for Week ${week}? This turns editable drafts into locked test picks for this pool only.`,
-      score: `Score Week ${week} for "${selectedPool.name}" using the fake results below?`,
+      randomize: `Randomize missing Week ${week} picks for active entries in this test pool? Existing picks stay as-is.`,
+      score: `Score Week ${week} and move "${selectedPool.name}" forward? This locks drafts, records missing picks as losses, and grades picks using fake outcomes.`,
       clear: `Clear fake results and scored outcomes for Week ${week}?`,
       reset: `Reset the entire test pool? This moves final picks back to drafts, clears fake results, and clears test stats for this pool only.`,
+    }
+    if (action === 'score' && testGamesNeedingOutcome.length > 0) {
+      setError(
+        `Set fake outcomes for picked matchups first: ${testGamesNeedingOutcome
+          .map((game) => `${game.away_team} @ ${game.home_team}`)
+          .slice(0, 4)
+          .join(', ')}.`,
+      )
+      return
     }
     if (!window.confirm(copy[action])) return
     setRunningAction(`test-${action}`)
@@ -423,8 +452,8 @@ export default function SuperAdminPage() {
     setNotice(null)
     try {
       let response: { data: unknown; error: unknown }
-      if (action === 'finalize') {
-        response = await supabase.rpc('superadmin_finalize_test_week_drafts', { p_pool_id: selectedPool.pool_id, p_week: week })
+      if (action === 'randomize') {
+        response = await supabase.rpc('superadmin_randomize_test_week_picks', { p_pool_id: selectedPool.pool_id, p_week: week })
       } else if (action === 'score') {
         response = await supabase.rpc('superadmin_score_test_pool_week', { p_pool_id: selectedPool.pool_id, p_week: week })
       } else if (action === 'clear') {
@@ -434,9 +463,17 @@ export default function SuperAdminPage() {
       }
       if (response.error) throw response.error
       setNotice(String(response.data || 'Test action complete.'))
-      await loadPools()
+      const nextPools = await loadPools()
       await loadEntries(selectedPool.pool_id)
-      await loadTestOptions(selectedPool.pool_id, action === 'reset' ? String(selectedPool.start_week || 1) : testWeek)
+      const refreshed = nextPools.find((pool) => pool.pool_id === selectedPool.pool_id) || selectedPool
+      const nextWeek =
+        action === 'reset'
+          ? String(refreshed.start_week || 1)
+          : action === 'score'
+            ? String(refreshed.test_current_week || Math.min(18, week + 1))
+            : testWeek
+      setTestWeek(nextWeek)
+      await loadTestOptions(selectedPool.pool_id, nextWeek)
     } catch (e: unknown) {
       setError(getErrorMessage(e, 'Test action failed.'))
     } finally {
@@ -742,7 +779,7 @@ export default function SuperAdminPage() {
                             onChange={(event) => setTestWeek(event.target.value)}
                             className="mt-1 block rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
                           >
-                            {Array.from({ length: 18 }, (_, i) => i + 1).map((week) => (
+                            {testWeekOptions.map((week) => (
                               <option key={week} value={week}>Week {week}</option>
                             ))}
                           </select>
@@ -763,20 +800,33 @@ export default function SuperAdminPage() {
                         </button>
                       </div>
 
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                        <Info label="Games" value={String(testGames.length)} />
+                        <Info label="Games With Picks" value={String(testGamesWithPicks.length)} />
+                        <Info label="Outcomes Set" value={`${testGamesWithOutcomes.length}/${testGames.length || 0}`} />
+                        <Info label="Needs Outcome" value={String(testGamesNeedingOutcome.length)} />
+                      </div>
+
+                      {testGamesNeedingOutcome.length > 0 && (
+                        <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                          Set fake outcomes before scoring: {testGamesNeedingOutcome.map((game) => `${game.away_team} @ ${game.home_team}`).slice(0, 6).join(', ')}.
+                        </p>
+                      )}
+
                       <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                         <button
-                          onClick={() => runTestAction('finalize')}
+                          onClick={() => runTestAction('randomize')}
                           disabled={!!runningAction}
                           className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
                         >
-                          Finalize Test Drafts
+                          Randomize Missing Picks
                         </button>
                         <button
                           onClick={() => runTestAction('score')}
-                          disabled={!!runningAction}
+                          disabled={!!runningAction || testGamesNeedingOutcome.length > 0}
                           className="rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
                         >
-                          Score Test Week
+                          Score Week & Advance
                         </button>
                         <button
                           onClick={() => runTestAction('clear')}
@@ -809,11 +859,19 @@ export default function SuperAdminPage() {
                               <tr key={game.game_id} className="hover:bg-slate-50">
                                 <td className="border-b border-slate-100 p-2">
                                   <div className="font-semibold">{game.away_team} @ {game.home_team}</div>
-                                  <div className="text-xs text-slate-500">Season {game.season}, Week {game.week}</div>
+                                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                                    <span>Season {game.season}, Week {game.week}</span>
+                                    {(game.total_pick_count ?? game.away_pick_count + game.home_pick_count) > 0 && (
+                                      <span className={`rounded-full px-2 py-0.5 font-semibold ${game.needs_outcome ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                                        {game.needs_outcome ? 'Needs outcome' : 'Ready'}
+                                      </span>
+                                    )}
+                                  </div>
                                 </td>
                                 <td className="border-b border-slate-100 p-2">{fmt(game.game_time)}</td>
                                 <td className="border-b border-slate-100 p-2">
-                                  {game.away_team}: {game.away_pick_count} / {game.home_team}: {game.home_pick_count}
+                                  <div>{game.away_team}: {game.away_pick_count} / {game.home_team}: {game.home_pick_count}</div>
+                                  <div className="text-xs text-slate-500">Total picks: {game.total_pick_count ?? game.away_pick_count + game.home_pick_count}</div>
                                 </td>
                                 <td className="border-b border-slate-100 p-2">
                                   <select

@@ -2036,6 +2036,10 @@ export type Database = {
           unique_members_count: number
         }[]
       }
+      superadmin_randomize_test_week_picks: {
+        Args: { p_pool_id: string; p_week: number }
+        Returns: string
+      }
       superadmin_repair_pool_future_results: {
         Args: { p_pool_id: string }
         Returns: string
@@ -2109,7 +2113,9 @@ export type Database = {
           game_time: string
           home_pick_count: number
           home_team: string
+          needs_outcome: boolean
           season: number
+          total_pick_count: number
           week: number
         }[]
       }

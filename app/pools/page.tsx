@@ -626,20 +626,26 @@ function MyPoolsContent() {
   }, [pool?.double_pick_weeks, pool?.start_week])
   const poolStartMs = poolStartAt ? Date.parse(poolStartAt) : null
   const poolStartKnown = poolStartMs !== null && Number.isFinite(poolStartMs)
-  const leagueHasStarted = poolStartKnown && Date.now() >= poolStartMs
-  const canInvite = !!pool && pool.activation_status !== 'cancelled' && poolStartKnown && !leagueHasStarted
+  const isTestMode = !!pool?.test_mode
+  const simulatedWeek = pool?.test_current_week || pool?.start_week || 1
+  const leagueHasStarted = isTestMode ? simulatedWeek >= (pool?.start_week ?? 1) : poolStartKnown && Date.now() >= poolStartMs
+  const canInvite = !!pool && !isTestMode && pool.activation_status !== 'cancelled' && poolStartKnown && !leagueHasStarted
   const myStats = selectedEntryId ? statsByUser[selectedEntryId] : undefined
   const isEliminated = leagueHasStarted && !!myStats?.eliminated
   const uniqueMemberCount = useMemo(() => new Set(members.map((member) => member.profile_id || member.id)).size || memberCount, [members, memberCount])
   const canMakePicks = !!pool && !!selectedEntryId && !isEliminated && selectedPickWeek >= pool.start_week
   const deadlineLabel =
-    pool?.deadline_mode === 'rolling'
+    isTestMode
+      ? 'Test mode'
+      : pool?.deadline_mode === 'rolling'
       ? 'Rolling: each game locks at kickoff'
       : normalizeTimeTo24h(pool?.deadline_fixed) === '20:15'
         ? 'Before Monday Night Football'
         : 'Sunday 1 PM ET'
   const selectedWeekCloseLabel =
-    pool?.deadline_mode === 'rolling'
+    isTestMode
+      ? `Test mode: simulated Week ${simulatedWeek}.`
+      : pool?.deadline_mode === 'rolling'
       ? 'Each matchup closes at kickoff.'
       : fixedLockUtc
         ? `Week ${selectedPickWeek} closes ${fmtEtDateTime(fixedLockUtc)}.`
@@ -1034,6 +1040,7 @@ function MyPoolsContent() {
     let revealAt: string | null = null
     let weekHasStarted = false
     let resultsVisible = false
+    let showResults = false
     try {
       if (membersLoadedFor !== pid) {
         roster = await loadMembers(pid)
@@ -1059,23 +1066,30 @@ function MyPoolsContent() {
       const kickoffTimes = weekGames
         .map((game) => game.kickoff_at_utc || game.game_time)
         .filter(Boolean)
-      weekHasStarted = kickoffTimes.some((time) => Date.now() >= Date.parse(time))
-      resultsVisible = weekHasStarted && weekGames.some((game) => game.status === 'final')
-
-      if (pool?.deadline_mode === 'rolling') {
-        const earliestKickoff = kickoffTimes.sort()[0]
-        revealAt = earliestKickoff || null
+      if (pool?.test_mode) {
+        const testWeek = pool.test_current_week || pool.start_week || poolStartWeek
+        weekHasStarted = week <= testWeek
+        resultsVisible = weekHasStarted
+        revealAt = new Date().toISOString()
       } else {
-        const t24 = normalizeTimeTo24h(pool?.deadline_fixed) || '13:00'
-        if (t24 === '20:15' && kickoffTimes.length) {
-          revealAt = kickoffTimes.sort().at(-1) || null
-        } else if (seasonWeek?.week_sunday_date) {
-          revealAt = etLocalToUtcISO(seasonWeek.week_sunday_date, t24)
+        weekHasStarted = kickoffTimes.some((time) => Date.now() >= Date.parse(time))
+        resultsVisible = weekHasStarted && weekGames.some((game) => game.status === 'final')
+
+        if (pool?.deadline_mode === 'rolling') {
+          const earliestKickoff = kickoffTimes.sort()[0]
+          revealAt = earliestKickoff || null
+        } else {
+          const t24 = normalizeTimeTo24h(pool?.deadline_fixed) || '13:00'
+          if (t24 === '20:15' && kickoffTimes.length) {
+            revealAt = kickoffTimes.sort().at(-1) || null
+          } else if (seasonWeek?.week_sunday_date) {
+            revealAt = etLocalToUtcISO(seasonWeek.week_sunday_date, t24)
+          }
         }
       }
-      const weekOpenAt = seasonWeek?.week_sunday_date ? etLocalToUtcISO(addDaysYmd(seasonWeek.week_sunday_date, -5), '06:00') : revealAt
-      const picksVisible = !!weekOpenAt && Date.now() >= Date.parse(weekOpenAt)
-      const showResults = resultsVisible && picksVisible
+      const weekOpenAt = pool?.test_mode ? revealAt : seasonWeek?.week_sunday_date ? etLocalToUtcISO(addDaysYmd(seasonWeek.week_sunday_date, -5), '06:00') : revealAt
+      const picksVisible = pool?.test_mode ? weekHasStarted : !!weekOpenAt && Date.now() >= Date.parse(weekOpenAt)
+      showResults = resultsVisible && picksVisible
       setStandingsRevealAt(weekOpenAt)
       setStandingsPicksVisible(picksVisible)
       setStandingsResultsVisible(showResults)
@@ -1109,7 +1123,7 @@ function MyPoolsContent() {
 
     let alive = 0,
       elim = 0
-    const showCurrentResults = resultsVisible && (!!revealAt && Date.now() >= Date.parse(revealAt))
+    const showCurrentResults = showResults
     for (const m of roster) {
       const s = showCurrentResults ? map[m.id] : undefined
       if (!s) {
