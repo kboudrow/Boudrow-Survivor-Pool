@@ -1433,6 +1433,33 @@ function MyPoolsContent() {
     () => picksThisWeek,
     [picksThisWeek],
   )
+  const testResultByTeam = useMemo(() => {
+    const resultMap = new Map<string, 'win' | 'loss' | 'push' | 'pending'>()
+    if (!isTestMode || !standingsResultsVisible) return resultMap
+
+    const grouped = new Map<string, PickRow[]>()
+    for (const pick of visiblePicksThisWeek) {
+      if (isNoPick(pick.team_abbr)) continue
+      const abbr = toAbbr(pick.team_abbr)
+      const rows = grouped.get(abbr) || []
+      rows.push(pick)
+      grouped.set(abbr, rows)
+    }
+
+    grouped.forEach((rows, abbr) => {
+      const results = rows.map((pick) => pick.result).filter(Boolean)
+      if (results.length !== rows.length || results.length === 0) {
+        resultMap.set(abbr, 'pending')
+        return
+      }
+      if (results.every((result) => result === 'win')) resultMap.set(abbr, 'win')
+      else if (results.every((result) => result === 'loss')) resultMap.set(abbr, 'loss')
+      else if (results.every((result) => result === 'push')) resultMap.set(abbr, 'push')
+      else resultMap.set(abbr, 'pending')
+    })
+
+    return resultMap
+  }, [isTestMode, standingsResultsVisible, visiblePicksThisWeek])
   const teamExposure = useMemo(() => {
     const counts = new Map<string, number>()
     for (const pick of visiblePicksThisWeek) {
@@ -1487,10 +1514,10 @@ function MyPoolsContent() {
       const percentage = Math.round((count / denominator) * 100)
       const game = standingsGamesForWeek.find((g) => [toAbbr(g.home_team), toAbbr(g.away_team)].includes(team.abbr))
       const isFinal = game?.status === 'final'
-      const result = isFinal ? (toAbbr(game?.winner || '') === team.abbr ? 'win' : 'loss') : 'pending'
+      const result = testResultByTeam.get(team.abbr) || (isFinal ? (toAbbr(game?.winner || '') === team.abbr ? 'win' : 'loss') : 'pending')
       return { team, count, percentage, result }
     }).sort((a, b) => b.count - a.count || a.team.abbr.localeCompare(b.team.abbr))
-  }, [expectedPickCount, standingsGamesForWeek, visiblePicksThisWeek])
+  }, [expectedPickCount, standingsGamesForWeek, testResultByTeam, visiblePicksThisWeek])
   const gameImpactRows = useMemo(() => {
     const counts = new Map<string, number>()
     for (const pick of visiblePicksThisWeek) {
@@ -1508,6 +1535,8 @@ function MyPoolsContent() {
         const homeCount = counts.get(homeAbbr) || 0
         const total = awayCount + homeCount
         const winner = toAbbr(game.winner || '')
+        const awayTestResult = testResultByTeam.get(awayAbbr)
+        const homeTestResult = testResultByTeam.get(homeAbbr)
         return {
           game,
           away,
@@ -1515,13 +1544,13 @@ function MyPoolsContent() {
           awayCount,
           homeCount,
           total,
-          awayResult: game.status === 'final' ? (winner === awayAbbr ? 'win' : 'loss') : 'pending',
-          homeResult: game.status === 'final' ? (winner === homeAbbr ? 'win' : 'loss') : 'pending',
+          awayResult: awayTestResult || (game.status === 'final' ? (winner === awayAbbr ? 'win' : 'loss') : 'pending'),
+          homeResult: homeTestResult || (game.status === 'final' ? (winner === homeAbbr ? 'win' : 'loss') : 'pending'),
         }
       })
       .filter((row) => row.total > 0)
       .sort((a, b) => b.total - a.total || new Date(a.game.kickoff_at_utc || a.game.game_time).getTime() - new Date(b.game.kickoff_at_utc || b.game.game_time).getTime())
-  }, [standingsGamesForWeek, visiblePicksThisWeek])
+  }, [standingsGamesForWeek, testResultByTeam, visiblePicksThisWeek])
   const leagueAvailableTeams = useMemo(() => {
     const usedByEntry = new Map<string, Set<string>>()
     for (const pick of standingsHistoryPicks) {
@@ -2007,8 +2036,9 @@ function MyPoolsContent() {
                           if (finalPick && finalTeam) {
                             return (
                               <div key={key} className="rounded-md border border-slate-300 bg-slate-50 p-3">
-                                <div className="mb-2 flex items-center justify-end gap-2">
-                                  <span className="rounded-full bg-slate-900 px-2 py-0.5 text-xs font-medium text-white">Locked after deadline</span>
+                                <div className="mb-2 flex items-center justify-between gap-2">
+                                  <ResultPill status={finalPick.result || 'Pending'} />
+                                  <span className="rounded-full bg-slate-900 px-2 py-0.5 text-xs font-medium text-white">Final pick</span>
                                 </div>
                                 <div className="flex items-center gap-3">
                                   <TeamLogo team={finalTeam} size={42} />
