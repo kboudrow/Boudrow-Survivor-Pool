@@ -635,17 +635,13 @@ function MyPoolsContent() {
   const uniqueMemberCount = useMemo(() => new Set(members.map((member) => member.profile_id || member.id)).size || memberCount, [members, memberCount])
   const canMakePicks = !!pool && !!selectedEntryId && !isEliminated && selectedPickWeek >= pool.start_week
   const deadlineLabel =
-    isTestMode
-      ? 'Test mode'
-      : pool?.deadline_mode === 'rolling'
+    pool?.deadline_mode === 'rolling'
       ? 'Rolling: each game locks at kickoff'
       : normalizeTimeTo24h(pool?.deadline_fixed) === '20:15'
         ? 'Before Monday Night Football'
         : 'Sunday 1 PM ET'
   const selectedWeekCloseLabel =
-    isTestMode
-      ? `Test mode: simulated Week ${simulatedWeek}.`
-      : pool?.deadline_mode === 'rolling'
+    pool?.deadline_mode === 'rolling'
       ? 'Each matchup closes at kickoff.'
       : fixedLockUtc
         ? `Week ${selectedPickWeek} closes ${fmtEtDateTime(fixedLockUtc)}.`

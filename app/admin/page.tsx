@@ -50,20 +50,6 @@ type PoolEntry = {
   eliminated_week: number | null
 }
 
-type TestGameOption = {
-  game_id: string
-  season: number
-  week: number
-  away_team: string
-  home_team: string
-  game_time: string | null
-  away_pick_count: number
-  home_pick_count: number
-  total_pick_count: number
-  fake_outcome: string | null
-  needs_outcome: boolean
-}
-
 type ScheduleAuditRow = {
   season: number
   week: number
@@ -132,9 +118,6 @@ export default function SuperAdminPage() {
   const [runningAction, setRunningAction] = useState<string | null>(null)
   const [scheduleAudit, setScheduleAudit] = useState<ScheduleAuditRow[]>([])
   const [auditSeason, setAuditSeason] = useState('2026')
-  const [testWeek, setTestWeek] = useState('1')
-  const [testGames, setTestGames] = useState<TestGameOption[]>([])
-  const [testToolsLoading, setTestToolsLoading] = useState(false)
   const [eventLogs, setEventLogs] = useState<AppEventLogRow[]>([])
   const [eventLogsLoading, setEventLogsLoading] = useState(false)
 
@@ -165,24 +148,6 @@ export default function SuperAdminPage() {
     )
   }, [pools])
   const auditIssues = useMemo(() => scheduleAudit.filter((row) => row.issue_count > 0), [scheduleAudit])
-  const testStartWeek = selectedPool?.start_week || 1
-  const testWeekOptions = useMemo(
-    () => Array.from({ length: Math.max(0, 19 - testStartWeek) }, (_, index) => testStartWeek + index),
-    [testStartWeek],
-  )
-  const testGamesWithPicks = useMemo(
-    () => testGames.filter((game) => (game.total_pick_count ?? game.away_pick_count + game.home_pick_count) > 0),
-    [testGames],
-  )
-  const testGamesWithOutcomes = useMemo(() => testGames.filter((game) => !!game.fake_outcome), [testGames])
-  const testGamesNeedingOutcome = useMemo(
-    () =>
-      testGames.filter((game) => {
-        const totalPicks = game.total_pick_count ?? game.away_pick_count + game.home_pick_count
-        return totalPicks > 0 && !game.fake_outcome
-      }),
-    [testGames],
-  )
 
   const loadPools = async () => {
     setError(null)
@@ -230,25 +195,6 @@ export default function SuperAdminPage() {
     }
   }
 
-  const loadTestOptions = async (poolId: string, weekText = testWeek) => {
-    const week = parseInt(weekText, 10)
-    if (!Number.isFinite(week)) return
-    setTestToolsLoading(true)
-    setError(null)
-    try {
-      const { data, error: optionsErr } = await supabase.rpc('superadmin_test_pool_week_options', {
-        p_pool_id: poolId,
-        p_week: week,
-      })
-      if (optionsErr) throw optionsErr
-      setTestGames((data || []) as TestGameOption[])
-    } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Failed to load test week options.'))
-    } finally {
-      setTestToolsLoading(false)
-    }
-  }
-
   useEffect(() => {
     let alive = true
 
@@ -287,25 +233,11 @@ export default function SuperAdminPage() {
     if (authorized && selectedPoolId) loadEntries(selectedPoolId)
   }, [authorized, selectedPoolId])
 
-  useEffect(() => {
-    if (!selectedPool) return
-    const nextWeek = String(selectedPool.test_current_week || selectedPool.start_week || 1)
-    setTestWeek(nextWeek)
-    if (selectedPool.test_mode) {
-      loadTestOptions(selectedPool.pool_id, nextWeek)
-    } else {
-      setTestGames([])
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPool?.pool_id, selectedPool?.test_mode, selectedPool?.test_current_week])
-
   const refreshSelectedPool = async () => {
-    const nextPools = await loadPools()
+    await loadPools()
     await loadEventLogs()
     if (selectedPoolId) {
       await loadEntries(selectedPoolId)
-      const refreshed = nextPools.find((pool) => pool.pool_id === selectedPoolId) || selectedPool
-      if (refreshed?.test_mode) await loadTestOptions(selectedPoolId, testWeek)
     }
   }
 
@@ -378,104 +310,6 @@ export default function SuperAdminPage() {
       await loadPools()
     } catch (e: unknown) {
       setError(getErrorMessage(e, 'Failed to update test mode.'))
-    } finally {
-      setRunningAction(null)
-    }
-  }
-
-  const saveTestWeek = async () => {
-    if (!selectedPool) return
-    const week = parseInt(testWeek, 10)
-    setRunningAction('test-week')
-    setError(null)
-    setNotice(null)
-    try {
-      const { data, error: weekErr } = await supabase.rpc('superadmin_set_test_pool_week', {
-        p_pool_id: selectedPool.pool_id,
-        p_week: week,
-      })
-      if (weekErr) throw weekErr
-      setNotice(String(data || 'Test week updated.'))
-      await loadPools()
-      await loadTestOptions(selectedPool.pool_id, testWeek)
-    } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Failed to set test week.'))
-    } finally {
-      setRunningAction(null)
-    }
-  }
-
-  const saveTestOutcome = async (game: TestGameOption, outcome: string) => {
-    if (!selectedPool) return
-    const week = parseInt(testWeek, 10)
-    setRunningAction(`result-${game.game_id}`)
-    setError(null)
-    setNotice(null)
-    try {
-      const { error: resultErr } = await supabase.rpc('superadmin_set_test_game_outcome', {
-        p_pool_id: selectedPool.pool_id,
-        p_week: week,
-        p_away_team: game.away_team,
-        p_home_team: game.home_team,
-        p_outcome: outcome,
-      })
-      if (resultErr) throw resultErr
-      await loadTestOptions(selectedPool.pool_id, testWeek)
-    } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Failed to save test result.'))
-    } finally {
-      setRunningAction(null)
-    }
-  }
-
-  const runTestAction = async (action: 'randomize' | 'score' | 'clear' | 'reset') => {
-    if (!selectedPool) return
-    const week = parseInt(testWeek, 10)
-    const copy: Record<typeof action, string> = {
-      randomize: `Randomize missing Week ${week} picks for active entries in this test pool? Existing picks stay as-is.`,
-      score: `Score Week ${week} and move "${selectedPool.name}" forward? This locks drafts, records missing picks as losses, and grades picks using fake outcomes.`,
-      clear: `Clear fake results and scored outcomes for Week ${week}?`,
-      reset: `Reset the entire test pool? This moves final picks back to drafts, clears fake results, and clears test stats for this pool only.`,
-    }
-    if (action === 'score' && testGamesNeedingOutcome.length > 0) {
-      setError(
-        `Set fake outcomes for picked matchups first: ${testGamesNeedingOutcome
-          .map((game) => `${game.away_team} @ ${game.home_team}`)
-          .slice(0, 4)
-          .join(', ')}.`,
-      )
-      return
-    }
-    if (!window.confirm(copy[action])) return
-    setRunningAction(`test-${action}`)
-    setError(null)
-    setNotice(null)
-    try {
-      let response: { data: unknown; error: unknown }
-      if (action === 'randomize') {
-        response = await supabase.rpc('superadmin_randomize_test_week_picks', { p_pool_id: selectedPool.pool_id, p_week: week })
-      } else if (action === 'score') {
-        response = await supabase.rpc('superadmin_score_test_pool_week', { p_pool_id: selectedPool.pool_id, p_week: week })
-      } else if (action === 'clear') {
-        response = await supabase.rpc('superadmin_clear_test_week_results', { p_pool_id: selectedPool.pool_id, p_week: week })
-      } else {
-        response = await supabase.rpc('superadmin_reset_test_pool', { p_pool_id: selectedPool.pool_id })
-      }
-      if (response.error) throw response.error
-      setNotice(String(response.data || 'Test action complete.'))
-      const nextPools = await loadPools()
-      await loadEntries(selectedPool.pool_id)
-      const refreshed = nextPools.find((pool) => pool.pool_id === selectedPool.pool_id) || selectedPool
-      const nextWeek =
-        action === 'reset'
-          ? String(refreshed.start_week || 1)
-          : action === 'score'
-            ? String(refreshed.test_current_week || Math.min(18, week + 1))
-            : testWeek
-      setTestWeek(nextWeek)
-      await loadTestOptions(selectedPool.pool_id, nextWeek)
-    } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Test action failed.'))
     } finally {
       setRunningAction(null)
     }
@@ -761,147 +595,29 @@ export default function SuperAdminPage() {
                     <div>
                       <h3 className="font-semibold text-slate-950">Test Mode</h3>
                       <p className="mt-1 max-w-3xl text-sm text-slate-600">
-                        Use this to run a fake season for one pool. These tools only work when test mode is enabled and never write fake scores into the real NFL schedule.
+                        Enable the fake-season tools here, then run the simulation from this pool&apos;s admin panel.
                       </p>
-                    </div>
-                    <span className={`rounded-full px-3 py-1 text-xs font-bold ${selectedPool.test_mode ? 'bg-violet-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
-                      {selectedPool.test_mode ? `Sim Week ${selectedPool.test_current_week || selectedPool.start_week}` : 'Off'}
-                    </span>
-                  </div>
-
-                  {selectedPool.test_mode ? (
-                    <>
-                      <div className="mt-4 flex flex-wrap items-end gap-2">
-                        <label className="text-sm font-semibold text-slate-700">
-                          Simulated week
-                          <select
-                            value={testWeek}
-                            onChange={(event) => setTestWeek(event.target.value)}
-                            className="mt-1 block rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
-                          >
-                            {testWeekOptions.map((week) => (
-                              <option key={week} value={week}>Week {week}</option>
-                            ))}
-                          </select>
-                        </label>
-                        <button
-                          onClick={saveTestWeek}
-                          disabled={runningAction === 'test-week'}
-                          className="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
-                        >
-                          {runningAction === 'test-week' ? 'Saving...' : 'Set Week'}
-                        </button>
-                        <button
-                          onClick={() => loadTestOptions(selectedPool.pool_id, testWeek)}
-                          disabled={testToolsLoading}
-                          className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50 disabled:opacity-50"
-                        >
-                          {testToolsLoading ? 'Loading...' : 'Refresh Games'}
-                        </button>
-                      </div>
-
-                      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                        <Info label="Games" value={String(testGames.length)} />
-                        <Info label="Games With Picks" value={String(testGamesWithPicks.length)} />
-                        <Info label="Outcomes Set" value={`${testGamesWithOutcomes.length}/${testGames.length || 0}`} />
-                        <Info label="Needs Outcome" value={String(testGamesNeedingOutcome.length)} />
-                      </div>
-
-                      {testGamesNeedingOutcome.length > 0 && (
-                        <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                          Set fake outcomes before scoring: {testGamesNeedingOutcome.map((game) => `${game.away_team} @ ${game.home_team}`).slice(0, 6).join(', ')}.
+                      {selectedPool.test_mode && (
+                        <p className="mt-2 text-sm font-medium text-violet-800">
+                          Current simulated week: Week {selectedPool.test_current_week || selectedPool.start_week}
                         </p>
                       )}
-
-                      <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                        <button
-                          onClick={() => runTestAction('randomize')}
-                          disabled={!!runningAction}
-                          className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
-                        >
-                          Randomize Missing Picks
-                        </button>
-                        <button
-                          onClick={() => runTestAction('score')}
-                          disabled={!!runningAction || testGamesNeedingOutcome.length > 0}
-                          className="rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
-                        >
-                          Score Week & Advance
-                        </button>
-                        <button
-                          onClick={() => runTestAction('clear')}
-                          disabled={!!runningAction}
-                          className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50 disabled:opacity-50"
-                        >
-                          Clear Week Results
-                        </button>
-                        <button
-                          onClick={() => runTestAction('reset')}
-                          disabled={!!runningAction}
-                          className="rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
-                        >
-                          Reset Test Pool
-                        </button>
-                      </div>
-
-                      <div className="mt-4 overflow-x-auto rounded-lg border border-violet-200 bg-white">
-                        <table className="w-full min-w-[760px] text-sm">
-                          <thead className="bg-violet-50 text-slate-700">
-                            <tr>
-                              <th className="border-b border-violet-100 p-2 text-left">Matchup</th>
-                              <th className="border-b border-violet-100 p-2 text-left">Kickoff</th>
-                              <th className="border-b border-violet-100 p-2 text-left">Pick Split</th>
-                              <th className="border-b border-violet-100 p-2 text-left">Fake Outcome</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {testGames.map((game) => (
-                              <tr key={game.game_id} className="hover:bg-slate-50">
-                                <td className="border-b border-slate-100 p-2">
-                                  <div className="font-semibold">{game.away_team} @ {game.home_team}</div>
-                                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                                    <span>Season {game.season}, Week {game.week}</span>
-                                    {(game.total_pick_count ?? game.away_pick_count + game.home_pick_count) > 0 && (
-                                      <span className={`rounded-full px-2 py-0.5 font-semibold ${game.needs_outcome ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
-                                        {game.needs_outcome ? 'Needs outcome' : 'Ready'}
-                                      </span>
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="border-b border-slate-100 p-2">{fmt(game.game_time)}</td>
-                                <td className="border-b border-slate-100 p-2">
-                                  <div>{game.away_team}: {game.away_pick_count} / {game.home_team}: {game.home_pick_count}</div>
-                                  <div className="text-xs text-slate-500">Total picks: {game.total_pick_count ?? game.away_pick_count + game.home_pick_count}</div>
-                                </td>
-                                <td className="border-b border-slate-100 p-2">
-                                  <select
-                                    value={game.fake_outcome || ''}
-                                    onChange={(event) => saveTestOutcome(game, event.target.value)}
-                                    disabled={!!runningAction}
-                                    className="w-full min-w-36 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
-                                  >
-                                    <option value="">Not set</option>
-                                    <option value="away">{game.away_team} wins</option>
-                                    <option value="home">{game.home_team} wins</option>
-                                    <option value="tie">Tie</option>
-                                  </select>
-                                </td>
-                              </tr>
-                            ))}
-                            {testGames.length === 0 && (
-                              <tr>
-                                <td colSpan={4} className="p-4 text-sm text-slate-500">
-                                  No games found for this week yet.
-                                </td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </>
-                  ) : (
-                    <p className="mt-3 text-sm text-slate-600">Enable test mode on this pool when you want to simulate future weeks with fake results.</p>
-                  )}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Link href={`/pools/${selectedPool.pool_id}/admin`} className="rounded-md bg-violet-700 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-800">
+                        Open Test Console
+                      </Link>
+                      <button
+                        onClick={toggleTestMode}
+                        disabled={runningAction === 'test-mode'}
+                        className={`rounded-md px-3 py-2 text-sm font-semibold disabled:opacity-50 ${
+                          selectedPool.test_mode ? 'bg-violet-100 text-violet-800 hover:bg-violet-200' : 'bg-slate-900 text-white hover:bg-slate-800'
+                        }`}
+                      >
+                        {runningAction === 'test-mode' ? 'Saving...' : selectedPool.test_mode ? 'Test Mode On' : 'Enable Test Mode'}
+                      </button>
+                    </div>
+                  </div>
                 </section>
 
                 <div className="mb-3 flex items-center justify-between gap-2">

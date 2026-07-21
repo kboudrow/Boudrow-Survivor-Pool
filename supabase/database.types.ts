@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -2036,9 +2036,17 @@ export type Database = {
           unique_members_count: number
         }[]
       }
+      superadmin_randomize_test_week_outcomes: {
+        Args: { p_pool_id: string; p_week: number }
+        Returns: string
+      }
       superadmin_randomize_test_week_picks: {
         Args: { p_pool_id: string; p_week: number }
         Returns: string
+      }
+      superadmin_rebuild_test_pool_stats: {
+        Args: { p_pool_id: string }
+        Returns: undefined
       }
       superadmin_repair_pool_future_results: {
         Args: { p_pool_id: string }
