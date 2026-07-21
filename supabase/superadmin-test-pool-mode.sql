@@ -437,7 +437,7 @@ begin
       on s.pool_id = pm.pool_id
      and s.entry_id = pm.id
     where pm.pool_id = p_pool_id
-      and coalesce(pm.status, 'active') = 'active'
+      and lower(coalesce(nullif(pm.status::text, ''), 'alive')) in ('active', 'alive')
       and coalesce(s.eliminated, false) = false
   ),
   missing as (
