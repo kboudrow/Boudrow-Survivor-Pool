@@ -76,15 +76,6 @@ type FinalPickRow = { entry_id: string; week: number; slot: number; team_abbr: s
 type PickNotice = { team: Team; week: number; slot: number; action: 'saved' | 'cleared' }
 type PoolPickStatus = { week: number; made: number; needed: number; entries: number }
 type PoolMemberSummary = { total: number; alive: number; totalEntries: number; aliveEntries: number }
-type PoolWeekPickCompletion = {
-  total_entries: number
-  complete_entries: number
-  partial_entries: number
-  missing_entries: number
-  required_picks: number
-  made_slots: number
-  needed_slots: number
-}
 
 type MemberStats = {
   pool_id: string
@@ -95,6 +86,7 @@ type MemberStats = {
   pushes: number
   strikes_used: number
   eliminated: boolean
+  eliminated_week?: number | null
 }
 
 type PoolMemberRosterRow = {
@@ -294,46 +286,6 @@ function fmtEtDateTime(value?: string | null) {
   })
 }
 
-/** ---------------- Donut (Alive vs Eliminated) ---------------- */
-function Donut({ alive, eliminated }: { alive: number; eliminated: number }) {
-  const total = Math.max(alive + eliminated, 1)
-  const a = (alive / total) * 100
-  const r = 42,
-    c = 2 * Math.PI * r
-  const aLen = (a / 100) * c
-  const eLen = c - aLen
-  return (
-    <div className="flex items-center gap-3">
-      <svg width="110" height="110" viewBox="0 0 110 110" className="shrink-0">
-        <g transform="translate(55,55) rotate(-90)">
-          <circle r={r} cx="0" cy="0" fill="transparent" stroke="#e5e7eb" strokeWidth="16" />
-          <circle r={r} cx="0" cy="0" fill="transparent" stroke="#16a34a" strokeWidth="16" strokeDasharray={`${aLen} ${c - aLen}`} />
-          <circle
-            r={r}
-            cx="0"
-            cy="0"
-            fill="transparent"
-            stroke="#ef4444"
-            strokeWidth="16"
-            strokeDasharray={`${eLen} ${c - eLen}`}
-            strokeDashoffset={aLen}
-            opacity="0.9"
-          />
-        </g>
-      </svg>
-      <div className="text-sm">
-        <div className="flex items-center gap-2">
-          <span className="inline-block w-3 h-3 rounded-sm bg-[#16a34a]" /> Alive: <b>{alive}</b>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="inline-block w-3 h-3 rounded-sm bg-[#ef4444]" /> Eliminated: <b>{eliminated}</b>
-        </div>
-        <div className="mt-1 text-xs text-gray-500">Total: {alive + eliminated}</div>
-      </div>
-    </div>
-  )
-}
-
 /** ---------------- UI atoms ---------------- */
 function Tab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
@@ -367,6 +319,66 @@ function ResultPill({ status }: { status: 'win' | 'loss' | 'push' | 'Pending' | 
   const cls = map[up] || map.PENDING
   const label = up === 'WIN' ? 'Win' : up === 'LOSS' ? 'Loss' : up === 'PUSH' ? 'Push' : status || 'Pending'
   return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs ${cls}`}>{label}</span>
+}
+
+function compactResultLabel(result?: PickRow['result']) {
+  if (result === 'win') return 'W'
+  if (result === 'loss') return 'L'
+  if (result === 'push') return 'P'
+  return ''
+}
+
+function compactResultClass(result?: PickRow['result']) {
+  if (result === 'win') return 'border-emerald-200 bg-emerald-50 text-emerald-800'
+  if (result === 'loss') return 'border-red-200 bg-red-50 text-red-800'
+  if (result === 'push') return 'border-slate-300 bg-slate-100 text-slate-700'
+  return 'border-slate-200 bg-white text-slate-700'
+}
+
+function EntryAvatar({ member, name }: { member: Profile; name: string }) {
+  return (
+    <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full border bg-gray-100 flex items-center justify-center">
+      {member.avatar_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={member.avatar_url} alt="" className="h-full w-full object-cover" />
+      ) : (
+        <span className="text-xs font-semibold text-gray-600">{(name[0] || '?').toUpperCase()}</span>
+      )}
+    </div>
+  )
+}
+
+function WeekPickCell({ picks, muted }: { picks: PickRow[]; muted?: boolean }) {
+  if (muted) {
+    return <div className="h-10 rounded-md bg-slate-50" aria-label="Entry was already eliminated" />
+  }
+
+  if (picks.length === 0) {
+    return <span className="text-slate-300">-</span>
+  }
+
+  return (
+    <div className="flex min-w-[86px] flex-col gap-1">
+      {picks.map((pick) => {
+        const noPick = isNoPick(pick.team_abbr)
+        const abbr = noPick ? 'NP' : toAbbr(pick.team_abbr)
+        const team = noPick ? null : teamByAbbr(abbr)
+        return (
+          <div
+            key={`${pick.entry_id}-${pick.week}-${pick.slot}`}
+            className={`inline-flex items-center justify-between gap-1 rounded-md border px-1.5 py-1 text-xs font-semibold ${compactResultClass(pick.result)}`}
+            title={noPick ? 'No pick submitted' : team?.name || abbr}
+          >
+            <span className="inline-flex min-w-0 items-center gap-1">
+              {team && <TeamLogo team={team} size={16} />}
+              <span>{abbr}</span>
+            </span>
+            {compactResultLabel(pick.result) && <span>{compactResultLabel(pick.result)}</span>}
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 function TeamLogo({ team, size = 28 }: { team: Team; size?: number }) {
@@ -613,12 +625,8 @@ function MyPoolsContent() {
   const [standingsHistoryPicks, setStandingsHistoryPicks] = useState<PickRow[]>([])
   const [standingsPicksVisible, setStandingsPicksVisible] = useState(false)
   const [standingsResultsVisible, setStandingsResultsVisible] = useState(false)
-  const [standingsRevealAt, setStandingsRevealAt] = useState<string | null>(null)
   const [standingsGamesForWeek, setStandingsGamesForWeek] = useState<Game[]>([])
-  const [standingsCompletion, setStandingsCompletion] = useState<PoolWeekPickCompletion | null>(null)
   const [statsByUser, setStatsByUser] = useState<Record<string, MemberStats>>({})
-  const [aliveCount, setAliveCount] = useState(0)
-  const [elimCount, setElimCount] = useState(0)
   const availableWeeks = useMemo(() => weeks.filter((week) => week >= (pool?.start_week ?? 1)), [weeks, pool?.start_week])
   const picksAllowedForWeek = useCallback((week: number) => {
     if (week < (pool?.start_week ?? 1)) return 0
@@ -646,12 +654,6 @@ function MyPoolsContent() {
       : fixedLockUtc
         ? `Week ${selectedPickWeek} closes ${fmtEtDateTime(fixedLockUtc)}.`
         : 'Week close time unavailable.'
-  const standingsPrivacyLabel = standingsPicksVisible
-    ? 'Week distribution is live for this week.'
-    : standingsRevealAt
-      ? `Week distribution goes live when this week opens: ${fmtEtDateTime(standingsRevealAt)}.`
-      : 'Week distribution goes live when this week opens for the pool.'
-
   const showPickNotice = (notice: PickNotice) => {
     if (pickNoticeTimerRef.current) window.clearTimeout(pickNoticeTimerRef.current)
     setPickNotice(notice)
@@ -788,8 +790,6 @@ function MyPoolsContent() {
       setMembersLoadedFor(null)
       setPicksThisWeek([])
       setStatsByUser({})
-      setAliveCount(0)
-      setElimCount(0)
       setMyDraftPicks({})
       setMyFinalPicks({})
       setError(null)
@@ -1032,107 +1032,51 @@ function MyPoolsContent() {
     const pid = poolId ?? selectedId
     if (!pid) return
     setStandingsLoading(true)
-    let roster = members
-    let revealAt: string | null = null
-    let weekHasStarted = false
-    let resultsVisible = false
-    let showResults = false
     try {
       if (membersLoadedFor !== pid) {
-        roster = await loadMembers(pid)
+        await loadMembers(pid)
       }
       await restoreUnlockedPicks(pid)
 
       const season = poolSeason ?? pool?.season ?? new Date().getFullYear()
-      const [{ data: standingsGames }, { data: seasonWeek }] = await Promise.all([
-        supabase
-          .from('nfl_games')
-          .select('id, season, week, game_time, kickoff_at_utc, home_team, away_team, status, winner, home_score, away_score')
-          .eq('season', season)
-          .eq('week', week),
-        supabase
-          .from('season_weeks')
-          .select('season, week, week_sunday_date')
-          .eq('season', season)
-          .eq('week', week)
-          .maybeSingle<SeasonWeek>(),
-      ])
+      const { data: standingsGames } = await supabase
+        .from('nfl_games')
+        .select('id, season, week, game_time, kickoff_at_utc, home_team, away_team, status, winner, home_score, away_score')
+        .eq('season', season)
+        .eq('week', week)
       const weekGames = (standingsGames || []) as Game[]
       setStandingsGamesForWeek(weekGames)
-      const kickoffTimes = weekGames
-        .map((game) => game.kickoff_at_utc || game.game_time)
-        .filter(Boolean)
-      if (pool?.test_mode) {
-        const testWeek = pool.test_current_week || pool.start_week || poolStartWeek
-        weekHasStarted = week <= testWeek
-        resultsVisible = weekHasStarted
-        revealAt = new Date().toISOString()
-      } else {
-        weekHasStarted = kickoffTimes.some((time) => Date.now() >= Date.parse(time))
-        resultsVisible = weekHasStarted && weekGames.some((game) => game.status === 'final')
-
-        if (pool?.deadline_mode === 'rolling') {
-          const earliestKickoff = kickoffTimes.sort()[0]
-          revealAt = earliestKickoff || null
-        } else {
-          const t24 = normalizeTimeTo24h(pool?.deadline_fixed) || '13:00'
-          if (t24 === '20:15' && kickoffTimes.length) {
-            revealAt = kickoffTimes.sort().at(-1) || null
-          } else if (seasonWeek?.week_sunday_date) {
-            revealAt = etLocalToUtcISO(seasonWeek.week_sunday_date, t24)
-          }
-        }
-      }
-      const weekOpenAt = pool?.test_mode ? revealAt : seasonWeek?.week_sunday_date ? etLocalToUtcISO(addDaysYmd(seasonWeek.week_sunday_date, -5), '06:00') : revealAt
-      const picksVisible = pool?.test_mode ? weekHasStarted : !!weekOpenAt && Date.now() >= Date.parse(weekOpenAt)
-      showResults = resultsVisible && picksVisible
-      setStandingsRevealAt(weekOpenAt)
-      setStandingsPicksVisible(picksVisible)
-      setStandingsResultsVisible(showResults)
-
       await loadMyPicks(pid, poolStartWeek)
+
+      const { data: stats } = await supabase
+        .from('pool_member_stats')
+        .select('pool_id, user_id, entry_id, wins, losses, pushes, strikes_used, eliminated, eliminated_week')
+        .eq('pool_id', pid)
+
+      const map: Record<string, MemberStats> = {}
+      for (const s of (stats || []) as MemberStats[]) map[s.entry_id] = s
+      setStatsByUser(map)
+
+      const [{ data: picks, error: picksErr }, { data: historyPicks, error: historyErr }] = await Promise.all([
+        supabase.rpc('pool_visible_picks', { p_pool_id: pid, p_week: week, p_through_week: false }),
+        supabase.rpc('pool_visible_picks', { p_pool_id: pid, p_week: week, p_through_week: true }),
+      ])
+      if (picksErr) throw picksErr
+      if (historyErr) throw historyErr
+
+      const visibleRows = (picks || []) as PickRow[]
+      const historyRows = (historyPicks || []) as PickRow[]
+      setPicksThisWeek(visibleRows)
+      setStandingsHistoryPicks(historyRows)
+      setStandingsPicksVisible(visibleRows.length > 0)
+      setStandingsResultsVisible(visibleRows.some((pick) => !!pick.result))
+
     } catch (e: unknown) {
       void logAppEvent({ eventType: 'pool_results_refresh_failed', error: e, poolId: pid })
       console.warn('Failed to refresh finalized picks or standings results', e)
+    } finally {
+      setStandingsLoading(false)
     }
-
-    const { data: stats } = await supabase
-      .from('pool_member_stats')
-      .select('pool_id, user_id, entry_id, wins, losses, pushes, strikes_used, eliminated')
-      .eq('pool_id', pid)
-
-    const map: Record<string, MemberStats> = {}
-    for (const s of (stats || []) as MemberStats[]) map[s.entry_id] = s
-    setStatsByUser(map)
-
-    const [{ data: picks, error: picksErr }, { data: historyPicks, error: historyErr }, { data: completionRows, error: completionErr }] = await Promise.all([
-      supabase.rpc('pool_visible_picks', { p_pool_id: pid, p_week: week, p_through_week: false }),
-      supabase.rpc('pool_visible_picks', { p_pool_id: pid, p_week: week, p_through_week: true }),
-      supabase.rpc('pool_week_pick_completion', { p_pool_id: pid, p_week: week }),
-    ])
-    if (picksErr) throw picksErr
-    if (historyErr) throw historyErr
-    if (completionErr) throw completionErr
-    setPicksThisWeek((picks || []) as PickRow[])
-    setStandingsHistoryPicks((historyPicks || []) as PickRow[])
-    setStandingsCompletion(((completionRows || []) as PoolWeekPickCompletion[])[0] ?? null)
-
-    let alive = 0,
-      elim = 0
-    const showCurrentResults = showResults
-    for (const m of roster) {
-      const s = showCurrentResults ? map[m.id] : undefined
-      if (!s) {
-        alive += 1
-        continue
-      }
-      if (s.eliminated) elim += 1
-      else alive += 1
-    }
-    setAliveCount(alive)
-    setElimCount(elim)
-
-    setStandingsLoading(false)
   }
 
   useEffect(() => {
@@ -1159,7 +1103,7 @@ function MyPoolsContent() {
 
         const { data: myStat } = await supabase
           .from('pool_member_stats')
-          .select('pool_id, user_id, entry_id, wins, losses, pushes, strikes_used, eliminated')
+          .select('pool_id, user_id, entry_id, wins, losses, pushes, strikes_used, eliminated, eliminated_week')
           .eq('pool_id', selectedId)
           .eq('entry_id', selectedEntryId)
           .maybeSingle<MemberStats>()
@@ -1326,7 +1270,7 @@ function MyPoolsContent() {
 
     const { data: myStat } = await supabase
       .from('pool_member_stats')
-      .select('pool_id, user_id, entry_id, wins, losses, pushes, strikes_used, eliminated')
+      .select('pool_id, user_id, entry_id, wins, losses, pushes, strikes_used, eliminated, eliminated_week')
       .eq('pool_id', selectedId)
       .eq('entry_id', entryId)
       .maybeSingle<MemberStats>()
@@ -1422,9 +1366,89 @@ function MyPoolsContent() {
   }, [teamSearch])
   const standingsStatsByEntry = useMemo(() => {
     if (!leagueHasStarted) return {} as Record<string, MemberStats>
-    if (standingsResultsVisible) return statsByUser
-    return {} as Record<string, MemberStats>
-  }, [leagueHasStarted, standingsResultsVisible, statsByUser])
+    return statsByUser
+  }, [leagueHasStarted, statsByUser])
+  const strikesAllowed = Number(pool?.strikes_allowed ?? 0)
+  const standingsTableWeeks = useMemo(
+    () => availableWeeks.filter((week) => week <= standingsWeek),
+    [availableWeeks, standingsWeek],
+  )
+  const picksByEntryWeek = useMemo(() => {
+    const map = new Map<string, PickRow[]>()
+    for (const pick of standingsHistoryPicks) {
+      const key = `${pick.entry_id}:${pick.week}`
+      const rows = map.get(key) || []
+      rows.push(pick)
+      map.set(key, rows)
+    }
+    map.forEach((rows) => rows.sort((a, b) => a.slot - b.slot))
+    return map
+  }, [standingsHistoryPicks])
+  const standingsRows = useMemo(() => {
+    return members
+      .map((member) => {
+        const stats =
+          standingsStatsByEntry[member.id] ||
+          ({
+            pool_id: pool?.id || '',
+            user_id: member.profile_id || '',
+            entry_id: member.id,
+            wins: 0,
+            losses: 0,
+            pushes: 0,
+            strikes_used: 0,
+            eliminated: false,
+            eliminated_week: null,
+          } as MemberStats)
+        const entryPicksThroughWeek = standingsHistoryPicks.filter((pick) => pick.entry_id === member.id && pick.week <= standingsWeek)
+        const strikesUsedThroughWeek = entryPicksThroughWeek.filter((pick) => pick.result === 'loss' || (pick.result === 'push' && pool?.tie_rule === 'loss')).length
+        const winsThroughWeek = entryPicksThroughWeek.filter((pick) => pick.result === 'win').length
+        const lossesThroughWeek = entryPicksThroughWeek.filter((pick) => pick.result === 'loss').length
+        const aliveThroughWeek = strikesUsedThroughWeek <= strikesAllowed
+        const strikesLeft = Math.max(0, strikesAllowed - strikesUsedThroughWeek)
+        return {
+          member,
+          stats,
+          name: entryLabelForMember(member),
+          alive: aliveThroughWeek,
+          strikesLeft,
+          strikesUsed: strikesUsedThroughWeek,
+          wins: winsThroughWeek,
+          losses: lossesThroughWeek,
+        }
+      })
+      .sort((a, b) => {
+        if (a.alive !== b.alive) return a.alive ? -1 : 1
+        if (a.strikesLeft !== b.strikesLeft) return b.strikesLeft - a.strikesLeft
+        if (a.wins !== b.wins) return b.wins - a.wins
+        if (a.losses !== b.losses) return a.losses - b.losses
+        return a.name.localeCompare(b.name)
+      })
+  }, [members, pool?.id, pool?.tie_rule, standingsHistoryPicks, standingsStatsByEntry, standingsWeek, strikesAllowed])
+  const activeEntryCount = useMemo(
+    () => standingsRows.filter((row) => row.alive).length,
+    [standingsRows],
+  )
+  const survivalByWeek = useMemo(() => {
+    const survival = new Map<number, number>()
+    const strikesByEntry = new Map(members.map((member) => [member.id, 0]))
+
+    for (const week of standingsTableWeeks) {
+      const weekPicks = standingsHistoryPicks.filter((pick) => pick.week === week)
+      for (const member of members) {
+        const entryPicks = weekPicks.filter((pick) => pick.entry_id === member.id)
+        const strikes = entryPicks.filter((pick) => pick.result === 'loss' || (pick.result === 'push' && pool?.tie_rule === 'loss')).length
+        strikesByEntry.set(member.id, (strikesByEntry.get(member.id) || 0) + strikes)
+      }
+      const alive = Array.from(strikesByEntry.values()).filter((strikes) => strikes <= strikesAllowed).length
+      survival.set(week, alive)
+    }
+
+    return survival
+  }, [members, pool?.tie_rule, standingsHistoryPicks, standingsTableWeeks, strikesAllowed])
+  const statusSummary = activeEntryCount === members.length
+    ? `${activeEntryCount}/${members.length} entries alive through Week ${standingsWeek}`
+    : `${activeEntryCount}/${members.length} entries still alive through Week ${standingsWeek}`
   const visiblePicksThisWeek = useMemo(
     () => picksThisWeek,
     [picksThisWeek],
@@ -1467,36 +1491,6 @@ function MyPoolsContent() {
       .sort((a, b) => b.count - a.count || a.team.abbr.localeCompare(b.team.abbr))
   }, [visiblePicksThisWeek])
   const topExposedTeam = teamExposure[0] || null
-  const expectedPickCount = memberCount * picksAllowedForWeek(standingsWeek)
-  const visiblePickPercent = expectedPickCount > 0 ? Math.round((visiblePicksThisWeek.length / expectedPickCount) * 100) : 0
-  const visiblePickedCount = visiblePicksThisWeek.filter((pick) => !isNoPick(pick.team_abbr)).length
-  const visibleNoPickCount = visiblePicksThisWeek.length - visiblePickedCount
-  const weekPickCompletion = useMemo(() => {
-    if (standingsCompletion) {
-      return {
-        complete: standingsCompletion.complete_entries,
-        partial: standingsCompletion.partial_entries,
-        missing: standingsCompletion.missing_entries,
-        needed: standingsCompletion.required_picks,
-        total: standingsCompletion.total_entries,
-      }
-    }
-    const needed = picksAllowedForWeek(standingsWeek)
-    const counts = new Map<string, number>()
-    for (const pick of visiblePicksThisWeek) {
-      if (isNoPick(pick.team_abbr)) continue
-      counts.set(pick.entry_id, (counts.get(pick.entry_id) || 0) + 1)
-    }
-    let complete = 0
-    let partial = 0
-    for (const member of members) {
-      const made = counts.get(member.id) || 0
-      if (made >= needed) complete += 1
-      else if (made > 0) partial += 1
-    }
-    const missing = Math.max(0, members.length - complete - partial)
-    return { complete, partial, missing, needed, total: members.length }
-  }, [members, picksAllowedForWeek, standingsCompletion, standingsWeek, visiblePicksThisWeek])
   const teamPickChartRows = useMemo(() => {
     const counts = new Map<string, number>()
     for (const pick of visiblePicksThisWeek) {
@@ -1504,7 +1498,7 @@ function MyPoolsContent() {
       const abbr = toAbbr(pick.team_abbr)
       counts.set(abbr, (counts.get(abbr) || 0) + 1)
     }
-    const denominator = Math.max(expectedPickCount, visiblePicksThisWeek.filter((pick) => !isNoPick(pick.team_abbr)).length, 1)
+    const denominator = Math.max(Array.from(counts.values()).reduce((total, count) => total + count, 0), 1)
     return NFL_TEAMS.map((team) => {
       const count = counts.get(team.abbr) || 0
       const percentage = Math.round((count / denominator) * 100)
@@ -1512,40 +1506,9 @@ function MyPoolsContent() {
       const isFinal = game?.status === 'final'
       const result = testResultByTeam.get(team.abbr) || (isFinal ? (toAbbr(game?.winner || '') === team.abbr ? 'win' : 'loss') : 'pending')
       return { team, count, percentage, result }
-    }).sort((a, b) => b.count - a.count || a.team.abbr.localeCompare(b.team.abbr))
-  }, [expectedPickCount, standingsGamesForWeek, testResultByTeam, visiblePicksThisWeek])
-  const gameImpactRows = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const pick of visiblePicksThisWeek) {
-      if (isNoPick(pick.team_abbr)) continue
-      const abbr = toAbbr(pick.team_abbr)
-      counts.set(abbr, (counts.get(abbr) || 0) + 1)
-    }
-    return standingsGamesForWeek
-      .map((game) => {
-        const awayAbbr = toAbbr(game.away_team)
-        const homeAbbr = toAbbr(game.home_team)
-        const away = teamByAbbr(awayAbbr) || { abbr: awayAbbr, name: awayAbbr }
-        const home = teamByAbbr(homeAbbr) || { abbr: homeAbbr, name: homeAbbr }
-        const awayCount = counts.get(awayAbbr) || 0
-        const homeCount = counts.get(homeAbbr) || 0
-        const total = awayCount + homeCount
-        const winner = toAbbr(game.winner || '')
-        const awayTestResult = testResultByTeam.get(awayAbbr)
-        const homeTestResult = testResultByTeam.get(homeAbbr)
-        return {
-          game,
-          away,
-          home,
-          awayCount,
-          homeCount,
-          total,
-          awayResult: awayTestResult || (game.status === 'final' ? (winner === awayAbbr ? 'win' : 'loss') : 'pending'),
-          homeResult: homeTestResult || (game.status === 'final' ? (winner === homeAbbr ? 'win' : 'loss') : 'pending'),
-        }
-      })
-      .filter((row) => row.total > 0)
-      .sort((a, b) => b.total - a.total || new Date(a.game.kickoff_at_utc || a.game.game_time).getTime() - new Date(b.game.kickoff_at_utc || b.game.game_time).getTime())
+    })
+      .filter((row) => row.count > 0)
+      .sort((a, b) => b.count - a.count || a.team.abbr.localeCompare(b.team.abbr))
   }, [standingsGamesForWeek, testResultByTeam, visiblePicksThisWeek])
   const leagueAvailableTeams = useMemo(() => {
     const usedByEntry = new Map<string, Set<string>>()
@@ -1555,10 +1518,11 @@ function MyPoolsContent() {
       entryUsed.add(toAbbr(pick.team_abbr))
       usedByEntry.set(pick.entry_id, entryUsed)
     }
-    const denominator = Math.max(members.length, 1)
+    const aliveRows = standingsRows.filter((row) => row.alive)
+    const denominator = Math.max(aliveRows.length, 1)
     return NFL_TEAMS.map((team) => {
-      const available = members.filter((member) => !usedByEntry.get(member.id)?.has(team.abbr)).length
-      const used = members.length - available
+      const available = aliveRows.filter(({ member }) => !usedByEntry.get(member.id)?.has(team.abbr)).length
+      const used = aliveRows.length - available
       return {
         team,
         available,
@@ -1566,39 +1530,7 @@ function MyPoolsContent() {
         percentage: Math.round((available / denominator) * 100),
       }
     }).sort((a, b) => b.available - a.available || a.team.abbr.localeCompare(b.team.abbr))
-  }, [members, standingsHistoryPicks])
-  const previousWeekHistory = useMemo(() => {
-    const rows: Array<{ week: number; picks: number; wins: number; losses: number; pushes: number; alive: number; eliminated: number; eliminatedThisWeek: number }> = []
-    const strikesByEntry = new Map(members.map((member) => [member.id, 0]))
-    for (const week of availableWeeks.filter((w) => w < standingsWeek)) {
-      const weekPicks = standingsHistoryPicks.filter((pick) => pick.week === week)
-      const wins = weekPicks.filter((pick) => pick.result === 'win').length
-      const losses = weekPicks.filter((pick) => pick.result === 'loss').length
-      const pushes = weekPicks.filter((pick) => pick.result === 'push').length
-      let eliminatedThisWeek = 0
-      for (const member of members) {
-        const before = (strikesByEntry.get(member.id) || 0) > (pool?.strikes_allowed ?? 1)
-        const entryPicks = weekPicks.filter((pick) => pick.entry_id === member.id)
-        const strikes = entryPicks.filter((pick) => pick.result === 'loss' || (pick.result === 'push' && pool?.tie_rule === 'loss')).length
-        strikesByEntry.set(member.id, (strikesByEntry.get(member.id) || 0) + strikes)
-        const after = (strikesByEntry.get(member.id) || 0) > (pool?.strikes_allowed ?? 1)
-        if (!before && after) eliminatedThisWeek += 1
-      }
-      const eliminated = Array.from(strikesByEntry.values()).filter((strikes) => strikes > (pool?.strikes_allowed ?? 1)).length
-      rows.push({ week, picks: weekPicks.length, wins, losses, pushes, alive: Math.max(0, members.length - eliminated), eliminated, eliminatedThisWeek })
-    }
-    return rows.slice(-5).reverse()
-  }, [availableWeeks, members, pool?.strikes_allowed, pool?.tie_rule, standingsHistoryPicks, standingsWeek])
-  const remainingTeamsForEntry = useMemo(() => {
-    const used = new Set(
-      standingsHistoryPicks
-        .filter((pick) => pick.entry_id === selectedEntryId && !isNoPick(pick.team_abbr))
-        .map((pick) => toAbbr(pick.team_abbr)),
-    )
-    usedTeamAbbrs.forEach((abbr) => used.add(toAbbr(abbr)))
-    return NFL_TEAMS.filter((team) => !used.has(team.abbr))
-  }, [selectedEntryId, standingsHistoryPicks, usedTeamAbbrs])
-
+  }, [standingsHistoryPicks, standingsRows])
   /** ---------- OWNER CHECK ---------- */
   const amOwner = useMemo(() => !!pool && !!userId && pool.created_by === userId, [pool, userId])
 
@@ -1634,11 +1566,7 @@ function MyPoolsContent() {
     setStandingsHistoryPicks([])
     setStandingsPicksVisible(false)
     setStandingsResultsVisible(false)
-      setStandingsRevealAt(null)
-      setStatsByUser({})
-      setStandingsCompletion(null)
-      setAliveCount(0)
-    setElimCount(0)
+    setStatsByUser({})
     backgroundRefreshRef.current = null
 
     try {
@@ -1670,7 +1598,7 @@ function MyPoolsContent() {
           .limit(1)
           .maybeSingle<{ game_time: string; kickoff_at_utc: string | null }>(),
         nextEntryId
-          ? supabase.from('pool_member_stats').select('pool_id, user_id, entry_id, wins, losses, pushes, strikes_used, eliminated').eq('pool_id', id).eq('entry_id', nextEntryId).maybeSingle<MemberStats>()
+          ? supabase.from('pool_member_stats').select('pool_id, user_id, entry_id, wins, losses, pushes, strikes_used, eliminated, eliminated_week').eq('pool_id', id).eq('entry_id', nextEntryId).maybeSingle<MemberStats>()
           : Promise.resolve({ data: null }),
         supabase.rpc('admin_can_manage', { p_pool_id: id }),
       ])
@@ -2184,7 +2112,7 @@ function MyPoolsContent() {
                 <>
                   <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                     <div className="flex items-center gap-2">
-                      <label className="text-sm">Week</label>
+                      <label className="text-sm">Show through</label>
                       <select className="border rounded-md px-2 py-1 text-sm" value={standingsWeek} onChange={(e) => setStandingsWeek(Number(e.target.value))}>
                         {availableWeeks.map((w) => (
                           <option key={w} value={w}>
@@ -2197,93 +2125,113 @@ function MyPoolsContent() {
                       Refresh
                     </button>
                   </div>
-                  <div className="mb-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                    {standingsPrivacyLabel}
-                  </div>
+                  <p className="mb-4 text-sm text-slate-600">
+                    Choose a week to see the pool exactly as it stood through that week.
+                  </p>
 
-                  <div className="grid gap-3 md:grid-cols-3 mb-6">
-                    <div className="border rounded-lg p-4">
-                      <div className="text-xs uppercase text-gray-500">Entries</div>
-                      <div className="text-2xl font-bold">{memberCount}</div>
-                      <div className="text-xs text-gray-500 mt-1">{uniqueMemberCount} unique {uniqueMemberCount === 1 ? 'member' : 'members'}</div>
-                    </div>
-                    <div className="border rounded-lg p-4">
-                      <div className="text-xs uppercase text-gray-500">Strikes Allowed</div>
-                      <div className="text-2xl font-bold">{pool.strikes_allowed}</div>
-                      <div className="text-xs text-gray-500 mt-1">Tie counts as: {pool.tie_rule}</div>
-                    </div>
-                    <div className="border rounded-lg p-4 flex items-center justify-between">
+                  <section className="mb-6 rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                       <div>
-                        <div className="text-xs uppercase text-gray-500">Alive vs Eliminated</div>
-                        <div className="text-xs text-gray-500 mt-1">Based on adjudicated results</div>
+                        <h3 className="text-lg font-bold text-slate-950">Entry Progression</h3>
+                        <p className="mt-1 text-sm text-slate-600">
+                          {statusSummary}. Alive entries are listed first, and the week headers show how many entries were still alive through that week.
+                        </p>
                       </div>
-                      <Donut alive={aliveCount} eliminated={elimCount} />
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                        {activeEntryCount} active / {memberCount} total
+                      </span>
                     </div>
-                  </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-separate border-spacing-0 text-sm" style={{ minWidth: Math.max(760, 360 + standingsTableWeeks.length * 96) }}>
+                        <thead>
+                          <tr>
+                            <th className="sticky left-0 z-10 border-b border-slate-200 bg-white p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Entry</th>
+                            <th className="border-b border-slate-200 p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Progress</th>
+                            <th className="border-b border-slate-200 p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Mulligans</th>
+                            {standingsTableWeeks.map((week) => (
+                              <th key={week} className="border-b border-slate-200 p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                <span className="block">W{week}</span>
+                                <span className="mt-0.5 block text-[10px] font-medium normal-case tracking-normal text-slate-400">
+                                  {survivalByWeek.get(week) ?? memberCount}/{memberCount} alive
+                                </span>
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {standingsRows.map(({ member, stats, name, alive, strikesLeft, strikesUsed }) => {
+                            const eliminatedWeek = !alive ? stats.eliminated_week || standingsWeek : stats.eliminated_week || null
+                            return (
+                              <tr key={member.id} className={alive ? 'align-top' : 'align-top bg-slate-50 text-slate-500'}>
+                                <td className="sticky left-0 z-10 border-b border-slate-100 bg-inherit p-2">
+                                  <div className="flex min-w-[190px] items-center gap-2">
+                                    <EntryAvatar member={member} name={name} />
+                                    <div className="min-w-0">
+                                      <div className="truncate font-semibold text-slate-950">{name}</div>
+                                      <div className="text-xs text-slate-500">Entry {member.entry_number || 1}</div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="border-b border-slate-100 p-2">
+                                  {alive ? (
+                                    <span className="inline-flex rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-semibold text-white">Alive</span>
+                                  ) : (
+                                    <span className="inline-flex rounded-full bg-red-600 px-2 py-0.5 text-xs font-semibold text-white">
+                                      Out{eliminatedWeek ? ` W${eliminatedWeek}` : ''}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="border-b border-slate-100 p-2">
+                                  {alive ? (
+                                    <div>
+                                      <span className="font-semibold text-slate-950">{strikesLeft}</span>
+                                      <span className="ml-1 text-xs text-slate-500">left</span>
+                                      <div className="text-xs text-slate-500">{strikesUsed} used</div>
+                                    </div>
+                                  ) : (
+                                    <span className="text-slate-400">-</span>
+                                  )}
+                                </td>
+                                {standingsTableWeeks.map((week) => {
+                                  const picks = picksByEntryWeek.get(`${member.id}:${week}`) || []
+                                  const muted = !!eliminatedWeek && week > eliminatedWeek
+                                  return (
+                                    <td key={`${member.id}-${week}`} className="border-b border-slate-100 p-2">
+                                      <WeekPickCell picks={picks} muted={muted} />
+                                    </td>
+                                  )
+                                })}
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
 
-                  <div className="mb-6 grid gap-3 lg:grid-cols-3">
-                    <div className="rounded-lg border border-gray-200 bg-white p-4">
-                      <div className="text-xs uppercase text-gray-500">Week Pick Completion</div>
-                      <div className="mt-2 text-2xl font-bold">
-                        {weekPickCompletion.complete}/{weekPickCompletion.total}
-                      </div>
-                      <div className="mt-1 text-xs text-gray-500">
-                        {weekPickCompletion.partial} partial / {weekPickCompletion.missing} missing
-                      </div>
-                    </div>
-                    <div className="rounded-lg border border-gray-200 bg-white p-4">
-                      <div className="text-xs uppercase text-gray-500">Visible Pick Slots</div>
-                      <div className="mt-2 text-2xl font-bold">{visiblePickedCount}/{Math.max(expectedPickCount, visiblePicksThisWeek.length)}</div>
-                      <div className="mt-1 text-xs text-gray-500">
-                        {visiblePickPercent}% visible. {visibleNoPickCount} no-pick slot{visibleNoPickCount === 1 ? '' : 's'}.
-                      </div>
-                    </div>
-                    <div className="rounded-lg border border-gray-200 bg-white p-4">
-                      <div className="text-xs uppercase text-gray-500">Most Picked Visible Team</div>
-                      {topExposedTeam ? (
-                        <div className="mt-3 flex items-center justify-between gap-3">
-                          <span className="inline-flex items-center gap-2 text-sm font-semibold">
-                            <TeamLogo team={topExposedTeam.team} size={26} />
-                            {topExposedTeam.team.abbr}
-                          </span>
-                          <span className="rounded-full bg-slate-900 px-2 py-0.5 text-xs font-semibold text-white">{topExposedTeam.count}</span>
-                        </div>
-                      ) : (
-                        <p className="mt-2 text-sm text-gray-500">No visible picks yet.</p>
-                      )}
-                    </div>
-                    <div className="rounded-lg border border-gray-200 bg-white p-4">
-                      <div className="text-xs uppercase text-gray-500">Your Remaining Teams</div>
-                      <div className="mt-2 text-2xl font-bold">{remainingTeamsForEntry.length}</div>
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {remainingTeamsForEntry.slice(0, 8).map((team) => (
-                          <span key={team.abbr} className="inline-flex items-center gap-1 rounded-full border bg-gray-50 px-2 py-1 text-xs">
-                            <TeamLogo team={team} size={16} />
-                            {team.abbr}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
+                  <section className="mb-6 rounded-xl border border-slate-200 bg-white p-4">
                     <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <div className="text-xs uppercase text-gray-500">Week {standingsWeek} Pick Distribution</div>
-                        <div className="mt-1 text-sm text-gray-600">
-                          Pick counts are tracked now. Team choices and charts stay private until the pool week opens.
-                        </div>
+                        <div className="text-xs uppercase text-slate-500">Week {standingsWeek} Pick Distribution</div>
+                        <div className="mt-1 text-sm text-slate-600">Only visible picks are counted here.</div>
                       </div>
-                      <div className="text-xs text-gray-500">
-                        Gray: pending / Green: won / Red: lost
-                      </div>
+                      {topExposedTeam && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-900 px-2 py-1 text-xs font-semibold text-white">
+                          <TeamLogo team={topExposedTeam.team} size={16} />
+                          {topExposedTeam.team.abbr} x {topExposedTeam.count}
+                        </span>
+                      )}
                     </div>
                     {!standingsPicksVisible ? (
-                      <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">
-                        Team distribution, matchup impact, and weekly charts unlock when Week {standingsWeek} opens.
+                      <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
+                        No Week {standingsWeek} picks are visible yet. Picks appear as each selected team reaches its lock time.
+                      </div>
+                    ) : teamPickChartRows.length === 0 ? (
+                      <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
+                        No team picks are visible for Week {standingsWeek} yet.
                       </div>
                     ) : (
-                      <div className="grid gap-2 lg:grid-cols-2">
+                      <div className="grid gap-2 md:grid-cols-2">
                         {teamPickChartRows.map(({ team, count, percentage, result }) => {
                           const barClass =
                             result === 'win'
@@ -2291,127 +2239,33 @@ function MyPoolsContent() {
                               : result === 'loss'
                                 ? 'bg-red-500'
                                 : 'bg-slate-300'
-                          const rowClass =
-                            result === 'win'
-                              ? 'border-emerald-100 bg-emerald-50'
-                              : result === 'loss'
-                                ? 'border-red-100 bg-red-50'
-                                : 'border-slate-200 bg-white'
                           return (
-                            <div key={team.abbr} className={`rounded-md border p-2 ${rowClass}`}>
+                            <div key={team.abbr} className="rounded-md border border-slate-200 bg-white p-2">
                               <div className="mb-1 flex items-center justify-between gap-3 text-sm">
                                 <span className="inline-flex min-w-0 items-center gap-2 font-medium">
                                   <TeamLogo team={team} size={22} />
                                   <span className="truncate">{team.name}</span>
-                                  <span className="text-xs text-gray-500">({team.abbr})</span>
                                 </span>
-                                <span className="shrink-0 text-xs font-semibold text-gray-700">
+                                <span className="shrink-0 text-xs font-semibold text-slate-700">
                                   {percentage}% / {count}
                                 </span>
                               </div>
-                              <div className="h-2 overflow-hidden rounded-full bg-gray-100">
-                                <div className={`h-full rounded-full ${barClass}`} style={{ width: `${Math.max(percentage, count > 0 ? 3 : 0)}%` }} />
+                              <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                                <div className={`h-full rounded-full ${barClass}`} style={{ width: `${Math.max(percentage, 3)}%` }} />
                               </div>
                             </div>
                           )
                         })}
                       </div>
                     )}
-                  </div>
+                  </section>
 
-                  {standingsPicksVisible && (
-                    <div className="mb-6 grid gap-3 lg:grid-cols-2">
-                    <div className="rounded-lg border border-gray-200 bg-white p-4">
-                      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <div className="text-xs uppercase text-gray-500">Games That Matter This Week</div>
-                          <div className="mt-1 text-sm text-gray-600">Matchups with visible picks attached.</div>
-                        </div>
-                        <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">{gameImpactRows.length}</span>
-                      </div>
-                      {!standingsPicksVisible ? (
-                        <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">
-                          This unlocks when Week {standingsWeek} opens.
-                        </div>
-                      ) : gameImpactRows.length === 0 ? (
-                        <p className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">No visible picks are tied to this week&apos;s games yet.</p>
-                      ) : (
-                        <div className="grid gap-2">
-                          {gameImpactRows.slice(0, 8).map(({ game, away, home, awayCount, homeCount, total, awayResult, homeResult }) => (
-                            <div key={game.id} className="rounded-md border border-slate-200 bg-slate-50 p-3">
-                              <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-                                <span>{fmtEtDateTime(game.kickoff_at_utc || game.game_time)}</span>
-                                <span className="font-semibold text-slate-700">{total} visible pick{total === 1 ? '' : 's'}</span>
-                              </div>
-                              <div className="grid gap-2 sm:grid-cols-2">
-                                {[
-                                  { team: away, count: awayCount, result: awayResult },
-                                  { team: home, count: homeCount, result: homeResult },
-                                ].map(({ team, count, result }) => {
-                                  const resultClass = result === 'win' ? 'bg-emerald-500' : result === 'loss' ? 'bg-red-500' : 'bg-slate-400'
-                                  return (
-                                    <div key={team.abbr} className="rounded-md bg-white p-2">
-                                      <div className="mb-1 flex items-center justify-between gap-2">
-                                        <span className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold">
-                                          <TeamLogo team={team} size={22} />
-                                          <span className="truncate">{team.abbr}</span>
-                                        </span>
-                                        <span className="text-xs font-semibold text-slate-700">{count}</span>
-                                      </div>
-                                      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                                        <div className={`h-full rounded-full ${resultClass}`} style={{ width: `${total > 0 ? Math.max(3, Math.round((count / total) * 100)) : 0}%` }} />
-                                      </div>
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="rounded-lg border border-gray-200 bg-white p-4">
-                      <div className="mb-3">
-                        <div className="text-xs uppercase text-gray-500">Survival Trend</div>
-                        <div className="mt-1 text-sm text-gray-600">Recent weeks based on adjudicated pick results.</div>
-                      </div>
-                      {previousWeekHistory.length === 0 ? (
-                        <p className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">No finished weeks to chart yet.</p>
-                      ) : (
-                        <div className="grid gap-2">
-                          {previousWeekHistory.slice().reverse().map((row) => {
-                            const alivePct = members.length > 0 ? Math.round((row.alive / members.length) * 100) : 0
-                            return (
-                              <div key={row.week} className="rounded-md border border-slate-200 bg-slate-50 p-3">
-                                <div className="mb-2 flex items-center justify-between text-sm">
-                                  <span className="font-semibold">Week {row.week}</span>
-                                  <span className="text-xs text-slate-600">{row.alive}/{members.length} alive</span>
-                                </div>
-                                <div className="h-2 overflow-hidden rounded-full bg-red-100">
-                                  <div className="h-full rounded-full bg-emerald-500" style={{ width: `${alivePct}%` }} />
-                                </div>
-                                <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
-                                  <span>{row.wins} wins</span>
-                                  <span>{row.losses} losses</span>
-                                  {row.pushes > 0 && <span>{row.pushes} pushes</span>}
-                                  <span>{row.eliminatedThisWeek} eliminated</span>
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </div>
-                    </div>
-                  )}
-
-                  <details className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
+                  <details className="mb-6 rounded-xl border border-slate-200 bg-white p-4">
                     <summary className="cursor-pointer text-sm font-semibold text-slate-900">Teams Still Available</summary>
-                    <div className="mt-2 text-sm text-gray-600">How many entries can still use each team based on visible locked pick history.</div>
-                    <div className="mt-1 text-xs text-gray-500">{members.length} active {members.length === 1 ? 'entry' : 'entries'} counted</div>
-                    {members.length === 0 ? (
-                      <div className="mt-3 rounded-md border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">No entries to analyze yet.</div>
+                    <div className="mt-2 text-sm text-slate-600">How many alive entries can still use each team based on visible locked pick history.</div>
+                    <div className="mt-1 text-xs text-slate-500">{activeEntryCount} active {activeEntryCount === 1 ? 'entry' : 'entries'} counted</div>
+                    {activeEntryCount === 0 ? (
+                      <div className="mt-3 rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">No active entries to analyze.</div>
                     ) : (
                       <div className="mt-3 grid gap-2 md:grid-cols-2">
                         {leagueAvailableTeams.map(({ team, available, percentage }) => (
@@ -2420,11 +2274,10 @@ function MyPoolsContent() {
                               <span className="inline-flex min-w-0 items-center gap-2 font-medium">
                                 <TeamLogo team={team} size={22} />
                                 <span className="truncate">{team.name}</span>
-                                <span className="text-xs text-gray-500">({team.abbr})</span>
                               </span>
-                              <span className="shrink-0 text-xs font-semibold text-gray-700">{available}/{members.length}</span>
+                              <span className="shrink-0 text-xs font-semibold text-slate-700">{available}/{activeEntryCount}</span>
                             </div>
-                            <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+                            <div className="h-2 overflow-hidden rounded-full bg-slate-100">
                               <div className="h-full rounded-full bg-slate-500" style={{ width: `${Math.max(percentage, available > 0 ? 3 : 0)}%` }} />
                             </div>
                           </div>
@@ -2432,140 +2285,6 @@ function MyPoolsContent() {
                       </div>
                     )}
                   </details>
-
-                  <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
-                    <div className="mb-3 text-xs uppercase text-gray-500">Previous Week History</div>
-                    {previousWeekHistory.length === 0 ? (
-                      <p className="text-sm text-gray-500">No public history yet.</p>
-                    ) : (
-                      <div className="grid gap-2 md:grid-cols-5">
-                        {previousWeekHistory.map((row) => (
-                          <div key={row.week} className="rounded-md border border-gray-200 bg-gray-50 p-3 text-sm">
-                            <div className="font-semibold">Week {row.week}</div>
-                            <div className="mt-1 text-xs text-gray-600">{row.picks} visible pick(s)</div>
-                            <div className="mt-2 text-xs">
-                              <span className="text-emerald-700">{row.wins} W</span>
-                              <span className="mx-1 text-gray-400">/</span>
-                              <span className="text-red-700">{row.losses} L</span>
-                              {row.pushes > 0 && (
-                                <>
-                                  <span className="mx-1 text-gray-400">/</span>
-                                  <span className="text-gray-700">{row.pushes} P</span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="overflow-x-auto">
-                    <table className="min-w-[820px] w-full border border-gray-200 rounded-lg text-sm">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="text-left p-2 border">Entry</th>
-                          <th className="text-left p-2 border">Pick (Week {standingsWeek})</th>
-                          <th className="text-left p-2 border">Result</th>
-                          <th className="text-left p-2 border">Record to Date</th>
-                          <th className="text-left p-2 border">Strikes Used</th>
-                          <th className="text-left p-2 border">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {members.map((m) => {
-                          const name = entryLabelForMember(m)
-                          const canSeeEntryPick = standingsPicksVisible || m.profile_id === userId
-                          const s =
-                            standingsStatsByEntry[m.id] ||
-                            ({
-                              wins: 0,
-                              losses: 0,
-                              pushes: 0,
-                              strikes_used: 0,
-                              eliminated: false,
-                            } as MemberStats)
-
-                          const memberPicks = canSeeEntryPick ? picksThisWeek.filter((p) => p.entry_id === m.id).sort((a, b) => a.slot - b.slot) : []
-
-                          return (
-                            <tr key={m.id} className="hover:bg-gray-50">
-                              <td className="p-2 border">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-8 h-8 rounded-full bg-gray-100 border flex items-center justify-center overflow-hidden">
-                                    {m.avatar_url ? (
-                                      // eslint-disable-next-line @next/next/no-img-element
-                                      <img src={m.avatar_url} alt="" className="w-full h-full object-cover" />
-                                    ) : (
-                                      <span className="text-[11px] text-gray-600">{(name[0] || '?').toUpperCase()}</span>
-                                    )}
-                                  </div>
-                                  <span className="font-medium">{name}</span>
-                                </div>
-                              </td>
-                              <td className="p-2 border">
-                                {!canSeeEntryPick ? (
-                                  <span className="text-gray-400" aria-label="Pick stays private until the pool week opens">-</span>
-                                ) : memberPicks.length > 0 ? (
-                                  <div className="space-y-2">
-                                    {memberPicks.map((pick) => {
-                                      const team = isNoPick(pick.team_abbr) ? { abbr: 'NO PICK', name: 'No pick submitted' } : teamByAbbr(toAbbr(pick.team_abbr)) || { abbr: pick.team_abbr, name: pick.team_abbr }
-                                      return (
-                                        <div key={`${pick.entry_id}-${pick.week}-${pick.slot}`} className="flex items-center gap-2">
-                                          <div className="relative w-7 h-7">
-                                            {'logo' in team && (team as Team).logo ? (
-                                              // eslint-disable-next-line @next/next/no-img-element
-                                              <img src={(team as Team).logo!} alt={(team as Team).name} className="w-7 h-7 object-contain" />
-                                            ) : (
-                                              <div className="w-7 h-7 rounded-full border flex items-center justify-center text-xs">{team.abbr}</div>
-                                            )}
-                                          </div>
-                                          <div className="text-sm">
-                                            {picksAllowedForWeek(standingsWeek) > 1 && <span className="mr-1 text-xs text-gray-500">P{pick.slot}</span>}
-                                            {('name' in team && (team as Team).name) || team.abbr} ({team.abbr})
-                                          </div>
-                                        </div>
-                                      )
-                                    })}
-                                  </div>
-                                ) : (
-                                  <span className="text-gray-500">-</span>
-                                )}
-                              </td>
-                              <td className="p-2 border">
-                                {standingsResultsVisible && memberPicks.length > 0 ? (
-                                  <div className="space-y-1">
-                                    {memberPicks.map((pick) => (
-                                      <div key={`${pick.entry_id}-${pick.week}-${pick.slot}-result`}>
-                                        <ResultPill status={pick.result || 'Pending'} />
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <ResultPill status={memberPicks.length > 0 ? 'Pending' : '-'} />
-                                )}
-                              </td>
-                              <td className="p-2 border">
-                                <span className="font-medium">
-                                  {s.wins}-{s.losses}
-                                  {s.pushes ? `-${s.pushes}` : ''}
-                                </span>
-                                <span className="ml-2 text-xs text-gray-500">(W-L{s.pushes ? '-P' : ''})</span>
-                              </td>
-                              <td className="p-2 border">{s.strikes_used}</td>
-                              <td className="p-2 border">
-                                {standingsResultsVisible && s.eliminated ? (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-red-600 text-white">Eliminated</span>
-                                ) : (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-emerald-600 text-white">Alive</span>
-                                )}
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
 
                   {standingsLoading && <p className="text-sm text-gray-600 mt-3">Updating...</p>}
                 </>
