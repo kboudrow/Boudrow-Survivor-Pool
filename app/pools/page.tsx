@@ -348,6 +348,78 @@ function EntryAvatar({ member, name }: { member: Profile; name: string }) {
   )
 }
 
+function SurvivalChart({ alive, total, week }: { alive: number; total: number; week: number }) {
+  const safeTotal = Math.max(total, 0)
+  const safeAlive = Math.min(Math.max(alive, 0), safeTotal)
+  const eliminated = Math.max(safeTotal - safeAlive, 0)
+  const alivePct = safeTotal > 0 ? Math.round((safeAlive / safeTotal) * 100) : 0
+  const eliminatedPct = safeTotal > 0 ? 100 - alivePct : 0
+  const radius = 38
+  const circumference = 2 * Math.PI * radius
+  const aliveLength = safeTotal > 0 ? (safeAlive / safeTotal) * circumference : 0
+  const eliminatedLength = safeTotal > 0 ? circumference - aliveLength : 0
+
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
+      <svg width="94" height="94" viewBox="0 0 94 94" className="shrink-0" aria-label={`${safeAlive} of ${safeTotal} entries alive`}>
+        <g transform="translate(47,47) rotate(-90)">
+          <circle r={radius} cx="0" cy="0" fill="transparent" stroke="#e2e8f0" strokeWidth="14" />
+          {safeTotal > 0 && (
+            <>
+              <circle
+                r={radius}
+                cx="0"
+                cy="0"
+                fill="transparent"
+                stroke="#059669"
+                strokeWidth="14"
+                strokeLinecap="butt"
+                strokeDasharray={`${aliveLength} ${circumference - aliveLength}`}
+              />
+              {eliminated > 0 && (
+                <circle
+                  r={radius}
+                  cx="0"
+                  cy="0"
+                  fill="transparent"
+                  stroke="#dc2626"
+                  strokeWidth="14"
+                  strokeLinecap="butt"
+                  strokeDasharray={`${eliminatedLength} ${circumference - eliminatedLength}`}
+                  strokeDashoffset={-aliveLength}
+                />
+              )}
+            </>
+          )}
+        </g>
+        <text x="47" y="44" textAnchor="middle" className="fill-slate-950 text-[16px] font-bold">
+          {safeAlive}/{safeTotal}
+        </text>
+        <text x="47" y="59" textAnchor="middle" className="fill-slate-500 text-[10px] font-semibold">
+          alive
+        </text>
+      </svg>
+      <div className="min-w-[120px] text-sm">
+        <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Through Week {week}</div>
+        <div className="flex items-center justify-between gap-3">
+          <span className="inline-flex items-center gap-2 text-slate-700">
+            <span className="h-3 w-3 rounded-sm bg-emerald-600" />
+            Alive
+          </span>
+          <span className="font-semibold text-slate-950">{safeAlive} ({alivePct}%)</span>
+        </div>
+        <div className="mt-1 flex items-center justify-between gap-3">
+          <span className="inline-flex items-center gap-2 text-slate-700">
+            <span className="h-3 w-3 rounded-sm bg-red-600" />
+            Out
+          </span>
+          <span className="font-semibold text-slate-950">{eliminated} ({eliminatedPct}%)</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function WeekPickCell({ picks, muted }: { picks: PickRow[]; muted?: boolean }) {
   if (muted) {
     return <div className="h-10 rounded-md bg-slate-50" aria-label="Entry was already eliminated" />
@@ -1429,6 +1501,7 @@ function MyPoolsContent() {
     () => standingsRows.filter((row) => row.alive).length,
     [standingsRows],
   )
+  const standingsEntryCount = standingsRows.length
   const survivalByWeek = useMemo(() => {
     const survival = new Map<number, number>()
     const strikesByEntry = new Map(members.map((member) => [member.id, 0]))
@@ -1446,9 +1519,9 @@ function MyPoolsContent() {
 
     return survival
   }, [members, pool?.tie_rule, standingsHistoryPicks, standingsTableWeeks, strikesAllowed])
-  const statusSummary = activeEntryCount === members.length
-    ? `${activeEntryCount}/${members.length} entries alive through Week ${standingsWeek}`
-    : `${activeEntryCount}/${members.length} entries still alive through Week ${standingsWeek}`
+  const statusSummary = activeEntryCount === standingsEntryCount
+    ? `${activeEntryCount}/${standingsEntryCount} entries alive through Week ${standingsWeek}`
+    : `${activeEntryCount}/${standingsEntryCount} entries still alive through Week ${standingsWeek}`
   const visiblePicksThisWeek = useMemo(
     () => picksThisWeek,
     [picksThisWeek],
@@ -2130,16 +2203,14 @@ function MyPoolsContent() {
                   </p>
 
                   <section className="mb-6 rounded-xl border border-slate-200 bg-white p-4">
-                    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                      <div>
+                    <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="min-w-0">
                         <h3 className="text-lg font-bold text-slate-950">Entry Progression</h3>
                         <p className="mt-1 text-sm text-slate-600">
                           {statusSummary}. Alive entries are listed first, and the week headers show how many entries were still alive through that week.
                         </p>
                       </div>
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                        {activeEntryCount} active / {memberCount} total
-                      </span>
+                      <SurvivalChart alive={activeEntryCount} total={standingsEntryCount} week={standingsWeek} />
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full border-separate border-spacing-0 text-sm" style={{ minWidth: Math.max(760, 360 + standingsTableWeeks.length * 96) }}>
@@ -2152,7 +2223,7 @@ function MyPoolsContent() {
                               <th key={week} className="border-b border-slate-200 p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                                 <span className="block">W{week}</span>
                                 <span className="mt-0.5 block text-[10px] font-medium normal-case tracking-normal text-slate-400">
-                                  {survivalByWeek.get(week) ?? memberCount}/{memberCount} alive
+                                  {survivalByWeek.get(week) ?? standingsEntryCount}/{standingsEntryCount} alive
                                 </span>
                               </th>
                             ))}
