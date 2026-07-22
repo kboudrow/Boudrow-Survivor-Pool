@@ -1629,9 +1629,6 @@ function MyPoolsContent() {
 
     return survival
   }, [members, pool?.tie_rule, standingsHistoryPicks, standingsTableWeeks, strikesAllowed])
-  const statusSummary = activeEntryCount === standingsEntryCount
-    ? `${activeEntryCount}/${standingsEntryCount} entries alive through Week ${standingsWeek}`
-    : `${activeEntryCount}/${standingsEntryCount} entries still alive through Week ${standingsWeek}`
   const visiblePicksThisWeek = useMemo(
     () => picksThisWeek,
     [picksThisWeek],
@@ -1732,10 +1729,8 @@ function MyPoolsContent() {
         const adminEntry = sortedEntries.find((entry) => entry.role === 'admin')
         return {
           member: adminEntry || sortedEntries[0] || member,
-          entries: sortedEntries,
           name: displayNameForMember(adminEntry || sortedEntries[0] || member),
           entryCount: sortedEntries.length,
-          role: adminEntry?.role || sortedEntries[0]?.role || member.role,
         }
       })
       .sort((a, b) => a.name.localeCompare(b.name))
@@ -2337,9 +2332,6 @@ function MyPoolsContent() {
                     <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                       <div className="min-w-0">
                         <h3 className="text-lg font-bold text-slate-950">Entry Progression</h3>
-                        <p className="mt-1 text-sm text-slate-600">
-                          {statusSummary}. Alive entries are listed first, and the week headers show how many entries were still alive through that week.
-                        </p>
                       </div>
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
@@ -2520,7 +2512,7 @@ function MyPoolsContent() {
                     <p className="text-sm text-gray-600">No members found.</p>
                   ) : (
                     <ul className="grid gap-2 sm:grid-cols-2">
-                      {memberRowsForTab.map(({ member: m, entryCount, role, entries }) => (
+                      {memberRowsForTab.map(({ member: m, entryCount }) => (
                         <li key={m.profile_id || m.id} className="border border-gray-200 rounded-lg p-3 flex items-center gap-3">
                           <div className="w-9 h-9 rounded-full bg-gray-100 border flex items-center justify-center overflow-hidden">
                             {m.avatar_url ? (
@@ -2536,14 +2528,6 @@ function MyPoolsContent() {
                               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
                                 {entryCount} {entryCount === 1 ? 'entry' : 'entries'}
                               </span>
-                            </div>
-                            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                              {role && <span className="capitalize">{role}</span>}
-                              {entryCount > 1 && (
-                                <span>
-                                  Entries {entries.map((entry) => entry.entry_number || 1).join(', ')}
-                                </span>
-                              )}
                             </div>
                           </div>
                         </li>
