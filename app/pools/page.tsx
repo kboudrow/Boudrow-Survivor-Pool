@@ -107,6 +107,14 @@ type MemberStats = {
   eliminated_week?: number | null
 }
 
+type StandingsSnapshot = {
+  games: Game[] | null
+  stats: MemberStats[] | null
+  visible_picks: PickRow[] | null
+  history_picks: PickRow[] | null
+  completion: WeekPickCompletion | null
+}
+
 type PoolMemberRosterRow = {
   entry_id: string
   profile_id: string
@@ -1198,7 +1206,7 @@ function MyPoolsContent() {
   }, [teamPickerTarget, activeTab, selectedPickWeek, pool])
 
   /** ---------- Standings loader ---------- */
-  const loadStandings = async (week: number, poolId?: string, poolSeason?: number | null, poolStartWeek = pool?.start_week ?? 1) => {
+  const loadStandings = async (week: number, poolId?: string, poolStartWeek = pool?.start_week ?? 1) => {
     const pid = poolId ?? selectedId
     if (!pid) return
     setStandingsLoading(true)
@@ -1206,39 +1214,23 @@ function MyPoolsContent() {
       if (membersLoadedFor !== pid) {
         await loadMembers(pid)
       }
-      await restoreUnlockedPicks(pid)
 
-      const season = poolSeason ?? pool?.season ?? new Date().getFullYear()
-      const { data: standingsGames } = await supabase
-        .from('nfl_games')
-        .select('id, season, week, game_time, kickoff_at_utc, home_team, away_team, status, winner, home_score, away_score')
-        .eq('season', season)
-        .eq('week', week)
-      const weekGames = (standingsGames || []) as Game[]
-      setStandingsGamesForWeek(weekGames)
-      await loadMyPicks(pid, poolStartWeek)
-
-      const { data: stats } = await supabase
-        .from('pool_member_stats')
-        .select('pool_id, user_id, entry_id, wins, losses, pushes, strikes_used, eliminated, eliminated_week')
-        .eq('pool_id', pid)
-
-      const map: Record<string, MemberStats> = {}
-      for (const s of (stats || []) as MemberStats[]) map[s.entry_id] = s
-      setStatsByUser(map)
-
-      const [{ data: picks, error: picksErr }, { data: historyPicks, error: historyErr }, { data: completionRows, error: completionErr }] = await Promise.all([
-        supabase.rpc('pool_visible_picks', { p_pool_id: pid, p_week: week, p_through_week: false }),
-        supabase.rpc('pool_visible_picks', { p_pool_id: pid, p_week: week, p_through_week: true }),
-        supabase.rpc('pool_week_pick_completion', { p_pool_id: pid, p_week: week }),
+      const [{ data: snapshotRows, error: snapshotErr }] = await Promise.all([
+        supabase.rpc('pool_standings_snapshot', { p_pool_id: pid, p_week: week }),
+        loadMyPicks(pid, poolStartWeek),
       ])
-      if (picksErr) throw picksErr
-      if (historyErr) throw historyErr
-      if (completionErr) throw completionErr
+      if (snapshotErr) throw snapshotErr
 
-      const visibleRows = (picks || []) as PickRow[]
-      const historyRows = (historyPicks || []) as PickRow[]
-      const completion = ((completionRows || []) as WeekPickCompletion[])[0] || null
+      const snapshot = ((snapshotRows || []) as unknown as StandingsSnapshot[])[0]
+      const weekGames = (snapshot?.games || []) as Game[]
+      const stats = (snapshot?.stats || []) as MemberStats[]
+      const visibleRows = (snapshot?.visible_picks || []) as PickRow[]
+      const historyRows = (snapshot?.history_picks || []) as PickRow[]
+      const completion = snapshot?.completion || null
+      const map: Record<string, MemberStats> = {}
+      for (const s of stats) map[s.entry_id] = s
+      setStandingsGamesForWeek(weekGames)
+      setStatsByUser(map)
       setPicksThisWeek(visibleRows)
       setStandingsHistoryPicks(historyRows)
       setStandingsPickCompletion(completion)

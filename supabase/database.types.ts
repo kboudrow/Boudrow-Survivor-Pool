@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -1883,6 +1883,16 @@ export type Database = {
           pool_id: string
           total_entries: number
           total_members: number
+        }[]
+      }
+      pool_standings_snapshot: {
+        Args: { p_pool_id: string; p_week: number }
+        Returns: {
+          completion: Json
+          games: Json
+          history_picks: Json
+          stats: Json
+          visible_picks: Json
         }[]
       }
       pool_visible_picks: {
