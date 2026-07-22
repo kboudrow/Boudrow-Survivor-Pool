@@ -307,6 +307,39 @@ function InfoTile({ label, value }: { label: string; value: string }) {
     </div>
   )
 }
+
+function PoolStagePill({ pool, pickStatus }: { pool: Pool; pickStatus?: PoolPickStatus }) {
+  if (pool.activation_status === 'cancelled') {
+    return <span className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Closed</span>
+  }
+  if (pickStatus) {
+    return <span className="shrink-0 rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">Week {pickStatus.week}</span>
+  }
+  return <span className="shrink-0 rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">Loading</span>
+}
+
+function PickStatusCard({ status }: { status: PoolPickStatus }) {
+  const complete = status.needed > 0 && status.made >= status.needed
+  const partial = status.made > 0 && !complete
+  const label = complete
+    ? `${status.made}/${status.needed} picks made`
+    : partial
+      ? `${status.made}/${status.needed} picks made - finish making picks`
+      : status.needed > 1
+        ? `Make ${status.needed} picks`
+        : 'Make pick'
+
+  return (
+    <div
+      className={`mt-3 rounded-md border px-3 py-2 text-sm font-semibold ${
+        complete ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'
+      }`}
+    >
+      Week {status.week}: {label}
+    </div>
+  )
+}
+
 function ResultPill({ status }: { status: 'win' | 'loss' | 'push' | 'Pending' | '-' | string }) {
   const up = (status || '').toString().toUpperCase()
   const map: Record<string, string> = {
@@ -1738,8 +1771,8 @@ function MyPoolsContent() {
         </div>
       </div>
 
-      {loading && <p>Loading...</p>}
-      {error && <p className="text-red-600">{error}</p>}
+      {loading && <p className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">Loading your pools...</p>}
+      {error && <p className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</p>}
 
       {!loading && !error && pools.length === 0 && (
         <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -1761,9 +1794,18 @@ function MyPoolsContent() {
 
       {!loading && !error && pools.length > 0 && (
         <>
+          <details className="mb-5 rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-sm">
+            <summary className="cursor-pointer font-semibold text-slate-950">How to read your dashboard</summary>
+            <div className="mt-3 grid gap-3 md:grid-cols-3">
+              <div><span className="font-semibold text-slate-950">Pick status:</span> red means you still owe picks for the current week, green means your required picks are in.</div>
+              <div><span className="font-semibold text-slate-950">Members:</span> shows how many unique members are still alive out of the total members.</div>
+              <div><span className="font-semibold text-slate-950">Entries:</span> shows active entries, which can be higher than members when a pool allows multiple entries.</div>
+            </div>
+          </details>
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {pools.map((p) => {
               const memberSummary = poolMemberSummaries[p.id]
+              const pickStatus = poolPickStatuses[p.id]
               const memberAliveLabel =
                 memberSummary && memberSummary.total > 0
                   ? `${memberSummary.alive}/${memberSummary.total} members alive`
@@ -1782,9 +1824,12 @@ function MyPoolsContent() {
                 <div className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <h2 className="text-lg font-semibold leading-tight text-slate-950">{p.name}</h2>
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${p.is_public ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : 'bg-slate-100 text-slate-700 ring-1 ring-slate-200'}`}>
-                      {p.is_public ? 'Public' : 'Private'}
-                    </span>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <PoolStagePill pool={p} pickStatus={pickStatus} />
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${p.is_public ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : 'bg-slate-100 text-slate-700 ring-1 ring-slate-200'}`}>
+                        {p.is_public ? 'Public' : 'Private'}
+                      </span>
+                    </div>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                     <InfoTile label="Starts" value={`Week ${p.start_week}`} />
@@ -1792,22 +1837,7 @@ function MyPoolsContent() {
                     <InfoTile label="Members" value={memberAliveLabel} />
                     <InfoTile label="Entries" value={entryAliveLabel} />
                   </div>
-                  {poolPickStatuses[p.id] && (
-                    <div
-                      className={`mt-3 rounded-md border px-3 py-2 text-sm font-semibold ${
-                        poolPickStatuses[p.id].needed > 0 && poolPickStatuses[p.id].made >= poolPickStatuses[p.id].needed
-                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                          : 'border-red-200 bg-red-50 text-red-700'
-                      }`}
-                    >
-                      Week {poolPickStatuses[p.id].week}:{' '}
-                      {poolPickStatuses[p.id].needed > 0 && poolPickStatuses[p.id].made >= poolPickStatuses[p.id].needed
-                        ? `${poolPickStatuses[p.id].made}/${poolPickStatuses[p.id].needed} picks made`
-                        : poolPickStatuses[p.id].made > 0
-                          ? `${poolPickStatuses[p.id].made}/${poolPickStatuses[p.id].needed} picks made - finish making picks`
-                          : 'Make picks'}
-                    </div>
-                  )}
+                  {pickStatus && <PickStatusCard status={pickStatus} />}
                 <div className="mt-3 flex gap-2">
                   <button onClick={() => openPool(p.id)} className="rounded-md bg-[#111318] px-3 py-2 text-sm font-semibold text-white hover:bg-black">
                     Open

@@ -344,6 +344,24 @@ export default function Home() {
         </section>
 
         <section className="bg-white px-4 py-12 sm:px-6">
+          <div className="mx-auto max-w-5xl">
+            <div className="max-w-2xl">
+              <p className="text-xs font-bold uppercase tracking-wide text-[#c5161d]">What happens next</p>
+              <h2 className="mt-1 text-2xl font-bold text-slate-950">The pool runs itself once the rules are set.</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                Commissioners set the rules before the start week. After that, players make picks, locks happen automatically, and standings update as results are scored.
+              </p>
+            </div>
+            <div className="mt-6 grid gap-4 md:grid-cols-4">
+              <LifecycleStep title="Setup" text="Choose visibility, deadlines, strikes, member limits, and double-pick weeks." />
+              <LifecycleStep title="Invite" text="Share the link. Public pools can be found in search; private pools use a password." />
+              <LifecycleStep title="Lock" text="Early games lock at kickoff. Later games follow the pool deadline." />
+              <LifecycleStep title="Standings" text="See who is alive, who is out, and which picks are visible." />
+            </div>
+          </div>
+        </section>
+
+        <section className="bg-slate-50 px-4 py-12 sm:px-6">
           <div className="mx-auto max-w-5xl rounded-xl border border-slate-200 bg-slate-50 p-6 shadow-sm">
             <div className="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center">
               <div>
@@ -566,6 +584,15 @@ function How({ step, title, text }: { step: string; title: string; text: string 
       <div className="text-xs font-bold uppercase text-[#c5161d]">Step {step}</div>
       <div className="text-lg font-semibold">{title}</div>
       <p className="text-sm text-gray-600 mt-1">{text}</p>
+    </div>
+  )
+}
+
+function LifecycleStep({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="border-l-4 border-[#c5161d] bg-slate-50 p-4">
+      <div className="font-semibold text-slate-950">{title}</div>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{text}</p>
     </div>
   )
 }

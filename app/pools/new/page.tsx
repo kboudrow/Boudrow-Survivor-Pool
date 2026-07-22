@@ -297,7 +297,7 @@ export default function CreatePoolPage() {
             className={nameError ? 'inputError' : ''}
           />
           <p className="hint">
-            Names must be <b>unique</b> and cannot include restricted terms like survivor, pool, abc, or 123.
+            Choose a unique name your group will recognize. Avoid placeholder names like abc or 123.
           </p>
           {nameError && (
             <p className="fieldError" role="alert" aria-live="polite">{error}</p>

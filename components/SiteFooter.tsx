@@ -14,6 +14,7 @@ export function SiteFooter() {
             <li><Link href="/how-it-works" className="underline">How it works</Link></li>
             <li><Link href="/about" className="underline">About</Link></li>
             <li><Link href="/faq" className="underline">FAQ</Link></li>
+            <li><Link href="/demo-league" className="underline">Demo pool</Link></li>
             <li><Link href="/blog" className="underline">Blog</Link></li>
             <li><Link href="/contact" className="underline">Contact</Link></li>
           </ul>

@@ -148,6 +148,24 @@ export default function SuperAdminPage() {
     )
   }, [pools])
   const auditIssues = useMemo(() => scheduleAudit.filter((row) => row.issue_count > 0), [scheduleAudit])
+  const poolHealth = useMemo(() => {
+    return {
+      testPools: pools.filter((pool) => pool.test_mode).length,
+    }
+  }, [pools])
+  const eventHealth = useMemo(() => {
+    const errors = eventLogs.filter((event) => ['error', 'critical'].includes(event.severity.toLowerCase())).length
+    const warnings = eventLogs.filter((event) => event.severity.toLowerCase() === 'warning').length
+    return {
+      errors,
+      warnings,
+      latest: eventLogs[0]?.created_at || null,
+    }
+  }, [eventLogs])
+  const totalAuditIssueCount = useMemo(
+    () => scheduleAudit.reduce((sum, row) => sum + row.issue_count, 0),
+    [scheduleAudit],
+  )
 
   const loadPools = async () => {
     setError(null)
@@ -366,12 +384,44 @@ export default function SuperAdminPage() {
           <Stat label="Entries" value={totals.entries} />
         </section>
 
+        <section className="mb-5 rounded-lg border border-slate-200 bg-white p-4">
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-slate-950">Site Health</h2>
+              <p className="text-sm text-slate-600">A quick pulse check from recent app events, schedule audits, and pool status.</p>
+            </div>
+            <button
+              onClick={() => Promise.all([loadScheduleAudit(), loadEventLogs()]).catch((e) => setError(getErrorMessage(e, 'Health refresh failed.')))}
+              disabled={eventLogsLoading}
+              className="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {eventLogsLoading ? 'Refreshing...' : 'Refresh health'}
+            </button>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <Info label="Recent Errors" value={String(eventHealth.errors)} />
+            <Info label="Recent Warnings" value={String(eventHealth.warnings)} />
+            <Info label="Schedule Issues" value={String(totalAuditIssueCount)} />
+            <Info label="Test Pools" value={String(poolHealth.testPools)} />
+            <Info label="Last Event" value={fmt(eventHealth.latest)} />
+          </div>
+          {(eventHealth.errors > 0 || totalAuditIssueCount > 0) ? (
+            <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              Review the sections below. The schedule audit is read-only; pool repair actions only apply to the selected pool.
+            </p>
+          ) : (
+            <p className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+              No obvious production or schedule issues are showing in the latest checks.
+            </p>
+          )}
+        </section>
+
         <details className="mb-5 rounded-lg border border-slate-200 bg-white p-4">
-          <summary className="cursor-pointer font-semibold text-slate-950">Data health tools</summary>
+          <summary className="cursor-pointer font-semibold text-slate-950">Schedule audit</summary>
           <div className="mt-3 mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="font-semibold text-slate-950">Schedule & Result Integrity</h2>
-              <p className="text-sm text-slate-600">Flags duplicate games, impossible future results, missing winners, and unusual weekly game counts.</p>
+              <h2 className="font-semibold text-slate-950">Schedule Audit (Read-Only)</h2>
+              <p className="text-sm text-slate-600">Checks duplicate games, future results, missing winners, and unusual weekly game counts. Running this does not change data.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <input
@@ -561,13 +611,6 @@ export default function SuperAdminPage() {
                       Pool Admin
                     </Link>
                     <button
-                      onClick={repairSelectedPool}
-                      disabled={runningAction === 'repair-selected'}
-                      className="rounded-md bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
-                    >
-                      {runningAction === 'repair-selected' ? 'Repairing...' : 'Repair Selected Pool'}
-                    </button>
-                    <button
                       onClick={toggleTestMode}
                       disabled={runningAction === 'test-mode'}
                       className={`rounded-md px-3 py-2 text-sm font-semibold disabled:opacity-50 ${
@@ -619,6 +662,22 @@ export default function SuperAdminPage() {
                     </div>
                   </div>
                 </section>
+
+                <details className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-4">
+                  <summary className="cursor-pointer font-semibold text-amber-950">Advanced pool maintenance</summary>
+                  <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-sm leading-6 text-amber-900">
+                      Use this only for the selected pool when future results or stale scoring need to be rebuilt. It does not affect any other pool.
+                    </p>
+                    <button
+                      onClick={repairSelectedPool}
+                      disabled={runningAction === 'repair-selected'}
+                      className="shrink-0 rounded-md bg-amber-700 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
+                    >
+                      {runningAction === 'repair-selected' ? 'Repairing...' : 'Repair This Pool'}
+                    </button>
+                  </div>
+                </details>
 
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <h3 className="font-semibold">Entries</h3>

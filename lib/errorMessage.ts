@@ -3,6 +3,8 @@ const FRIENDLY_ERROR_MAP: Array<[RegExp, string]> = [
   [/jwt|token|session.*expired|invalid.*session/i, 'Your session expired. Please sign in again.'],
   [/duplicate key|23505|unique constraint/i, 'That value is already being used. Try something different.'],
   [/row-level security|violates row-level security|permission denied|not authorized|not allowed/i, 'You do not have permission to do that.'],
+  [/could not find the function|schema cache|does not exist/i, 'The app is finishing a database update. Refresh the page and try again.'],
+  [/foreign key|violates check constraint|invalid input syntax/i, 'That request could not be saved. Check the details and try again.'],
   [/network|failed to fetch/i, 'Connection trouble. Please check your connection and try again.'],
 ]
 

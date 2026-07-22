@@ -116,6 +116,13 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
           </div>
         </section>
 
+        <section className="mt-6 grid gap-3 md:grid-cols-4">
+          <ResourceLink title="Survivor pool rules" text="Deadlines, ties, missed picks, and double-pick weeks." href="/survivor-pool-rules" />
+          <ResourceLink title="Pool constitution" text="Copy-ready rules commissioners can send to a group." href="/survivor-pool-constitution" />
+          <ResourceLink title="How it works" text="A quick walkthrough of creating, joining, picking, and surviving." href="/how-it-works" />
+          <ResourceLink title="Demo pool" text="See the product flow before creating an account." href="/demo-league" />
+        </section>
+
         <section className="mt-6">
           <div className="mb-4 flex items-end justify-between gap-3">
             <div>
@@ -185,6 +192,15 @@ function CategoryLink({ label, active, query }: { label: string; active: boolean
       }`}
     >
       {label}
+    </Link>
+  )
+}
+
+function ResourceLink({ title, text, href }: { title: string; text: string; href: string }) {
+  return (
+    <Link href={href} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-[#c5161d]/40">
+      <div className="font-bold text-slate-950">{title}</div>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{text}</p>
     </Link>
   )
 }

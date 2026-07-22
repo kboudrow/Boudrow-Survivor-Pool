@@ -153,6 +153,69 @@ const fmtShort = (value?: string | null) =>
       })
     : '-'
 
+function poolStage(pool: Pool, settingsLocked: boolean) {
+  if (pool.archived) {
+    return {
+      label: 'Archived',
+      className: 'border-slate-300 bg-slate-100 text-slate-700',
+      description: 'Hidden from normal pool lists.',
+    }
+  }
+  if (pool.activation_status === 'cancelled') {
+    return {
+      label: 'Closed',
+      className: 'border-amber-300 bg-amber-50 text-amber-700',
+      description: 'Not accepting new members.',
+    }
+  }
+  if (settingsLocked) {
+    return {
+      label: 'In season',
+      className: 'border-emerald-300 bg-emerald-50 text-emerald-700',
+      description: 'Rules are locked. Picks and standings are active.',
+    }
+  }
+  return {
+    label: 'Setup',
+    className: 'border-blue-300 bg-blue-50 text-blue-700',
+    description: 'Invite members and adjust rules before the pool starts.',
+  }
+}
+
+function TestActionButton({
+  title,
+  description,
+  onClick,
+  disabled,
+  tone,
+}: {
+  title: string
+  description: string
+  onClick: () => void
+  disabled?: boolean
+  tone: 'indigo' | 'emerald' | 'slate' | 'red'
+}) {
+  const classes = {
+    indigo: 'bg-indigo-600 text-white hover:bg-indigo-700',
+    emerald: 'bg-emerald-600 text-white hover:bg-emerald-700',
+    slate: 'bg-white text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50',
+    red: 'bg-red-600 text-white hover:bg-red-700',
+  }[tone]
+  const descriptionClass = tone === 'slate' ? 'text-slate-500' : 'text-white/80'
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`rounded-md px-3 py-2 text-left text-sm font-semibold disabled:opacity-50 ${classes}`}
+    >
+      <span className="block">{title}</span>
+      <span className={`mt-1 block text-xs font-medium leading-4 ${descriptionClass}`}>{description}</span>
+    </button>
+  )
+}
+
 export default function PoolAdminPage() {
   const router = useRouter()
   const { poolId } = useParams<{ poolId: string }>()
@@ -241,6 +304,7 @@ export default function PoolAdminPage() {
   const leagueHasStarted = poolStartKnown && Date.now() >= poolStartMs
   const settingsLocked = leagueHasStarted
   const canInvite = !!pool && isPoolJoinable && poolStartKnown && !leagueHasStarted
+  const lifecycle = pool ? poolStage(pool, settingsLocked) : null
   const visibilityChanged = !!pool && isPublicDraft !== pool.is_public
   const selectedDoubleWeeks = useMemo(() => {
     return new Set(
@@ -819,10 +883,10 @@ export default function PoolAdminPage() {
     const week = parseInt(testWeek, 10)
     const nextWeek = Math.min(18, week + 1)
     const copy: Record<typeof action, string> = {
-      'randomize-outcomes': `Randomize empty Week ${week} game outcomes for ${pool.name}? Existing fake outcomes stay as-is.`,
-      score: `Score Week ${week} and move ${pool.name} to Week ${nextWeek}?\n\nThis finalizes picks, records missing picks as losses, grades picks from fake outcomes, updates standings, and advances the simulated week.`,
-      clear: `Clear Week ${week} fake outcomes and scoring for ${pool.name}?\n\nPicks stay in place, but this week's results and stats will be rebuilt.`,
-      reset: `Reset the entire fake season for ${pool.name}?\n\nMembers and pool settings stay. All picks, fake outcomes, and test stats will be cleared.`,
+      'randomize-outcomes': `Fill empty Week ${week} outcomes for ${pool.name}? Existing choices stay as-is.`,
+      score: `Score Week ${week} and move ${pool.name} to Week ${nextWeek}?\n\nThis grades submitted picks, counts missed picks as losses, updates standings, and advances only this test pool.`,
+      clear: `Clear Week ${week} results for ${pool.name}?\n\nPicks stay in place. This week's fake outcomes and scoring are removed, then standings are rebuilt.`,
+      reset: `Reset the full test run for ${pool.name}?\n\nMembers and settings stay. Test picks, fake outcomes, and test standings are cleared.`,
     }
     if (action === 'score' && testGamesNeedingOutcome.length > 0) {
       setError(
@@ -870,9 +934,14 @@ export default function PoolAdminPage() {
       <div className="mx-auto w-full max-w-6xl">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold">Admin Panel</h1>
+            <h1 className="text-2xl font-bold">Pool Admin</h1>
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm text-gray-600">{pool ? `${pool.name} - ${pool.season ?? 'Season not set'} - Pool admin` : 'Pool controls'}</p>
+              <p className="text-sm text-gray-600">{pool ? `${pool.name} - ${pool.season ?? 'Season not set'}` : 'Pool controls'}</p>
+              {lifecycle && (
+                <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${lifecycle.className}`}>
+                  {lifecycle.label}
+                </span>
+              )}
               {isPoolJoinable && (
                 <span className="rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
                   Free Pool
@@ -923,8 +992,9 @@ export default function PoolAdminPage() {
                 <div className="text-2xl font-bold text-red-700">{stats.eliminated}</div>
               </div>
               <div className="rounded-lg border bg-white p-4">
-                <div className="text-xs uppercase text-gray-500">Archived</div>
-                <div className="text-2xl font-bold">{pool.archived ? 'Yes' : 'No'}</div>
+                <div className="text-xs uppercase text-gray-500">Pool Stage</div>
+                <div className="text-2xl font-bold">{lifecycle?.label || '-'}</div>
+                {lifecycle && <div className="text-xs text-gray-500">{lifecycle.description}</div>}
               </div>
             </section>
 
@@ -956,9 +1026,9 @@ export default function PoolAdminPage() {
                 <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-wide text-violet-700">Superadmin Only</p>
-                    <h2 className="text-lg font-semibold text-slate-950">Test Console</h2>
+                    <h2 className="text-lg font-semibold text-slate-950">Season Simulator</h2>
                     <p className="mt-1 max-w-3xl text-sm text-slate-600">
-                      Simulate this pool without changing the real NFL schedule. Members and pool admins do not see test-mode labels or these controls.
+                      Run this pool through fake weeks using the real schedule. Only the superadmin account can see these controls.
                     </p>
                   </div>
                   <button
@@ -974,6 +1044,12 @@ export default function PoolAdminPage() {
 
                 {pool.test_mode ? (
                   <>
+                    <div className="mb-4 grid gap-2 rounded-md border border-violet-200 bg-white p-3 text-sm text-slate-700 md:grid-cols-3">
+                      <div><span className="font-semibold text-slate-950">1.</span> Set the simulated week.</div>
+                      <div><span className="font-semibold text-slate-950">2.</span> Pick winners or fill empty outcomes.</div>
+                      <div><span className="font-semibold text-slate-950">3.</span> Score the week to advance the pool.</div>
+                    </div>
+
                     <div className="grid gap-3 lg:grid-cols-[minmax(240px,320px)_1fr]">
                       <div className="rounded-md border border-violet-200 bg-white p-3">
                         <label className="text-sm font-semibold text-slate-800">
@@ -1022,34 +1098,34 @@ export default function PoolAdminPage() {
                     )}
 
                     <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                      <button
+                      <TestActionButton
+                        title="Fill Empty Outcomes"
+                        description="Randomly choose winners only for games not set yet."
                         onClick={() => runTestAction('randomize-outcomes')}
                         disabled={!!runningAction}
-                        className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
-                      >
-                        Randomize Empty Outcomes
-                      </button>
-                      <button
+                        tone="indigo"
+                      />
+                      <TestActionButton
+                        title="Score This Week"
+                        description="Grade picks, count missed picks, and move to next week."
                         onClick={() => runTestAction('score')}
                         disabled={!!runningAction || testGamesNeedingOutcome.length > 0}
-                        className="rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
-                      >
-                        Score Week & Advance
-                      </button>
-                      <button
+                        tone="emerald"
+                      />
+                      <TestActionButton
+                        title="Clear This Week"
+                        description="Remove this week's outcomes and scoring only."
                         onClick={() => runTestAction('clear')}
                         disabled={!!runningAction}
-                        className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50 disabled:opacity-50"
-                      >
-                        Clear Selected Week
-                      </button>
-                      <button
+                        tone="slate"
+                      />
+                      <TestActionButton
+                        title="Reset Simulation"
+                        description="Clear the full fake season for this pool."
                         onClick={() => runTestAction('reset')}
                         disabled={!!runningAction}
-                        className="rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
-                      >
-                        Reset Fake Season
-                      </button>
+                        tone="red"
+                      />
                     </div>
 
                     <div className="mt-4 overflow-x-auto rounded-lg border border-violet-200 bg-white">
@@ -1109,7 +1185,7 @@ export default function PoolAdminPage() {
                   </>
                 ) : (
                   <p className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-                    Enable test mode when you want this pool to run on a simulated week instead of the real calendar.
+                    Enable the season simulator when you want this pool to behave like a future week without waiting for the real NFL calendar.
                   </p>
                 )}
               </section>
@@ -1118,8 +1194,8 @@ export default function PoolAdminPage() {
             <section className="rounded-lg border bg-white p-4">
               <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <h2 className="font-semibold">Pool Settings</h2>
-                  <p className="text-sm text-gray-600">Edit pool setup before the first game in the start week kicks off.</p>
+                  <h2 className="font-semibold">Setup & Rules</h2>
+                  <p className="text-sm text-gray-600">Adjust capacity, entries, visibility, images, and double-pick weeks before the pool starts.</p>
                 </div>
                 <button
                   onClick={toggleArchive}
@@ -1127,7 +1203,7 @@ export default function PoolAdminPage() {
                   title={settingsLocked ? 'Started pools cannot be archived from this panel.' : undefined}
                   className="rounded-md bg-amber-600 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
                 >
-                  {archiving ? 'Updating...' : pool.archived ? 'Unarchive Pool' : 'Archive Pool'}
+                  {archiving ? 'Updating...' : pool.archived ? 'Unarchive Pool' : 'Archive Before Start'}
                 </button>
               </div>
               {settingsLocked && (
@@ -1137,7 +1213,7 @@ export default function PoolAdminPage() {
               )}
               {!settingsLocked && poolStartAt && (
                 <p className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-                  Settings can still be changed. They lock when this pool starts: {fmt(poolStartAt)}.
+                  Setup is still open. These settings lock when this pool starts: {fmt(poolStartAt)}.
                 </p>
               )}
 
@@ -1317,8 +1393,8 @@ export default function PoolAdminPage() {
             <section className="rounded-lg border bg-white p-4">
               <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h2 className="font-semibold">Admin Activity</h2>
-                  <p className="text-sm text-gray-600">Recent member removals, admin pick edits, and saved-pick events for this pool.</p>
+                  <h2 className="font-semibold">Activity Log</h2>
+                  <p className="text-sm text-gray-600">Recent member removals, commissioner pick edits, and saved-pick events for this pool.</p>
                 </div>
                 <button
                   onClick={loadAuditTrail}
@@ -1388,8 +1464,8 @@ export default function PoolAdminPage() {
             <section className="rounded-lg border bg-white p-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="font-semibold">Members, Entries & Picks</h2>
-                  <p className="text-sm text-gray-600">Choose a week, submit or edit picks, or remove a member before the pool starts.</p>
+                  <h2 className="font-semibold">Member Help & Pick Corrections</h2>
+                  <p className="text-sm text-gray-600">Choose one week, then submit or correct an entry&apos;s pick for that week. Member removal is only available before the pool starts.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <input

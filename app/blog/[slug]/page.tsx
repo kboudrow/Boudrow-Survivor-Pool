@@ -154,6 +154,15 @@ export default async function BlogPostPage({ params }: Props) {
                 ))}
               </div>
             </div>
+
+            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <h2 className="text-lg font-bold text-slate-950">Useful tools</h2>
+              <div className="mt-3 grid gap-2 text-sm font-semibold">
+                <Link href="/survivor-pool-rules" className="rounded-md bg-slate-50 p-3 text-slate-800 hover:bg-white">Survivor pool rules</Link>
+                <Link href="/survivor-pool-constitution" className="rounded-md bg-slate-50 p-3 text-slate-800 hover:bg-white">Pool constitution</Link>
+                <Link href="/demo-league" className="rounded-md bg-slate-50 p-3 text-slate-800 hover:bg-white">Demo pool</Link>
+              </div>
+            </div>
           </aside>
         </div>
 

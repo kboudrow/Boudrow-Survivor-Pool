@@ -3,7 +3,7 @@ import { getPublicBlogPosts } from '@/lib/blogDb'
 import { absoluteUrl } from '@/lib/site'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const staticRoutes = ['', '/about', '/how-it-works', '/faq', '/survivor-pool-rules', '/survivor-pool-constitution', '/blog', '/contact', '/privacy', '/terms', '/cookies'].map((path) => ({
+  const staticRoutes = ['', '/about', '/how-it-works', '/faq', '/survivor-pool-rules', '/survivor-pool-constitution', '/demo-league', '/blog', '/contact', '/privacy', '/terms', '/cookies'].map((path) => ({
     url: absoluteUrl(path || '/'),
     lastModified: new Date('2026-06-11'),
   }))
