@@ -1904,13 +1904,14 @@ export type Database = {
       pool_week_pick_completion: {
         Args: { p_pool_id: string; p_week: number }
         Returns: {
+          active_entries: number
           complete_entries: number
           made_slots: number
-          missing_entries: number
-          needed_slots: number
+          missing_slots: number
           partial_entries: number
-          required_picks: number
-          total_entries: number
+          pool_id: string
+          required_slots: number
+          week: number
         }[]
       }
       restore_unlocked_picks_for_pool: {

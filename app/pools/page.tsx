@@ -74,6 +74,16 @@ type PickRow = { user_id: string; entry_id: string; week: number; slot: number; 
 type DraftPickRow = { entry_id: string; week: number; slot: number; team_abbr: string; updated_at: string | null }
 type FinalPickRow = { entry_id: string; week: number; slot: number; team_abbr: string; locked_at: string; result: 'win' | 'loss' | 'push' | null }
 type PickNotice = { team: Team; week: number; slot: number; action: 'saved' | 'cleared' }
+type WeekPickCompletion = {
+  pool_id: string
+  week: number
+  active_entries: number
+  required_slots: number
+  made_slots: number
+  complete_entries: number
+  partial_entries: number
+  missing_slots: number
+}
 type AppDialog = {
   title: string
   message: string
@@ -779,6 +789,7 @@ function MyPoolsContent() {
   const [standingsPicksVisible, setStandingsPicksVisible] = useState(false)
   const [standingsResultsVisible, setStandingsResultsVisible] = useState(false)
   const [standingsGamesForWeek, setStandingsGamesForWeek] = useState<Game[]>([])
+  const [standingsPickCompletion, setStandingsPickCompletion] = useState<WeekPickCompletion | null>(null)
   const [statsByUser, setStatsByUser] = useState<Record<string, MemberStats>>({})
   const availableWeeks = useMemo(() => weeks.filter((week) => week >= (pool?.start_week ?? 1)), [weeks, pool?.start_week])
   const picksAllowedForWeek = useCallback((week: number) => {
@@ -1216,17 +1227,21 @@ function MyPoolsContent() {
       for (const s of (stats || []) as MemberStats[]) map[s.entry_id] = s
       setStatsByUser(map)
 
-      const [{ data: picks, error: picksErr }, { data: historyPicks, error: historyErr }] = await Promise.all([
+      const [{ data: picks, error: picksErr }, { data: historyPicks, error: historyErr }, { data: completionRows, error: completionErr }] = await Promise.all([
         supabase.rpc('pool_visible_picks', { p_pool_id: pid, p_week: week, p_through_week: false }),
         supabase.rpc('pool_visible_picks', { p_pool_id: pid, p_week: week, p_through_week: true }),
+        supabase.rpc('pool_week_pick_completion', { p_pool_id: pid, p_week: week }),
       ])
       if (picksErr) throw picksErr
       if (historyErr) throw historyErr
+      if (completionErr) throw completionErr
 
       const visibleRows = (picks || []) as PickRow[]
       const historyRows = (historyPicks || []) as PickRow[]
+      const completion = ((completionRows || []) as WeekPickCompletion[])[0] || null
       setPicksThisWeek(visibleRows)
       setStandingsHistoryPicks(historyRows)
+      setStandingsPickCompletion(completion)
       setStandingsPicksVisible(visibleRows.length > 0)
       setStandingsResultsVisible(visibleRows.some((pick) => !!pick.result))
 
@@ -1699,6 +1714,32 @@ function MyPoolsContent() {
       }
     }).sort((a, b) => b.available - a.available || a.team.abbr.localeCompare(b.team.abbr))
   }, [standingsHistoryPicks, standingsRows])
+  const memberRowsForTab = useMemo(() => {
+    const grouped = new Map<string, { member: Profile; entries: Profile[] }>()
+    for (const member of members) {
+      const key = member.profile_id || member.id
+      const current = grouped.get(key)
+      if (current) {
+        current.entries.push(member)
+      } else {
+        grouped.set(key, { member, entries: [member] })
+      }
+    }
+
+    return Array.from(grouped.values())
+      .map(({ member, entries }) => {
+        const sortedEntries = [...entries].sort((a, b) => (a.entry_number || 1) - (b.entry_number || 1))
+        const adminEntry = sortedEntries.find((entry) => entry.role === 'admin')
+        return {
+          member: adminEntry || sortedEntries[0] || member,
+          entries: sortedEntries,
+          name: displayNameForMember(adminEntry || sortedEntries[0] || member),
+          entryCount: sortedEntries.length,
+          role: adminEntry?.role || sortedEntries[0]?.role || member.role,
+        }
+      })
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [members])
   /** ---------- OWNER CHECK ---------- */
   const amOwner = useMemo(() => !!pool && !!userId && pool.created_by === userId, [pool, userId])
 
@@ -1732,6 +1773,7 @@ function MyPoolsContent() {
     setStandingsWeek(1)
     setPicksThisWeek([])
     setStandingsHistoryPicks([])
+    setStandingsPickCompletion(null)
     setStandingsPicksVisible(false)
     setStandingsResultsVisible(false)
     setStatsByUser({})
@@ -1860,7 +1902,7 @@ function MyPoolsContent() {
             <summary className="cursor-pointer font-semibold text-slate-950">How to read your dashboard</summary>
             <div className="mt-3 grid gap-3 md:grid-cols-3">
               <div><span className="font-semibold text-slate-950">Pick status:</span> red means you still owe picks for the current week, green means your required picks are in.</div>
-              <div><span className="font-semibold text-slate-950">Members:</span> shows how many unique members are still alive out of the total members.</div>
+              <div><span className="font-semibold text-slate-950">Multiple entries:</span> shows whether a pool lets one person play more than one entry.</div>
               <div><span className="font-semibold text-slate-950">Entries:</span> shows active entries, which can be higher than members when a pool allows multiple entries.</div>
             </div>
           </details>
@@ -1868,14 +1910,11 @@ function MyPoolsContent() {
             {pools.map((p) => {
               const memberSummary = poolMemberSummaries[p.id]
               const pickStatus = poolPickStatuses[p.id]
-              const memberAliveLabel =
-                memberSummary && memberSummary.total > 0
-                  ? `${memberSummary.alive}/${memberSummary.total} members alive`
-                  : 'Loading'
               const entryAliveLabel =
                 memberSummary && memberSummary.totalEntries > 0
                   ? `${memberSummary.aliveEntries}/${memberSummary.totalEntries} active entries`
                   : String(poolPickStatuses[p.id]?.entries ?? 0)
+              const multipleEntriesLabel = p.allow_multiple_entries ? `Up to ${p.max_entries_per_user ?? 1}` : 'No'
 
               return (
               <li key={p.id} className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -1896,7 +1935,7 @@ function MyPoolsContent() {
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                     <InfoTile label="Starts" value={`Week ${p.start_week}`} />
                     <InfoTile label="Strikes" value={String(p.strikes_allowed)} />
-                    <InfoTile label="Members" value={memberAliveLabel} />
+                    <InfoTile label="Multiple Entries?" value={multipleEntriesLabel} />
                     <InfoTile label="Entries" value={entryAliveLabel} />
                   </div>
                   {pickStatus && <PickStatusCard status={pickStatus} />}
@@ -2302,7 +2341,20 @@ function MyPoolsContent() {
                           {statusSummary}. Alive entries are listed first, and the week headers show how many entries were still alive through that week.
                         </p>
                       </div>
-                      <SurvivalChart alive={activeEntryCount} total={standingsEntryCount} week={standingsWeek} />
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Week {standingsWeek} Picks Made</div>
+                          <div className="mt-1 text-lg font-bold text-slate-950">
+                            {standingsPickCompletion
+                              ? `${standingsPickCompletion.made_slots}/${standingsPickCompletion.required_slots}`
+                              : '-'}
+                          </div>
+                          <div className="mt-0.5 text-xs text-slate-500">
+                            Teams stay hidden until each pick locks.
+                          </div>
+                        </div>
+                        <SurvivalChart alive={activeEntryCount} total={standingsEntryCount} week={standingsWeek} />
+                      </div>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full border-separate border-spacing-0 text-sm" style={{ minWidth: Math.max(760, 360 + standingsTableWeeks.length * 96) }}>
@@ -2468,19 +2520,31 @@ function MyPoolsContent() {
                     <p className="text-sm text-gray-600">No members found.</p>
                   ) : (
                     <ul className="grid gap-2 sm:grid-cols-2">
-                      {members.map((m) => (
-                        <li key={m.id} className="border border-gray-200 rounded-lg p-3 flex items-center gap-3">
+                      {memberRowsForTab.map(({ member: m, entryCount, role, entries }) => (
+                        <li key={m.profile_id || m.id} className="border border-gray-200 rounded-lg p-3 flex items-center gap-3">
                           <div className="w-9 h-9 rounded-full bg-gray-100 border flex items-center justify-center overflow-hidden">
                             {m.avatar_url ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img src={m.avatar_url} alt="" className="w-full h-full object-cover" />
                             ) : (
-                              <span className="text-xs text-gray-600">{(entryLabelForMember(m)[0] || '?').toUpperCase()}</span>
+                              <span className="text-xs text-gray-600">{(displayNameForMember(m)[0] || '?').toUpperCase()}</span>
                             )}
                           </div>
                           <div className="flex-1">
-                            <div className="text-sm font-medium">{entryLabelForMember(m)}</div>
-                            {m.role && <div className="text-xs text-gray-500 capitalize">{m.role}</div>}
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="text-sm font-medium">{displayNameForMember(m)}</div>
+                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
+                                {entryCount} {entryCount === 1 ? 'entry' : 'entries'}
+                              </span>
+                            </div>
+                            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                              {role && <span className="capitalize">{role}</span>}
+                              {entryCount > 1 && (
+                                <span>
+                                  Entries {entries.map((entry) => entry.entry_number || 1).join(', ')}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </li>
                       ))}
