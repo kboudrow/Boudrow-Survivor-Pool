@@ -48,6 +48,7 @@ export default function JoinPoolPage() {
   const [error, setError] = useState<string | null>(null)
   const [joining, setJoining] = useState(false)
   const [password, setPassword] = useState('')
+  const [confirmJoinOpen, setConfirmJoinOpen] = useState(false)
 
   const isJoinable = pool?.activation_status !== 'cancelled'
   const isFull = !!(pool?.max_members && memberCount >= pool.max_members)
@@ -127,9 +128,12 @@ export default function JoinPoolPage() {
       setError('Please sign in first.')
       return
     }
-    // (Optional) confirmation
-    const ok = window.confirm(`Join "${pool.name}"?`)
-    if (!ok) return
+    setConfirmJoinOpen(true)
+  }
+
+  const completeJoinPool = async () => {
+    if (!pool || !userId) return
+    setConfirmJoinOpen(false)
 
     setJoining(true)
     setError(null)
@@ -273,6 +277,24 @@ export default function JoinPoolPage() {
           </>
         )}
       </div>
+
+      {confirmJoinOpen && pool && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center px-4">
+          <button type="button" className="absolute inset-0 bg-slate-950/50" aria-label="Cancel join" onClick={() => setConfirmJoinOpen(false)} />
+          <div className="relative w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
+            <div className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">Join this pool?</div>
+            <p className="text-sm leading-6 text-slate-700">Join &quot;{pool.name}&quot;? Your picks and standings will show in My Pools after you join.</p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setConfirmJoinOpen(false)} className="rounded-md bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200">
+                Cancel
+              </button>
+              <button type="button" onClick={completeJoinPool} className="rounded-md bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800">
+                Join pool
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </main>
   )

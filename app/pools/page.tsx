@@ -74,6 +74,14 @@ type PickRow = { user_id: string; entry_id: string; week: number; slot: number; 
 type DraftPickRow = { entry_id: string; week: number; slot: number; team_abbr: string; updated_at: string | null }
 type FinalPickRow = { entry_id: string; week: number; slot: number; team_abbr: string; locked_at: string; result: 'win' | 'loss' | 'push' | null }
 type PickNotice = { team: Team; week: number; slot: number; action: 'saved' | 'cleared' }
+type AppDialog = {
+  title: string
+  message: string
+  tone?: 'info' | 'warning' | 'danger'
+  confirmLabel?: string
+  cancelLabel?: string
+  onConfirm?: () => void | Promise<void>
+}
 type PoolPickStatus = { week: number; made: number; needed: number; entries: number }
 type PoolMemberSummary = { total: number; alive: number; totalEntries: number; aliveEntries: number }
 
@@ -522,6 +530,45 @@ function PickSavedToast({ notice, onClose }: { notice: PickNotice; onClose: () =
   )
 }
 
+function AppDialogModal({ dialog, onClose }: { dialog: AppDialog | null; onClose: () => void }) {
+  if (!dialog) return null
+
+  const toneClass =
+    dialog.tone === 'danger'
+      ? 'border-red-200 bg-red-50 text-red-700'
+      : dialog.tone === 'warning'
+        ? 'border-amber-200 bg-amber-50 text-amber-700'
+        : 'border-blue-200 bg-blue-50 text-blue-700'
+  const buttonClass = dialog.tone === 'danger' ? 'bg-red-700 hover:bg-red-800' : 'bg-slate-950 hover:bg-black'
+
+  const confirm = async () => {
+    const action = dialog.onConfirm
+    onClose()
+    if (!action) return
+    await action()
+  }
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center px-4">
+      <button type="button" className="absolute inset-0 bg-slate-950/50" aria-label="Close dialog" onClick={onClose} />
+      <div className="relative w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
+        <div className={`mb-4 rounded-md border px-3 py-2 text-sm font-semibold ${toneClass}`}>{dialog.title}</div>
+        <p className="text-sm leading-6 text-slate-700">{dialog.message}</p>
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          {dialog.cancelLabel && (
+            <button type="button" onClick={onClose} className="rounded-md bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200">
+              {dialog.cancelLabel}
+            </button>
+          )}
+          <button type="button" onClick={confirm} className={`rounded-md px-4 py-2 text-sm font-semibold text-white ${buttonClass}`}>
+            {dialog.confirmLabel || 'Got it'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /** ---------------- Team Picker Modal ---------------- */
 function TeamPickerModal(props: {
   week: number
@@ -713,6 +760,7 @@ function MyPoolsContent() {
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null)
   const [savingPickKeys, setSavingPickKeys] = useState<Record<string, boolean>>({})
   const [pickNotice, setPickNotice] = useState<PickNotice | null>(null)
+  const [appDialog, setAppDialog] = useState<AppDialog | null>(null)
   const pickNoticeTimerRef = useRef<number | null>(null)
 
   // team picker (single source of truth - no duplicates)
@@ -764,6 +812,12 @@ function MyPoolsContent() {
     setPickNotice(notice)
     pickNoticeTimerRef.current = window.setTimeout(() => setPickNotice(null), 3600)
   }
+  const showMessage = useCallback((title: string, message: string, tone: AppDialog['tone'] = 'info') => {
+    setAppDialog({ title, message, tone, confirmLabel: 'Got it' })
+  }, [])
+  const confirmAction = useCallback((dialog: AppDialog) => {
+    setAppDialog({ cancelLabel: 'Cancel', confirmLabel: 'Continue', tone: 'warning', ...dialog })
+  }, [])
 
   const restoreUnlockedPicks = async (poolId: string) => {
     const { error } = await supabase.rpc('restore_unlocked_picks_for_pool', { p_pool_id: poolId })
@@ -1227,16 +1281,16 @@ function MyPoolsContent() {
   const saveDraft = async (week: number, slot: number, team: Team | null) => {
     if (!selectedId || !userId || !selectedEntryId) return false
     if (pool && week < pool.start_week) {
-      alert(`This pool starts in Week ${pool.start_week}.`)
+      showMessage('Pool has not started', `This pool starts in Week ${pool.start_week}.`, 'warning')
       return false
     }
     if (isEliminated) {
-      alert('You are eliminated, so you can view matchups but cannot make more picks.')
+      showMessage('Picks are closed for this entry', 'You are eliminated, so you can view matchups but cannot make more picks.', 'warning')
       return false
     }
     const key = pickKey(week, slot)
     if (myFinalPicks[key]) {
-      alert(`Week ${week}, Pick ${slot} is locked and can no longer be changed.`)
+      showMessage('Pick locked', `Week ${week}, Pick ${slot} is locked and can no longer be changed.`, 'warning')
       return false
     }
     setSavingPickKeys((prev) => ({ ...prev, [key]: true }))
@@ -1276,7 +1330,7 @@ function MyPoolsContent() {
         await refreshPoolPickStatus()
         return true
       }
-      alert(message)
+      showMessage('Pick not saved', message, 'danger')
       return false
     } finally {
       setSavingPickKeys((prev) => ({ ...prev, [key]: false }))
@@ -1286,7 +1340,7 @@ function MyPoolsContent() {
   const onPickTeam = async (week: number, slot: number, team: Team) => {
     const key = pickKey(week, slot)
     if (myFinalPicks[key]) {
-      alert(`Week ${week}, Pick ${slot} is locked and can no longer be changed.`)
+      showMessage('Pick locked', `Week ${week}, Pick ${slot} is locked and can no longer be changed.`, 'warning')
       return
     }
     if (teamPickerTarget?.week === week) {
@@ -1296,7 +1350,7 @@ function MyPoolsContent() {
         const fixedMs = pool?.deadline_mode === 'fixed' && fixedLockUtc ? Date.parse(fixedLockUtc) : Infinity
         const lockMs = Math.min(kickoffMs, fixedMs)
         if (Date.now() >= lockMs) {
-          alert(`${team.name} is locked for Week ${week}.`)
+          showMessage('Team locked', `${team.name} is locked for Week ${week}.`, 'warning')
           return
         }
       }
@@ -1305,7 +1359,7 @@ function MyPoolsContent() {
       Object.entries(myDraftPicks).some(([k, t]) => k !== key && t?.abbr === team.abbr) ||
       Object.entries(myFinalPicks).some(([k, pick]) => k !== key && pick.team_abbr === team.abbr)
     if (alreadyUsedElsewhere) {
-      alert(`${team.name} was already used in another week.`)
+      showMessage('Team already used', `${team.name} was already used in another week.`, 'warning')
       return
     }
     const previousPick = myDraftPicks[key] ?? null
@@ -1322,7 +1376,7 @@ function MyPoolsContent() {
   const clearPick = async (week: number, slot: number) => {
     const key = pickKey(week, slot)
     if (myFinalPicks[key]) {
-      alert(`Week ${week}, Pick ${slot} is locked and can no longer be changed.`)
+      showMessage('Pick locked', `Week ${week}, Pick ${slot} is locked and can no longer be changed.`, 'warning')
       return
     }
     const previousPick = myDraftPicks[key] ?? null
@@ -1338,7 +1392,7 @@ function MyPoolsContent() {
   const clearAllPicks = async () => {
     if (!selectedId || !userId || !selectedEntryId) return
     if (isEliminated) {
-      alert('You are eliminated, so you can view matchups but cannot make more picks.')
+      showMessage('Picks are closed for this entry', 'You are eliminated, so you can view matchups but cannot make more picks.', 'warning')
       return
     }
     setMyDraftPicks((prev) => {
@@ -1358,7 +1412,7 @@ function MyPoolsContent() {
       await refreshPoolPickStatus()
     } catch (e: unknown) {
       void logAppEvent({ eventType: 'pick_clear_failed', error: e, poolId: selectedId, metadata: { selected_week: selectedPickWeek, entry_id: selectedEntryId } })
-      alert(getErrorMessage(e, 'Failed to clear picks'))
+      showMessage('Picks not cleared', getErrorMessage(e, 'Failed to clear picks'), 'danger')
     }
   }
 
@@ -1386,52 +1440,60 @@ function MyPoolsContent() {
     if (!selectedId || !pool) return
     const nextEntryNumber = myEntries.length + 1
     const entryLimit = pool.max_entries_per_user ?? 1
-    const confirmed = window.confirm(
-      `Add Entry ${nextEntryNumber} to ${pool.name}? Each entry gets its own picks and can be eliminated separately. You can have up to ${entryLimit} ${entryLimit === 1 ? 'entry' : 'entries'} in this pool.`,
-    )
-    if (!confirmed) return
-    setAddingEntry(true)
-    try {
-      const { data, error } = await supabase.rpc('add_pool_entry', { p_pool_id: selectedId })
-      if (error) throw error
-      const roster = await loadMembers(selectedId)
-      const newEntryId = typeof data === 'string' ? data : roster.filter((m) => m.profile_id === userId).at(-1)?.id
-      if (newEntryId) await selectEntry(newEntryId)
-      setMemberCount(roster.length)
-      await refreshPoolPickStatus(pool, roster.filter((member) => member.profile_id === userId))
-    } catch (e: unknown) {
-      void logAppEvent({ eventType: 'pool_add_entry_failed', error: e, poolId: pool.id })
-      alert(getErrorMessage(e, 'Failed to add entry.'))
-    } finally {
-      setAddingEntry(false)
-    }
+    confirmAction({
+      title: 'Add another entry?',
+      message: `Add Entry ${nextEntryNumber} to ${pool.name}? Each entry gets its own picks and can be eliminated separately. You can have up to ${entryLimit} ${entryLimit === 1 ? 'entry' : 'entries'} in this pool.`,
+      confirmLabel: 'Add entry',
+      onConfirm: async () => {
+        setAddingEntry(true)
+        try {
+          const { data, error } = await supabase.rpc('add_pool_entry', { p_pool_id: selectedId })
+          if (error) throw error
+          const roster = await loadMembers(selectedId)
+          const newEntryId = typeof data === 'string' ? data : roster.filter((m) => m.profile_id === userId).at(-1)?.id
+          if (newEntryId) await selectEntry(newEntryId)
+          setMemberCount(roster.length)
+          await refreshPoolPickStatus(pool, roster.filter((member) => member.profile_id === userId))
+        } catch (e: unknown) {
+          void logAppEvent({ eventType: 'pool_add_entry_failed', error: e, poolId: pool.id })
+          showMessage('Entry not added', getErrorMessage(e, 'Failed to add entry.'), 'danger')
+        } finally {
+          setAddingEntry(false)
+        }
+      },
+    })
   }
 
   const leavePool = async () => {
     if (!selectedId || !pool) return
     if (amOwner) {
-      alert('Pool creators cannot leave their own pool. You can archive it from the admin panel before it starts.')
+      showMessage('Pool creator cannot leave', 'Pool creators cannot leave their own pool. You can archive it from the admin panel before it starts.', 'warning')
       return
     }
     if (leagueHasStarted) {
-      alert('You cannot leave this pool after it has started.')
+      showMessage('Pool has started', 'You cannot leave this pool after it has started.', 'warning')
       return
     }
-    const confirmed = window.confirm(`Leave ${pool.name}? This removes all of your entries and picks from this pool.`)
-    if (!confirmed) return
-
-    setLeavingPool(true)
-    try {
-      const { error } = await supabase.rpc('leave_pool', { p_pool_id: pool.id })
-      if (error) throw error
-      setPools((prev) => prev.filter((p) => p.id !== pool.id))
-      closeModal()
-    } catch (e: unknown) {
-      void logAppEvent({ eventType: 'pool_leave_failed', error: e, poolId: pool.id })
-      alert(getErrorMessage(e, 'Failed to leave pool.'))
-    } finally {
-      setLeavingPool(false)
-    }
+    confirmAction({
+      title: 'Leave this pool?',
+      message: `Leave ${pool.name}? This removes all of your entries and picks from this pool.`,
+      tone: 'danger',
+      confirmLabel: 'Leave pool',
+      onConfirm: async () => {
+        setLeavingPool(true)
+        try {
+          const { error } = await supabase.rpc('leave_pool', { p_pool_id: pool.id })
+          if (error) throw error
+          setPools((prev) => prev.filter((p) => p.id !== pool.id))
+          closeModal()
+        } catch (e: unknown) {
+          void logAppEvent({ eventType: 'pool_leave_failed', error: e, poolId: pool.id })
+          showMessage('Could not leave pool', getErrorMessage(e, 'Failed to leave pool.'), 'danger')
+        } finally {
+          setLeavingPool(false)
+        }
+      },
+    })
   }
 
   /** ---------- Export ---------- */
@@ -2439,6 +2501,7 @@ function MyPoolsContent() {
           onClose={() => setInviteOpen(false)}
         />
       )}
+      <AppDialogModal dialog={appDialog} onClose={() => setAppDialog(null)} />
     </main>
   )
 }

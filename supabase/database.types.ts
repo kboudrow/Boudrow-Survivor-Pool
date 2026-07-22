@@ -2072,6 +2072,24 @@ export type Database = {
           week: number
         }[]
       }
+      superadmin_score_feed_health: {
+        Args: { p_season?: number }
+        Returns: {
+          final_games: number
+          final_missing_winner_count: number
+          in_progress_games: number
+          issue_count: number
+          latest_final_kickoff_at: string
+          latest_kickoff_at: string
+          latest_sync_at: string
+          missing_scores: number
+          scheduled_games: number
+          season: number
+          stale_games: number
+          total_games: number
+          week: number
+        }[]
+      }
       superadmin_score_test_pool_week: {
         Args: { p_pool_id: string; p_week: number }
         Returns: string

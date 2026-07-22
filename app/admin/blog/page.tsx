@@ -59,6 +59,14 @@ type CommentModerationRow = {
   latest_report_at: string | null
 }
 
+type ConfirmDialog = {
+  title: string
+  message: string
+  confirmLabel?: string
+  cancelLabel?: string
+  resolve: (confirmed: boolean) => void
+}
+
 type FormState = {
   id: string | null
   title: string
@@ -161,6 +169,32 @@ function formFromPost(post: BlogPostRow): FormState {
   }
 }
 
+function ConfirmDialogModal({ dialog, onClose }: { dialog: ConfirmDialog | null; onClose: () => void }) {
+  if (!dialog) return null
+  const choose = (confirmed: boolean) => {
+    dialog.resolve(confirmed)
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center px-4">
+      <button type="button" className="absolute inset-0 bg-slate-950/50" aria-label="Cancel action" onClick={() => choose(false)} />
+      <div className="relative w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
+        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{dialog.title}</div>
+        <p className="text-sm leading-6 text-slate-700">{dialog.message}</p>
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          <button type="button" onClick={() => choose(false)} className="rounded-md bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200">
+            {dialog.cancelLabel || 'Cancel'}
+          </button>
+          <button type="button" onClick={() => choose(true)} className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800">
+            {dialog.confirmLabel || 'Delete'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function BlogAdminPage() {
   const [loading, setLoading] = useState(true)
   const [role, setRole] = useState<BlogRole>('')
@@ -183,6 +217,7 @@ export default function BlogAdminPage() {
   const [categories, setCategories] = useState<string[]>([...seedBlogCategories])
   const [newCategory, setNewCategory] = useState('')
   const [savingCategory, setSavingCategory] = useState(false)
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog | null>(null)
 
   const isSuperAdmin = userEmail?.toLowerCase() === SUPERADMIN_EMAIL
   const canPublish = isSuperAdmin
@@ -193,6 +228,11 @@ export default function BlogAdminPage() {
     const selected = posts.find((post) => post.id === form.id)
     return Boolean(selected && selected.author_id === userId && selected.status === 'draft')
   }, [form.id, isSuperAdmin, posts, userId])
+
+  const requestConfirm = (options: Omit<ConfirmDialog, 'resolve'>) =>
+    new Promise<boolean>((resolve) => {
+      setConfirmDialog({ ...options, resolve })
+    })
 
   const filteredPosts = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -315,7 +355,11 @@ export default function BlogAdminPage() {
 
   const deleteComment = async (comment: CommentModerationRow) => {
     if (!isSuperAdmin || deletingCommentId) return
-    const confirmed = window.confirm(`Delete this comment from ${comment.author_name || 'this reader'}?`)
+    const confirmed = await requestConfirm({
+      title: 'Delete comment?',
+      message: `Delete this comment from ${comment.author_name || 'this reader'}?`,
+      confirmLabel: 'Delete comment',
+    })
     if (!confirmed) return
     setDeletingCommentId(comment.id)
     setError(null)
@@ -435,7 +479,11 @@ export default function BlogAdminPage() {
 
   const deletePost = async () => {
     if (!form.id || !isSuperAdmin) return
-    const confirmed = window.confirm(`Delete "${form.title}"? This cannot be undone.`)
+    const confirmed = await requestConfirm({
+      title: 'Delete post?',
+      message: `Delete "${form.title}"? This cannot be undone.`,
+      confirmLabel: 'Delete post',
+    })
     if (!confirmed) return
     setSaving(true)
     setError(null)
@@ -948,6 +996,7 @@ export default function BlogAdminPage() {
           </section>
         )}
       </div>
+      <ConfirmDialogModal dialog={confirmDialog} onClose={() => setConfirmDialog(null)} />
     </main>
   )
 }

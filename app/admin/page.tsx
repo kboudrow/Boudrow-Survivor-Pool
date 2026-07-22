@@ -64,6 +64,22 @@ type ScheduleAuditRow = {
   issue_count: number
 }
 
+type ScoreFeedHealthRow = {
+  season: number
+  week: number
+  total_games: number
+  final_games: number
+  in_progress_games: number
+  scheduled_games: number
+  missing_scores: number
+  final_missing_winner_count: number
+  stale_games: number
+  latest_kickoff_at: string | null
+  latest_final_kickoff_at: string | null
+  latest_sync_at: string | null
+  issue_count: number
+}
+
 type AppEventLogRow = {
   id: string
   created_at: string
@@ -75,6 +91,15 @@ type AppEventLogRow = {
   user_id: string | null
   message: string | null
   metadata: Record<string, unknown> | null
+}
+
+type ConfirmDialog = {
+  title: string
+  message: string
+  tone?: 'warning' | 'danger'
+  confirmLabel?: string
+  cancelLabel?: string
+  resolve: (confirmed: boolean) => void
 }
 
 function fmt(value?: string | null) {
@@ -103,6 +128,36 @@ function compactJson(value: unknown) {
   }
 }
 
+function ConfirmDialogModal({ dialog, onClose }: { dialog: ConfirmDialog | null; onClose: () => void }) {
+  if (!dialog) return null
+  const danger = dialog.tone === 'danger'
+  const headingClass = danger ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-800'
+  const buttonClass = danger ? 'bg-red-700 hover:bg-red-800' : 'bg-slate-950 hover:bg-black'
+
+  const choose = (confirmed: boolean) => {
+    dialog.resolve(confirmed)
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center px-4">
+      <button type="button" className="absolute inset-0 bg-slate-950/50" aria-label="Cancel action" onClick={() => choose(false)} />
+      <div className="relative w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
+        <div className={`mb-4 rounded-md border px-3 py-2 text-sm font-semibold ${headingClass}`}>{dialog.title}</div>
+        <p className="whitespace-pre-line text-sm leading-6 text-slate-700">{dialog.message}</p>
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          <button type="button" onClick={() => choose(false)} className="rounded-md bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200">
+            {dialog.cancelLabel || 'Cancel'}
+          </button>
+          <button type="button" onClick={() => choose(true)} className={`rounded-md px-4 py-2 text-sm font-semibold text-white ${buttonClass}`}>
+            {dialog.confirmLabel || 'Continue'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function SuperAdminPage() {
   const [loading, setLoading] = useState(true)
   const [email, setEmail] = useState<string | null>(null)
@@ -117,11 +172,18 @@ export default function SuperAdminPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [runningAction, setRunningAction] = useState<string | null>(null)
   const [scheduleAudit, setScheduleAudit] = useState<ScheduleAuditRow[]>([])
+  const [scoreFeedHealth, setScoreFeedHealth] = useState<ScoreFeedHealthRow[]>([])
   const [auditSeason, setAuditSeason] = useState('2026')
   const [eventLogs, setEventLogs] = useState<AppEventLogRow[]>([])
   const [eventLogsLoading, setEventLogsLoading] = useState(false)
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog | null>(null)
 
   const selectedPool = pools.find((pool) => pool.pool_id === selectedPoolId) || null
+
+  const requestConfirm = (options: Omit<ConfirmDialog, 'resolve'>) =>
+    new Promise<boolean>((resolve) => {
+      setConfirmDialog({ ...options, resolve })
+    })
 
   const filteredPools = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -166,6 +228,23 @@ export default function SuperAdminPage() {
     () => scheduleAudit.reduce((sum, row) => sum + row.issue_count, 0),
     [scheduleAudit],
   )
+  const scoreFeedIssues = useMemo(() => scoreFeedHealth.filter((row) => row.issue_count > 0), [scoreFeedHealth])
+  const scoreFeedTotals = useMemo(
+    () =>
+      scoreFeedHealth.reduce(
+        (acc, row) => {
+          acc.games += row.total_games
+          acc.final += row.final_games
+          acc.stale += row.stale_games
+          acc.missingScores += row.missing_scores
+          acc.missingWinners += row.final_missing_winner_count
+          if (row.latest_sync_at && (!acc.latestSync || row.latest_sync_at > acc.latestSync)) acc.latestSync = row.latest_sync_at
+          return acc
+        },
+        { games: 0, final: 0, stale: 0, missingScores: 0, missingWinners: 0, latestSync: null as string | null },
+      ),
+    [scoreFeedHealth],
+  )
 
   const loadPools = async () => {
     setError(null)
@@ -184,6 +263,15 @@ export default function SuperAdminPage() {
     })
     if (auditErr) throw auditErr
     setScheduleAudit((data || []) as ScheduleAuditRow[])
+  }
+
+  const loadScoreFeedHealth = async (seasonText = auditSeason) => {
+    const season = parseInt(seasonText, 10)
+    const { data, error: healthErr } = await supabase.rpc('superadmin_score_feed_health', {
+      p_season: Number.isFinite(season) ? season : null,
+    })
+    if (healthErr) throw healthErr
+    setScoreFeedHealth((data || []) as ScoreFeedHealthRow[])
   }
 
   const loadEventLogs = async () => {
@@ -231,7 +319,7 @@ export default function SuperAdminPage() {
         const canAccess = userEmail === SUPERADMIN_EMAIL
         setAuthorized(canAccess)
         if (!canAccess) return
-        await Promise.all([loadPools(), loadScheduleAudit(), loadEventLogs()])
+        await Promise.all([loadPools(), loadScheduleAudit(), loadScoreFeedHealth(), loadEventLogs()])
       } catch (e: unknown) {
         if (!alive) return
         setError(getErrorMessage(e, 'Failed to load superadmin dashboard.'))
@@ -253,6 +341,7 @@ export default function SuperAdminPage() {
 
   const refreshSelectedPool = async () => {
     await loadPools()
+    await loadScoreFeedHealth()
     await loadEventLogs()
     if (selectedPoolId) {
       await loadEntries(selectedPoolId)
@@ -261,7 +350,11 @@ export default function SuperAdminPage() {
 
   const repairSelectedPool = async () => {
     if (!selectedPool) return
-    const confirmed = window.confirm(`Repair future results for the selected pool "${selectedPool.name}"? This clears only this pool's stat rows and moves future final picks back to editable drafts. It does not change other pools.`)
+    const confirmed = await requestConfirm({
+      title: 'Repair this pool?',
+      message: `Repair future results for the selected pool "${selectedPool.name}"?\n\nThis clears only this pool's stale future stat rows and moves future final picks back to editable drafts. It does not change other pools.`,
+      confirmLabel: 'Repair this pool',
+    })
     if (!confirmed) return
     setRunningAction('repair-selected')
     setError(null)
@@ -283,9 +376,12 @@ export default function SuperAdminPage() {
     if (!selectedPool) return
     const label = entry.display_name
     const entryCount = entries.filter((candidate) => candidate.profile_id === entry.profile_id).length
-    const confirmed = window.confirm(
-      `Remove ${label} from ${selectedPool.name}?\n\nEntries removed: ${entryCount}\n\nThis removes the member, every entry, and all picks from this pool.`,
-    )
+    const confirmed = await requestConfirm({
+      title: 'Remove member?',
+      message: `Remove ${label} from ${selectedPool.name}?\n\nEntries removed: ${entryCount}\n\nThis removes the member, every entry, and all picks from this pool.`,
+      tone: 'danger',
+      confirmLabel: 'Remove member',
+    })
     if (!confirmed) return
     setRunningAction(entry.profile_id)
     setError(null)
@@ -309,11 +405,13 @@ export default function SuperAdminPage() {
   const toggleTestMode = async () => {
     if (!selectedPool) return
     const enabling = !selectedPool.test_mode
-    const confirmed = window.confirm(
-      enabling
+    const confirmed = await requestConfirm({
+      title: enabling ? 'Enable test mode?' : 'Disable test mode?',
+      message: enabling
         ? `Enable test mode for "${selectedPool.name}"?\n\nOnly you can use the test controls, and fake results will stay scoped to this pool.`
         : `Disable test mode for "${selectedPool.name}"?\n\nExisting fake results will stay stored, but test controls will be hidden until you enable it again.`,
-    )
+      confirmLabel: enabling ? 'Enable test mode' : 'Disable test mode',
+    })
     if (!confirmed) return
     setRunningAction('test-mode')
     setError(null)
@@ -391,19 +489,20 @@ export default function SuperAdminPage() {
               <p className="text-sm text-slate-600">A quick pulse check from recent app events, schedule audits, and pool status.</p>
             </div>
             <button
-              onClick={() => Promise.all([loadScheduleAudit(), loadEventLogs()]).catch((e) => setError(getErrorMessage(e, 'Health refresh failed.')))}
+              onClick={() => Promise.all([loadScheduleAudit(), loadScoreFeedHealth(), loadEventLogs()]).catch((e) => setError(getErrorMessage(e, 'Health refresh failed.')))}
               disabled={eventLogsLoading}
               className="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
             >
               {eventLogsLoading ? 'Refreshing...' : 'Refresh health'}
             </button>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
             <Info label="Recent Errors" value={String(eventHealth.errors)} />
             <Info label="Recent Warnings" value={String(eventHealth.warnings)} />
             <Info label="Schedule Issues" value={String(totalAuditIssueCount)} />
+            <Info label="Score Feed Issues" value={String(scoreFeedIssues.length)} />
             <Info label="Test Pools" value={String(poolHealth.testPools)} />
-            <Info label="Last Event" value={fmt(eventHealth.latest)} />
+            <Info label="Last Score Sync" value={fmt(scoreFeedTotals.latestSync)} />
           </div>
           {(eventHealth.errors > 0 || totalAuditIssueCount > 0) ? (
             <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
@@ -415,6 +514,84 @@ export default function SuperAdminPage() {
             </p>
           )}
         </section>
+
+        <details className="mb-5 rounded-lg border border-slate-200 bg-white p-4" open>
+          <summary className="cursor-pointer font-semibold text-slate-950">Score feed health</summary>
+          <div className="mt-3 mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-slate-950">Live NFL Score Feed</h2>
+              <p className="text-sm text-slate-600">Read-only checks for ESPN score sync freshness, stale games, missing scores, and missing winners.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <input
+                value={auditSeason}
+                onChange={(event) => setAuditSeason(event.target.value)}
+                className="w-24 rounded-md border border-slate-300 px-3 py-2 text-sm"
+                inputMode="numeric"
+              />
+              <button
+                onClick={() => loadScoreFeedHealth().catch((e) => setError(getErrorMessage(e, 'Score feed health check failed.')))}
+                className="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white"
+              >
+                Check feed
+              </button>
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-5">
+            <Info label="Weeks Checked" value={String(scoreFeedHealth.length)} />
+            <Info label="Games Synced" value={String(scoreFeedTotals.games)} />
+            <Info label="Final Games" value={String(scoreFeedTotals.final)} />
+            <Info label="Stale Games" value={String(scoreFeedTotals.stale)} />
+            <Info label="Last Sync" value={fmt(scoreFeedTotals.latestSync)} />
+          </div>
+          {scoreFeedHealth.length === 0 ? (
+            <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+              No schedule rows found for {auditSeason || 'the selected season'}.
+            </p>
+          ) : scoreFeedIssues.length === 0 ? (
+            <p className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+              No score-feed issues found for {auditSeason || 'all seasons'}.
+            </p>
+          ) : (
+            <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              {scoreFeedIssues.length} week{scoreFeedIssues.length === 1 ? '' : 's'} need attention. Stale games usually mean the score cron has not picked up a final result yet.
+            </p>
+          )}
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[860px] border text-sm">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="border p-2 text-left">Season</th>
+                  <th className="border p-2 text-left">Week</th>
+                  <th className="border p-2 text-left">Games</th>
+                  <th className="border p-2 text-left">Final</th>
+                  <th className="border p-2 text-left">Live</th>
+                  <th className="border p-2 text-left">Scheduled</th>
+                  <th className="border p-2 text-left">Missing Scores</th>
+                  <th className="border p-2 text-left">Missing Winners</th>
+                  <th className="border p-2 text-left">Stale</th>
+                  <th className="border p-2 text-left">Latest Kickoff</th>
+                </tr>
+              </thead>
+              <tbody>
+                {scoreFeedHealth.map((row) => (
+                  <tr key={`${row.season}:${row.week}`} className={`hover:bg-slate-50 ${row.issue_count > 0 ? 'bg-amber-50/40' : ''}`}>
+                    <td className="border p-2">{row.season}</td>
+                    <td className="border p-2">Week {row.week}</td>
+                    <td className="border p-2">{row.total_games}</td>
+                    <td className="border p-2">{row.final_games}</td>
+                    <td className="border p-2">{row.in_progress_games}</td>
+                    <td className="border p-2">{row.scheduled_games}</td>
+                    <td className={`border p-2 ${row.missing_scores ? 'font-semibold text-red-700' : ''}`}>{row.missing_scores}</td>
+                    <td className={`border p-2 ${row.final_missing_winner_count ? 'font-semibold text-red-700' : ''}`}>{row.final_missing_winner_count}</td>
+                    <td className={`border p-2 ${row.stale_games ? 'font-semibold text-amber-700' : ''}`}>{row.stale_games}</td>
+                    <td className="border p-2 whitespace-nowrap">{fmt(row.latest_kickoff_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
 
         <details className="mb-5 rounded-lg border border-slate-200 bg-white p-4">
           <summary className="cursor-pointer font-semibold text-slate-950">Schedule audit</summary>
@@ -734,6 +911,7 @@ export default function SuperAdminPage() {
           </section>
         </div>
       </div>
+      <ConfirmDialogModal dialog={confirmDialog} onClose={() => setConfirmDialog(null)} />
     </main>
   )
 }

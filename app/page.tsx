@@ -392,19 +392,19 @@ export default function Home() {
         <section className="bg-white px-4 pb-12 sm:px-6">
           <div className="mx-auto grid max-w-5xl gap-4 md:grid-cols-3">
             <PublicLink
-              title="Read strategy and pool guides"
-              text="Browse survivor pool rules, commissioner notes, and NFL articles before setting up your pool."
+              title="Read strategy and NFL notes"
+              text="Browse survivor pool ideas, commissioner notes, and football articles before setting up your pool."
               href="/blog"
             />
             <PublicLink
-              title="Read commissioner guides"
-              text="Rules, deadlines, double-pick weeks, private pools, and strategy notes for running a cleaner pool."
-              href="/blog"
+              title="Check survivor pool rules"
+              text="See the core rules, deadlines, missed-pick handling, and tie settings before your group starts."
+              href="/survivor-pool-rules"
             />
             <PublicLink
-              title="Why we built it"
-              text="Learn what Survive Sunday handles, what it does not do, and how support works."
-              href="/about"
+              title="Preview the demo pool"
+              text="Walk through the product flow before inviting friends, family, or coworkers."
+              href="/demo-league"
             />
           </div>
         </section>

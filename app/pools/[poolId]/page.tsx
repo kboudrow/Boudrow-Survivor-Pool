@@ -196,7 +196,10 @@ export default function PoolDetailPage() {
     if (!pool) return
     const { data, error } = await supabase.rpc('pool_entry_roster', { p_pool_id: pool.id })
 
-    if (error) return alert(getErrorMessage(error, 'Export failed. Please try again.'))
+    if (error) {
+      setError(getErrorMessage(error, 'Export failed. Please try again.'))
+      return
+    }
     const rows = [
       ['Username', 'Entry', 'Role', 'Status', 'Joined'],
       ...((data || []) as RosterExportRow[]).map((member) => [

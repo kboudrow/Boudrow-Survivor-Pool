@@ -96,6 +96,15 @@ type TestGameOption = {
   needs_outcome: boolean
 }
 
+type ConfirmDialog = {
+  title: string
+  message: string
+  tone?: 'warning' | 'danger'
+  confirmLabel?: string
+  cancelLabel?: string
+  resolve: (confirmed: boolean) => void
+}
+
 const ALL_WEEKS = Array.from({ length: 18 }, (_, i) => i + 1)
 const MEMBER_LIMIT_OPTIONS = [10, 25, 50, 100, 250, 500]
 const ENTRY_LIMIT_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1)
@@ -216,6 +225,36 @@ function TestActionButton({
   )
 }
 
+function ConfirmDialogModal({ dialog, onClose }: { dialog: ConfirmDialog | null; onClose: () => void }) {
+  if (!dialog) return null
+  const danger = dialog.tone === 'danger'
+  const headingClass = danger ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-800'
+  const buttonClass = danger ? 'bg-red-700 hover:bg-red-800' : 'bg-slate-950 hover:bg-black'
+
+  const choose = (confirmed: boolean) => {
+    dialog.resolve(confirmed)
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center px-4">
+      <button type="button" className="absolute inset-0 bg-slate-950/50" aria-label="Cancel action" onClick={() => choose(false)} />
+      <div className="relative w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
+        <div className={`mb-4 rounded-md border px-3 py-2 text-sm font-semibold ${headingClass}`}>{dialog.title}</div>
+        <p className="whitespace-pre-line text-sm leading-6 text-slate-700">{dialog.message}</p>
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          <button type="button" onClick={() => choose(false)} className="rounded-md bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200">
+            {dialog.cancelLabel || 'Cancel'}
+          </button>
+          <button type="button" onClick={() => choose(true)} className={`rounded-md px-4 py-2 text-sm font-semibold text-white ${buttonClass}`}>
+            {dialog.confirmLabel || 'Continue'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function PoolAdminPage() {
   const router = useRouter()
   const { poolId } = useParams<{ poolId: string }>()
@@ -257,6 +296,7 @@ export default function PoolAdminPage() {
   const [testWeek, setTestWeek] = useState('1')
   const [testGames, setTestGames] = useState<TestGameOption[]>([])
   const [testToolsLoading, setTestToolsLoading] = useState(false)
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog | null>(null)
 
   const entryRows = useMemo(() => {
     const uniqueRows = Array.from(new Map(rows.map((row) => [row.entry_id, row])).values())
@@ -331,6 +371,11 @@ export default function PoolAdminPage() {
       return [memberLabel(row), row.user_id, row.role, ...entries.map((entry) => entry.entry_id)].some((value) => value.toLowerCase().includes(q))
     })
   }, [memberRows, memberSearch])
+
+  const requestConfirm = (options: Omit<ConfirmDialog, 'resolve'>) =>
+    new Promise<boolean>((resolve) => {
+      setConfirmDialog({ ...options, resolve })
+    })
 
   const loadAuditTrail = async () => {
     if (!poolId) return
@@ -747,7 +792,11 @@ export default function PoolAdminPage() {
       if (hasFinalPick(row)) {
         const team = (draftTeams[rowKey(row)] || finalTeams[rowKey(row)] || '').trim().toUpperCase()
         if (!team) throw new Error('Choose a team before saving this pick.')
-        const confirmed = window.confirm(`Change ${entryLabel(row)}'s Pick ${row.slot} for Week ${selectedWeek} to ${team}?`)
+        const confirmed = await requestConfirm({
+          title: 'Update locked pick?',
+          message: `Change ${entryLabel(row)}'s Pick ${row.slot} for Week ${selectedWeek} to ${team}? This clears the old result and re-scores from the new pick.`,
+          confirmLabel: 'Update pick',
+        })
         if (!confirmed) return 'Pick update canceled.'
         const { error } = await supabase.rpc('admin_override_entry_final_pick', {
           p_pool_id: pool.id,
@@ -793,9 +842,12 @@ export default function PoolAdminPage() {
         throw new Error('Members cannot be removed after the pool has started.')
       }
       const label = memberLabel(row)
-      const confirmed = window.confirm(
-        `Remove ${label} from ${pool.name}?\n\nEntries removed: ${entryCount}\n\nThis removes the member, every entry, and all picks from this pool. It cannot be undone from this screen.`,
-      )
+      const confirmed = await requestConfirm({
+        title: 'Remove member?',
+        message: `Remove ${label} from ${pool.name}?\n\nEntries removed: ${entryCount}\n\nThis removes the member, every entry, and all picks from this pool. It cannot be undone from this screen.`,
+        tone: 'danger',
+        confirmLabel: 'Remove member',
+      })
       if (!confirmed) return 'Remove member canceled.'
 
       const { error } = await supabase.rpc('admin_remove_pool_member', {
@@ -809,11 +861,13 @@ export default function PoolAdminPage() {
   const toggleTestMode = async () => {
     if (!pool || !isSuperAdmin) return
     const enabling = !pool.test_mode
-    const confirmed = window.confirm(
-      enabling
+    const confirmed = await requestConfirm({
+      title: enabling ? 'Enable test mode?' : 'Disable test mode?',
+      message: enabling
         ? `Enable test mode for "${pool.name}"?\n\nOnly the superadmin account will see these controls. Members and pool admins will not see test-mode labels.`
         : `Disable test mode for "${pool.name}"?\n\nExisting fake season data will stay stored, but the simulator controls will be hidden until test mode is enabled again.`,
-    )
+      confirmLabel: enabling ? 'Enable test mode' : 'Disable test mode',
+    })
     if (!confirmed) return
     setRunningAction('test-mode')
     setError(null)
@@ -897,7 +951,27 @@ export default function PoolAdminPage() {
       )
       return
     }
-    if (!window.confirm(copy[action])) return
+    const confirmed = await requestConfirm({
+      title:
+        action === 'score'
+          ? 'Score this week?'
+          : action === 'clear'
+            ? 'Clear this week?'
+            : action === 'reset'
+              ? 'Reset simulation?'
+              : 'Fill empty outcomes?',
+      message: copy[action],
+      tone: action === 'reset' ? 'danger' : 'warning',
+      confirmLabel:
+        action === 'score'
+          ? 'Score week'
+          : action === 'clear'
+            ? 'Clear week'
+            : action === 'reset'
+              ? 'Reset simulation'
+              : 'Fill outcomes',
+    })
+    if (!confirmed) return
     setRunningAction(`test-${action}`)
     setError(null)
     setNotice(null)
@@ -1659,6 +1733,7 @@ export default function PoolAdminPage() {
           onClose={() => setInviteOpen(false)}
         />
       )}
+      <ConfirmDialogModal dialog={confirmDialog} onClose={() => setConfirmDialog(null)} />
     </main>
   )
 }
