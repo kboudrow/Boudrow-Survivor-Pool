@@ -1,0 +1,23 @@
+name: Sync NFL scores
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call score sync endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET is not set for this repository; skipping scheduled score sync."
+            exit 0
+          fi
+
+          curl --fail --show-error --silent \
+            --header "Authorization: Bearer ${CRON_SECRET}" \
+            https://www.survivesunday.com/api/cron/sync-scores
