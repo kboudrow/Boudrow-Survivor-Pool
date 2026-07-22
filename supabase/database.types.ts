@@ -2168,6 +2168,7 @@ export type Database = {
       update_my_profile: {
         Args: {
           p_avatar_url?: string
+          p_favorite_team?: string
           p_first_name?: string
           p_last_name?: string
           p_username?: string

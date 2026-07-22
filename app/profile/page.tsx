@@ -136,6 +136,7 @@ export default function ProfilePage() {
   const [favoriteTeam, setFavoriteTeam] = useState('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null)
   const [editingAvatar, setEditingAvatar] = useState(false)
   const [avatarUploading, setAvatarUploading] = useState(false)
   const [avatarMsg, setAvatarMsg] = useState<string | null>(null)
@@ -176,6 +177,7 @@ export default function ProfilePage() {
   const allPwOk = pwChecks.len && pwChecks.upper && pwChecks.lower && pwChecks.num && pwChecks.special && pwChecks.match
   const profileComplete = username.trim().length >= 3
   const profileTitle = username.trim() || [firstName.trim(), lastName.trim()].filter(Boolean).join(' ') || currentEmail || 'Profile'
+  const visibleAvatarUrl = avatarPreviewUrl || avatarUrl
 
   const loadHistory = async () => {
     setHistoryLoading(true)
@@ -290,6 +292,12 @@ export default function ProfilePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    return () => {
+      if (avatarPreviewUrl) URL.revokeObjectURL(avatarPreviewUrl)
+    }
+  }, [avatarPreviewUrl])
+
   const saveUsername = async () => {
     if (!userId) return
     setSavingUsername(true)
@@ -302,28 +310,12 @@ export default function ProfilePage() {
       if (cleaned.length > 30) throw new Error('Username must be 30 characters or fewer.')
       if (!/^[A-Za-z0-9_. -]+$/.test(cleaned)) throw new Error('Username can only use letters, numbers, spaces, periods, underscores, and hyphens.')
 
-      let { error } = await supabase
-        .from('profiles')
-        .update({
-          username: cleaned,
-          display_name: cleaned,
-          first_name: firstName.trim() || null,
-          last_name: lastName.trim() || null,
-          favorite_team: favoriteTeam || null,
-        })
-        .eq('id', userId)
-      if (error && isMissingFavoriteTeamColumn(error)) {
-        const fallback = await supabase
-          .from('profiles')
-          .update({
-            username: cleaned,
-            display_name: cleaned,
-            first_name: firstName.trim() || null,
-            last_name: lastName.trim() || null,
-          })
-          .eq('id', userId)
-        error = fallback.error
-      }
+      const { error } = await supabase.rpc('update_my_profile', {
+        p_username: cleaned,
+        p_first_name: firstName.trim(),
+        p_last_name: lastName.trim(),
+        p_favorite_team: favoriteTeam || '',
+      })
       if (error) {
         if (isDuplicateUsernameError(error)) throw new Error('That username is already taken. Try another one.')
         throw error
@@ -344,6 +336,10 @@ export default function ProfilePage() {
     const file = event.target.files?.[0] || null
     setAvatarFile(file)
     setAvatarMsg(null)
+    setAvatarPreviewUrl((current) => {
+      if (current) URL.revokeObjectURL(current)
+      return file ? URL.createObjectURL(file) : null
+    })
   }
 
   const saveAvatar = async () => {
@@ -370,11 +366,12 @@ export default function ProfilePage() {
 
       const { data } = supabase.storage.from('avatars').getPublicUrl(path)
       const publicUrl = data.publicUrl
-      const { error: profileError } = await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', userId)
+      const { error: profileError } = await supabase.rpc('update_my_profile', { p_avatar_url: publicUrl })
       if (profileError) throw profileError
 
       setAvatarUrl(publicUrl)
       setAvatarFile(null)
+      setAvatarPreviewUrl(null)
       setEditingAvatar(false)
       setAvatarMsg('Profile picture saved.')
     } catch (e: unknown) {
@@ -476,9 +473,9 @@ export default function ProfilePage() {
                 <div className="flex min-w-0 items-start gap-3">
                   <div className="relative">
                     <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white bg-white text-lg font-bold text-slate-700 shadow-sm">
-                      {avatarUrl ? (
+                      {visibleAvatarUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+                        <img src={visibleAvatarUrl} alt="" className="h-full w-full object-cover" />
                       ) : (
                         <span>{(username.trim() || currentEmail || '?').slice(0, 1).toUpperCase()}</span>
                       )}

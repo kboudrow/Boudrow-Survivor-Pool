@@ -52,19 +52,18 @@ export async function ensureProfile() {
 
   if (existingError) return { ok: false, error: existingError.message }
 
+  const saveProfile = async (profileUsername: string | null) =>
+    supabase.rpc('update_my_profile', {
+      p_username: profileUsername || undefined,
+      p_first_name: firstName || undefined,
+      p_last_name: lastName || undefined,
+      p_avatar_url: avatarUrl || undefined,
+    })
+
   if (!existing) {
-    const insertPayload = {
-      id: user.id,
-      User_name: displayName,
-      username,
-      display_name: username,
-      first_name: firstName,
-      last_name: lastName,
-      avatar_url: avatarUrl,
-    }
-    const { error } = await supabase.from('profiles').insert(insertPayload)
+    const { error } = await saveProfile(username)
     if (error && isDuplicateUsernameError(error)) {
-      const retry = await supabase.from('profiles').insert({ ...insertPayload, username: fallbackUsername, display_name: fallbackUsername })
+      const retry = await saveProfile(fallbackUsername)
       if (retry.error) return { ok: false, error: retry.error.message }
       return { ok: true }
     }
@@ -81,10 +80,19 @@ export async function ensureProfile() {
   if (!existing.avatar_url && avatarUrl) updates.avatar_url = avatarUrl
 
   if (Object.keys(updates).length > 0) {
-    const { error } = await supabase.from('profiles').update(updates).eq('id', user.id)
+    const { error } = await supabase.rpc('update_my_profile', {
+      p_username: updates.username || undefined,
+      p_first_name: updates.first_name || undefined,
+      p_last_name: updates.last_name || undefined,
+      p_avatar_url: updates.avatar_url || undefined,
+    })
     if (error && isDuplicateUsernameError(error) && updates.username) {
-      const retryUpdates = { ...updates, username: fallbackUsername, display_name: fallbackUsername }
-      const retry = await supabase.from('profiles').update(retryUpdates).eq('id', user.id)
+      const retry = await supabase.rpc('update_my_profile', {
+        p_username: fallbackUsername,
+        p_first_name: updates.first_name || undefined,
+        p_last_name: updates.last_name || undefined,
+        p_avatar_url: updates.avatar_url || undefined,
+      })
       if (retry.error) return { ok: false, error: retry.error.message }
       return { ok: true }
     }
