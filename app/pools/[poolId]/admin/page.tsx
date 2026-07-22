@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { InviteModal } from '@/components/InviteModal'
 import { getErrorMessage } from '@/lib/errorMessage'
 import { poolImageUrl } from '@/lib/poolImages'
+import { REGULAR_SEASON_LAST_WEEK, maxWeekForPool, seasonWeeksForPool, weekLongLabel, weekShortLabel } from '@/lib/seasonModel'
 import { supabase } from '@/lib/supabaseClient'
 
 const SUPERADMIN_EMAIL = 'survivesunday1@gmail.com'
@@ -27,6 +28,7 @@ type Pool = {
   max_entries_per_user?: number | null
   payment_status?: 'unpaid' | 'paid' | 'not_required' | 'waived' | 'refunded' | string | null
   image_url?: string | null
+  include_playoffs?: boolean | null
   test_mode?: boolean | null
   test_current_week?: number | null
 }
@@ -105,7 +107,7 @@ type ConfirmDialog = {
   resolve: (confirmed: boolean) => void
 }
 
-const ALL_WEEKS = Array.from({ length: 18 }, (_, i) => i + 1)
+const REGULAR_SEASON_WEEKS = Array.from({ length: REGULAR_SEASON_LAST_WEEK }, (_, i) => i + 1)
 const MEMBER_LIMIT_OPTIONS = [10, 25, 50, 100, 250, 500]
 const ENTRY_LIMIT_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1)
 const TEAMS = [
@@ -322,9 +324,12 @@ export default function PoolAdminPage() {
   }, [entryRows])
   const isPoolJoinable = pool?.activation_status !== 'cancelled'
   const testStartWeek = pool?.start_week || 1
+  const poolIncludesPlayoffs = !!pool?.include_playoffs
+  const poolWeeks = useMemo(() => seasonWeeksForPool({ include_playoffs: poolIncludesPlayoffs }), [poolIncludesPlayoffs])
+  const poolMaxWeek = maxWeekForPool({ include_playoffs: poolIncludesPlayoffs })
   const testWeekOptions = useMemo(
-    () => Array.from({ length: Math.max(0, 19 - testStartWeek) }, (_, index) => testStartWeek + index),
-    [testStartWeek],
+    () => poolWeeks.filter((week) => week >= testStartWeek),
+    [poolWeeks, testStartWeek],
   )
   const testGamesWithPicks = useMemo(
     () => testGames.filter((game) => (game.total_pick_count ?? game.away_pick_count + game.home_pick_count) > 0),
@@ -351,7 +356,7 @@ export default function PoolAdminPage() {
       doubleWeeksText
         .split(',')
         .map((s) => parseInt(s.trim(), 10))
-        .filter((n) => Number.isFinite(n) && n >= 1 && n <= 18),
+        .filter((n) => Number.isFinite(n) && n >= 1 && n <= REGULAR_SEASON_LAST_WEEK),
       )
   }, [doubleWeeksText])
   const doubleWeekCount = selectedDoubleWeeks.size
@@ -431,7 +436,7 @@ export default function PoolAdminPage() {
     setError(null)
     try {
       const [{ data: p, error: pErr }, { data: overview, error: overviewErr }] = await Promise.all([
-        supabase.from('pools').select('id,name,created_by,is_public,visibility,double_pick_weeks,archived,season,start_week,activation_status,max_members,allow_multiple_entries,max_entries_per_user,payment_status,image_url,test_mode,test_current_week').eq('id', poolId).maybeSingle<Pool>(),
+        supabase.from('pools').select('id,name,created_by,is_public,visibility,double_pick_weeks,archived,season,start_week,include_playoffs,activation_status,max_members,allow_multiple_entries,max_entries_per_user,payment_status,image_url,test_mode,test_current_week').eq('id', poolId).maybeSingle<Pool>(),
         supabase.rpc('admin_pool_entry_week_overview', { p_pool_id: poolId, p_week: week }),
       ])
       if (pErr) throw pErr
@@ -556,7 +561,7 @@ export default function PoolAdminPage() {
       const weeks = doubleWeeksText
         .split(',')
         .map((s) => parseInt(s.trim(), 10))
-        .filter((n) => Number.isFinite(n) && n >= (pool?.start_week ?? 1) && n <= 18)
+        .filter((n) => Number.isFinite(n) && n >= (pool?.start_week ?? 1) && n <= REGULAR_SEASON_LAST_WEEK)
 
       const { error } = await supabase.rpc('admin_set_double_weeks', {
         p_pool_id: pool.id,
@@ -935,11 +940,11 @@ export default function PoolAdminPage() {
   const runTestAction = async (action: 'randomize-outcomes' | 'score' | 'clear' | 'reset') => {
     if (!pool || !isSuperAdmin) return
     const week = parseInt(testWeek, 10)
-    const nextWeek = Math.min(18, week + 1)
+    const nextWeek = Math.min(poolMaxWeek, week + 1)
     const copy: Record<typeof action, string> = {
       'randomize-outcomes': `Fill empty Week ${week} outcomes for ${pool.name}? Existing choices stay as-is.`,
-      score: `Score Week ${week} and move ${pool.name} to Week ${nextWeek}?\n\nThis grades submitted picks, counts missed picks as losses, updates standings, and advances only this test pool.`,
-      clear: `Clear Week ${week} results for ${pool.name}?\n\nPicks stay in place. This week's fake outcomes and scoring are removed, then standings are rebuilt.`,
+      score: `Score ${weekLongLabel(week)} and move ${pool.name} to ${weekLongLabel(nextWeek)}?\n\nThis grades submitted picks, counts missed picks as losses, updates standings, and advances only this test pool.`,
+      clear: `Clear ${weekLongLabel(week)} results for ${pool.name}?\n\nPicks stay in place. This week's fake outcomes and scoring are removed, then standings are rebuilt.`,
       reset: `Reset the full test run for ${pool.name}?\n\nMembers and settings stay. Test picks, fake outcomes, and test standings are cleared.`,
     }
     if (action === 'score' && testGamesNeedingOutcome.length > 0) {
@@ -1134,7 +1139,7 @@ export default function PoolAdminPage() {
                             className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
                           >
                             {testWeekOptions.map((week) => (
-                              <option key={week} value={week}>Week {week}</option>
+                              <option key={week} value={week}>{weekLongLabel(week)}</option>
                             ))}
                           </select>
                         </label>
@@ -1434,7 +1439,7 @@ export default function PoolAdminPage() {
                     </button>
                   </div>
                   <div className="mb-3 flex flex-wrap gap-2">
-                    {ALL_WEEKS.map((week) => {
+                    {REGULAR_SEASON_WEEKS.map((week) => {
                       const selected = selectedDoubleWeeks.has(week)
                       return (
                         <button
@@ -1559,9 +1564,9 @@ export default function PoolAdminPage() {
                       }}
                       className="rounded-md border px-2 py-1"
                     >
-                      {ALL_WEEKS.map((week) => (
+                      {poolWeeks.map((week) => (
                         <option key={week} value={week}>
-                          {week}
+                          {weekLongLabel(week)}
                         </option>
                       ))}
                     </select>
@@ -1632,7 +1637,7 @@ export default function PoolAdminPage() {
               </div>
 
               <div className="mb-3 flex gap-1 overflow-x-auto pb-1">
-                {ALL_WEEKS.map((week) => (
+                {poolWeeks.map((week) => (
                   <button
                     key={week}
                     type="button"
@@ -1644,7 +1649,7 @@ export default function PoolAdminPage() {
                       selectedWeek === week ? 'border-slate-950 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                     }`}
                   >
-                    W{week}
+                    {weekShortLabel(week)}
                     {pool.double_pick_weeks?.includes(week) && <span className="ml-1 text-[10px]">x2</span>}
                   </button>
                 ))}

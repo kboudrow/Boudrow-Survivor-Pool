@@ -8,6 +8,7 @@ import { InviteModal } from '@/components/InviteModal'
 import { getErrorMessage } from '@/lib/errorMessage'
 import { logAppEvent } from '@/lib/monitoring'
 import { poolImageUrl } from '@/lib/poolImages'
+import { PLAYOFFS_LAB_ENABLED, maxWeekForPool, seasonWeeksForPool, weekLongLabel, weekShortLabel } from '@/lib/seasonModel'
 import { supabase } from '@/lib/supabaseClient'
 
 /** ---------------- Types ---------------- */
@@ -257,7 +258,7 @@ function addDaysYmd(ymd: string, days: number): string {
   const date = new Date(Date.UTC(y, m - 1, d + days, 12, 0, 0))
   return date.toISOString().slice(0, 10)
 }
-function currentPickWeek(rows: SeasonWeek[], now = new Date()): number {
+function currentPickWeek(rows: SeasonWeek[], now = new Date(), maxWeek = 18): number {
   if (rows.length === 0) return 1
   const sorted = [...rows].sort((a, b) => a.week - b.week)
   let current = sorted[0]?.week ?? 1
@@ -267,13 +268,14 @@ function currentPickWeek(rows: SeasonWeek[], now = new Date()): number {
     if (now.getTime() >= opensAt) current = row.week
   }
 
-  return Math.min(Math.max(current, 1), 18)
+  return Math.min(Math.max(current, 1), maxWeek)
 }
-function currentWeekForPool(pool: Pick<Pool, 'start_week' | 'test_mode' | 'test_current_week'>, rows: SeasonWeek[]) {
+function currentWeekForPool(pool: Pick<Pool, 'start_week' | 'test_mode' | 'test_current_week' | 'include_playoffs'>, rows: SeasonWeek[]) {
+  const maxWeek = maxWeekForPool(pool)
   if (pool.test_mode && pool.test_current_week) {
-    return Math.min(18, Math.max(pool.start_week || 1, pool.test_current_week))
+    return Math.min(maxWeek, Math.max(pool.start_week || 1, pool.test_current_week))
   }
-  return Math.max(pool.start_week || 1, currentPickWeek(rows))
+  return Math.max(pool.start_week || 1, currentPickWeek(rows, new Date(), maxWeek))
 }
 function msToCountdown(ms: number) {
   if (ms <= 0) return '00:00:00'
@@ -339,7 +341,7 @@ function PoolStagePill({ pool, pickStatus }: { pool: Pool; pickStatus?: PoolPick
     return <span className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Closed</span>
   }
   if (pickStatus) {
-    return <span className="shrink-0 rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">Week {pickStatus.week}</span>
+    return <span className="shrink-0 rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">{weekLongLabel(pickStatus.week)}</span>
   }
   return <span className="shrink-0 rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">Loading</span>
 }
@@ -361,7 +363,7 @@ function PickStatusCard({ status }: { status: PoolPickStatus }) {
         complete ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'
       }`}
     >
-      Week {status.week}: {label}
+      {weekLongLabel(status.week)}: {label}
     </div>
   )
 }
@@ -459,7 +461,7 @@ function SurvivalChart({ alive, total, week }: { alive: number; total: number; w
         </text>
       </svg>
       <div className="min-w-[120px] text-sm">
-        <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Through Week {week}</div>
+        <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Through {weekLongLabel(week)}</div>
         <div className="flex items-center justify-between gap-3">
           <span className="inline-flex items-center gap-2 text-slate-700">
             <span className="h-3 w-3 rounded-sm bg-emerald-600" />
@@ -535,7 +537,7 @@ function PickSavedToast({ notice, onClose }: { notice: PickNotice; onClose: () =
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-slate-950">{isCleared ? 'Pick cleared' : 'Pick saved'}</div>
           <div className="mt-0.5 text-sm text-slate-700">
-            Week {notice.week}
+            {weekLongLabel(notice.week)}
             {notice.slot > 1 ? `, Pick ${notice.slot}` : ''}: {isCleared ? 'No team selected' : `${notice.team.name} (${notice.team.abbr})`}
           </div>
           <div className="mt-1 text-xs text-slate-500">You can change this pick until its deadline.</div>
@@ -614,7 +616,7 @@ function TeamPickerModal(props: {
       <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(1100px,92vw)] max-h-[85vh] overflow-y-auto bg-white rounded-xl shadow-xl p-4">
         <div className="flex items-center justify-between mb-3">
           <h4 className="text-lg font-semibold">
-            Pick a team - Week {week}, Pick {slot}
+            Pick a team - {weekLongLabel(week)}, Pick {slot}
           </h4>
           <div className="flex items-center gap-2">
             <input
@@ -662,7 +664,7 @@ function TeamPickerModal(props: {
         ) : (
           <>
             {gamesLoading && <p className="text-sm text-gray-600">Loading matchups...</p>}
-            {!gamesLoading && weekGames.length === 0 && <p className="text-sm text-gray-600">No games found for Week {week}.</p>}
+            {!gamesLoading && weekGames.length === 0 && <p className="text-sm text-gray-600">No games found for {weekLongLabel(week)}.</p>}
             {!gamesLoading && weekGames.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {weekGames.map((g) => {
@@ -771,7 +773,8 @@ function MyPoolsContent() {
   const [leavingPool, setLeavingPool] = useState(false)
 
   // picks (mine)
-  const weeks = useMemo(() => Array.from({ length: 18 }, (_, i) => i + 1), [])
+  const poolIncludesPlayoffs = !!pool?.include_playoffs
+  const weeks = useMemo(() => seasonWeeksForPool({ include_playoffs: poolIncludesPlayoffs }), [poolIncludesPlayoffs])
   const [selectedPickWeek, setSelectedPickWeek] = useState(1)
   const [myDraftPicks, setMyDraftPicks] = useState<Record<string, Team | null>>({})
   const [myFinalPicks, setMyFinalPicks] = useState<Record<string, FinalPickRow>>({})
@@ -824,7 +827,7 @@ function MyPoolsContent() {
     pool?.deadline_mode === 'rolling'
       ? 'Each matchup closes at kickoff.'
       : fixedLockUtc
-        ? `Week ${selectedPickWeek} closes ${fmtEtDateTime(fixedLockUtc)}.`
+        ? `${weekLongLabel(selectedPickWeek)} closes ${fmtEtDateTime(fixedLockUtc)}.`
         : 'Week close time unavailable.'
   const showPickNotice = (notice: PickNotice) => {
     if (pickNoticeTimerRef.current) window.clearTimeout(pickNoticeTimerRef.current)
@@ -897,7 +900,7 @@ function MyPoolsContent() {
         supabase.from('pool_picks').select('pool_id,entry_id,week,slot').eq('pool_id', poolToRefresh.id).in('entry_id', entryIds),
       ])
 
-      const targetWeek = currentWeekForPool(poolToRefresh, ((seasonRows || []) as SeasonWeek[]).filter((week) => week.week >= 1 && week.week <= 18))
+      const targetWeek = currentWeekForPool(poolToRefresh, ((seasonRows || []) as SeasonWeek[]).filter((week) => week.week >= 1 && week.week <= maxWeekForPool(poolToRefresh)))
       const required = poolToRefresh.double_pick_weeks?.includes(targetWeek) ? 2 : 1
       const needed = entryIds.length * required
       const pickedSlots = new Set<string>()
@@ -1048,7 +1051,7 @@ function MyPoolsContent() {
         ])
 
         const weeksBySeason = new Map<number, SeasonWeek[]>()
-        for (const row of ((seasonRows || []) as SeasonWeek[]).filter((week) => week.week >= 1 && week.week <= 18)) {
+        for (const row of ((seasonRows || []) as SeasonWeek[]).filter((week) => week.week >= 1)) {
           const list = weeksBySeason.get(row.season) || []
           list.push(row)
           weeksBySeason.set(row.season, list)
@@ -1288,7 +1291,7 @@ function MyPoolsContent() {
   const saveDraft = async (week: number, slot: number, team: Team | null) => {
     if (!selectedId || !userId || !selectedEntryId) return false
     if (pool && week < pool.start_week) {
-      showMessage('Pool has not started', `This pool starts in Week ${pool.start_week}.`, 'warning')
+      showMessage('Pool has not started', `This pool starts in ${weekLongLabel(pool.start_week)}.`, 'warning')
       return false
     }
     if (isEliminated) {
@@ -1297,7 +1300,7 @@ function MyPoolsContent() {
     }
     const key = pickKey(week, slot)
     if (myFinalPicks[key]) {
-      showMessage('Pick locked', `Week ${week}, Pick ${slot} is locked and can no longer be changed.`, 'warning')
+      showMessage('Pick locked', `${weekLongLabel(week)}, Pick ${slot} is locked and can no longer be changed.`, 'warning')
       return false
     }
     setSavingPickKeys((prev) => ({ ...prev, [key]: true }))
@@ -1347,7 +1350,7 @@ function MyPoolsContent() {
   const onPickTeam = async (week: number, slot: number, team: Team) => {
     const key = pickKey(week, slot)
     if (myFinalPicks[key]) {
-      showMessage('Pick locked', `Week ${week}, Pick ${slot} is locked and can no longer be changed.`, 'warning')
+      showMessage('Pick locked', `${weekLongLabel(week)}, Pick ${slot} is locked and can no longer be changed.`, 'warning')
       return
     }
     if (teamPickerTarget?.week === week) {
@@ -1357,7 +1360,7 @@ function MyPoolsContent() {
         const fixedMs = pool?.deadline_mode === 'fixed' && fixedLockUtc ? Date.parse(fixedLockUtc) : Infinity
         const lockMs = Math.min(kickoffMs, fixedMs)
         if (Date.now() >= lockMs) {
-          showMessage('Team locked', `${team.name} is locked for Week ${week}.`, 'warning')
+          showMessage('Team locked', `${team.name} is locked for ${weekLongLabel(week)}.`, 'warning')
           return
         }
       }
@@ -1383,7 +1386,7 @@ function MyPoolsContent() {
   const clearPick = async (week: number, slot: number) => {
     const key = pickKey(week, slot)
     if (myFinalPicks[key]) {
-      showMessage('Pick locked', `Week ${week}, Pick ${slot} is locked and can no longer be changed.`, 'warning')
+      showMessage('Pick locked', `${weekLongLabel(week)}, Pick ${slot} is locked and can no longer be changed.`, 'warning')
       return
     }
     const previousPick = myDraftPicks[key] ?? null
@@ -1801,7 +1804,7 @@ function MyPoolsContent() {
       ])
       setCanManagePool(!!canManage)
 
-      const nextSeasonWeeks = ((weekRows || []) as SeasonWeek[]).filter((row) => row.week >= 1 && row.week <= 18)
+      const nextSeasonWeeks = ((weekRows || []) as SeasonWeek[]).filter((row) => row.week >= 1 && row.week <= maxWeekForPool(poolRow))
       const currentWeek = currentWeekForPool(poolRow, nextSeasonWeeks)
       setSelectedPickWeek(currentWeek)
       setStandingsWeek(currentWeek)
@@ -1920,7 +1923,7 @@ function MyPoolsContent() {
                     </div>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                    <InfoTile label="Starts" value={`Week ${p.start_week}`} />
+                    <InfoTile label="Starts" value={weekLongLabel(p.start_week)} />
                     <InfoTile label="Strikes" value={String(p.strikes_allowed)} />
                     <InfoTile label="Multiple Entries?" value={multipleEntriesLabel} />
                     <InfoTile label="Entries" value={entryAliveLabel} />
@@ -2012,7 +2015,7 @@ function MyPoolsContent() {
                     <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
-                          <span className="rounded-full bg-slate-100 px-2 py-1 font-semibold">Week {selectedPickWeek}</span>
+                          <span className="rounded-full bg-slate-100 px-2 py-1 font-semibold">{weekLongLabel(selectedPickWeek)}</span>
                           <span className="rounded-full bg-slate-100 px-2 py-1 font-semibold">{deadlineLabel}</span>
                           <span className="rounded-full bg-slate-100 px-2 py-1 font-semibold">
                             {picksAllowedForWeek(selectedPickWeek)} {picksAllowedForWeek(selectedPickWeek) === 1 ? 'pick' : 'picks'}
@@ -2101,12 +2104,12 @@ function MyPoolsContent() {
                                       : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
                               }`}
                             >
-                              W{w}
+                              {weekShortLabel(w)}
                               {required > 1 && <span className="ml-0.5 text-[9px]">x2</span>}
                             </button>
                           )
                         })}
-                        {pool.include_playoffs && (
+                        {pool.include_playoffs && !PLAYOFFS_LAB_ENABLED && (
                           <button
                             type="button"
                             disabled
@@ -2123,7 +2126,7 @@ function MyPoolsContent() {
                       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <h4 className="text-lg font-semibold">Week {selectedPickWeek}</h4>
+                            <h4 className="text-lg font-semibold">{weekLongLabel(selectedPickWeek)}</h4>
                             {picksAllowedForWeek(selectedPickWeek) > 1 && (
                               <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
                                 Double-pick week
@@ -2221,7 +2224,7 @@ function MyPoolsContent() {
                       </div>
 
                       <div className="mt-5">
-                        <h5 className="mb-2 text-sm font-semibold">Week {selectedPickWeek} Games</h5>
+                        <h5 className="mb-2 text-sm font-semibold">{weekLongLabel(selectedPickWeek)} Games</h5>
                         {gamesLoading && <p className="text-sm text-gray-600">Loading games...</p>}
                         {!gamesLoading && weekGames.length === 0 && <p className="text-sm text-gray-600">No games found for this week.</p>}
                         {!gamesLoading && weekGames.length > 0 && (
@@ -2267,7 +2270,7 @@ function MyPoolsContent() {
                         <InfoTile label="Status" value={pool.activation_status === 'cancelled' ? 'Closed' : 'Open'} />
                         <InfoTile label="Member Limit" value={pool.max_members ? `${memberCount}/${pool.max_members}` : String(memberCount)} />
                         <InfoTile label="Entries" value={pool.allow_multiple_entries ? `Up to ${pool.max_entries_per_user ?? 1} per user` : 'Single entry'} />
-                        <InfoTile label="Start Week" value={`Week ${pool.start_week}`} />
+                        <InfoTile label="Start Week" value={weekLongLabel(pool.start_week)} />
                         <InfoTile label="Season" value={pool.include_playoffs ? 'Regular + Playoffs' : 'Regular only'} />
                         <InfoTile label="Strikes Allowed" value={String(pool.strikes_allowed)} />
                         <InfoTile label="Tie Counts As" value={pool.tie_rule === 'win' ? 'Win' : 'Loss'} />
@@ -2307,7 +2310,7 @@ function MyPoolsContent() {
                       <select className="border rounded-md px-2 py-1 text-sm" value={standingsWeek} onChange={(e) => setStandingsWeek(Number(e.target.value))}>
                         {availableWeeks.map((w) => (
                           <option key={w} value={w}>
-                            Week {w}
+                            {weekLongLabel(w)}
                           </option>
                         ))}
                       </select>
@@ -2327,7 +2330,7 @@ function MyPoolsContent() {
                       </div>
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Week {standingsWeek} Picks Made</div>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{weekLongLabel(standingsWeek)} Picks Made</div>
                           <div className="mt-1 text-lg font-bold text-slate-950">
                             {standingsPickCompletion
                               ? `${standingsPickCompletion.made_slots}/${standingsPickCompletion.required_slots}`
@@ -2349,7 +2352,7 @@ function MyPoolsContent() {
                             <th className="border-b border-slate-200 p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Mulligans</th>
                             {standingsTableWeeks.map((week) => (
                               <th key={week} className="border-b border-slate-200 p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                <span className="block">W{week}</span>
+                                <span className="block">{weekShortLabel(week)}</span>
                                 <span className="mt-0.5 block text-[10px] font-medium normal-case tracking-normal text-slate-400">
                                   {survivalByWeek.get(week) ?? standingsEntryCount}/{standingsEntryCount} alive
                                 </span>
@@ -2376,7 +2379,7 @@ function MyPoolsContent() {
                                     <span className="inline-flex rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-semibold text-white">Alive</span>
                                   ) : (
                                     <span className="inline-flex rounded-full bg-red-600 px-2 py-0.5 text-xs font-semibold text-white">
-                                      Out{eliminatedWeek ? ` W${eliminatedWeek}` : ''}
+                                      Out{eliminatedWeek ? ` ${weekShortLabel(eliminatedWeek)}` : ''}
                                     </span>
                                   )}
                                 </td>
@@ -2411,7 +2414,7 @@ function MyPoolsContent() {
                   <section className="mb-6 rounded-xl border border-slate-200 bg-white p-4">
                     <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <div className="text-xs uppercase text-slate-500">Week {standingsWeek} Pick Distribution</div>
+                        <div className="text-xs uppercase text-slate-500">{weekLongLabel(standingsWeek)} Pick Distribution</div>
                         <div className="mt-1 text-sm text-slate-600">Only visible picks are counted here.</div>
                       </div>
                       {topExposedTeam && (
@@ -2423,11 +2426,11 @@ function MyPoolsContent() {
                     </div>
                     {!standingsPicksVisible ? (
                       <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
-                        No Week {standingsWeek} picks are visible yet. Picks appear as each selected team reaches its lock time.
+                        No {weekLongLabel(standingsWeek)} picks are visible yet. Picks appear as each selected team reaches its lock time.
                       </div>
                     ) : teamPickChartRows.length === 0 ? (
                       <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
-                        No team picks are visible for Week {standingsWeek} yet.
+                        No team picks are visible for {weekLongLabel(standingsWeek)} yet.
                       </div>
                     ) : (
                       <div className="grid gap-2 md:grid-cols-2">
