@@ -2341,10 +2341,10 @@ function MyPoolsContent() {
                       </div>
                     </div>
                     <div className="overflow-x-auto">
-                      <table className="w-full border-separate border-spacing-0 text-sm" style={{ minWidth: Math.max(760, 360 + standingsTableWeeks.length * 96) }}>
+                      <table className="isolate w-full border-separate border-spacing-0 text-sm" style={{ minWidth: Math.max(760, 360 + standingsTableWeeks.length * 96) }}>
                         <thead>
                           <tr>
-                            <th className="sticky left-0 z-10 border-b border-slate-200 bg-white p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Entry</th>
+                            <th className="sticky left-0 z-30 w-[240px] min-w-[240px] border-b border-r border-slate-200 bg-white p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 shadow-[6px_0_10px_-10px_rgba(15,23,42,0.75)]">Entry</th>
                             <th className="border-b border-slate-200 p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Progress</th>
                             <th className="border-b border-slate-200 p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Mulligans</th>
                             {standingsTableWeeks.map((week) => (
@@ -2362,8 +2362,8 @@ function MyPoolsContent() {
                             const eliminatedWeek = !alive ? stats.eliminated_week || standingsWeek : stats.eliminated_week || null
                             return (
                               <tr key={member.id} className={alive ? 'align-top' : 'align-top bg-slate-50 text-slate-500'}>
-                                <td className="sticky left-0 z-10 border-b border-slate-100 bg-inherit p-2">
-                                  <div className="flex min-w-[190px] items-center gap-2">
+                                <td className={`sticky left-0 z-20 w-[240px] min-w-[240px] border-b border-r border-slate-100 p-2 shadow-[6px_0_10px_-10px_rgba(15,23,42,0.75)] ${alive ? 'bg-white' : 'bg-slate-50'}`}>
+                                  <div className="flex min-w-0 items-center gap-2">
                                     <EntryAvatar member={member} name={name} />
                                     <div className="min-w-0">
                                       <div className="truncate font-semibold text-slate-950">{name}</div>
