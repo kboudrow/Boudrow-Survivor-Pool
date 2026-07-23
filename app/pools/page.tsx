@@ -810,10 +810,11 @@ function MyPoolsContent() {
   const simulatedWeek = pool?.test_current_week || pool?.start_week || 1
   const leagueHasStarted = isTestMode ? simulatedWeek >= (pool?.start_week ?? 1) : poolStartKnown && Date.now() >= poolStartMs
   const canInvite = !!pool && !isTestMode && pool.activation_status !== 'cancelled' && poolStartKnown && !leagueHasStarted
+  const selectedWeekLockedByTestMode = isTestMode && selectedPickWeek < simulatedWeek
   const myStats = selectedEntryId ? statsByUser[selectedEntryId] : undefined
   const isEliminated = leagueHasStarted && !!myStats?.eliminated
   const uniqueMemberCount = useMemo(() => new Set(members.map((member) => member.profile_id || member.id)).size || memberCount, [members, memberCount])
-  const canMakePicks = !!pool && !!selectedEntryId && !isEliminated && selectedPickWeek >= pool.start_week
+  const canMakePicks = !!pool && !!selectedEntryId && !isEliminated && selectedPickWeek >= pool.start_week && !selectedWeekLockedByTestMode
   const deadlineLabel =
     pool?.deadline_mode === 'rolling'
       ? 'Rolling: each game locks at kickoff'
@@ -1291,6 +1292,10 @@ function MyPoolsContent() {
       showMessage('Pool has not started', `This pool starts in Week ${pool.start_week}.`, 'warning')
       return false
     }
+    if (pool?.test_mode && week < (pool.test_current_week || pool.start_week || 1)) {
+      showMessage('Week locked', `Week ${week} is already locked in this test pool.`, 'warning')
+      return false
+    }
     if (isEliminated) {
       showMessage('Picks are closed for this entry', 'You are eliminated, so you can view matchups but cannot make more picks.', 'warning')
       return false
@@ -1346,6 +1351,10 @@ function MyPoolsContent() {
 
   const onPickTeam = async (week: number, slot: number, team: Team) => {
     const key = pickKey(week, slot)
+    if (pool?.test_mode && week < (pool.test_current_week || pool.start_week || 1)) {
+      showMessage('Week locked', `Week ${week} is already locked in this test pool.`, 'warning')
+      return
+    }
     if (myFinalPicks[key]) {
       showMessage('Pick locked', `Week ${week}, Pick ${slot} is locked and can no longer be changed.`, 'warning')
       return
@@ -2035,7 +2044,7 @@ function MyPoolsContent() {
                               </select>
                             </label>
                           )}
-                          {pool.allow_multiple_entries && myEntries.length < (pool.max_entries_per_user ?? 1) && (
+                          {pool.allow_multiple_entries && !leagueHasStarted && myEntries.length < (pool.max_entries_per_user ?? 1) && (
                             <button
                               type="button"
                               onClick={addEntry}
@@ -2135,6 +2144,11 @@ function MyPoolsContent() {
                           {selectedWeekCloseLabel}
                         </div>
                       </div>
+                      {selectedWeekLockedByTestMode && (
+                        <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                          Week {selectedPickWeek} is already locked in this test pool.
+                        </div>
+                      )}
 
                       <div className={`grid gap-3 ${picksAllowedForWeek(selectedPickWeek) > 1 ? 'md:grid-cols-2' : ''}`}>
                         {Array.from({ length: picksAllowedForWeek(selectedPickWeek) }, (_, i) => i + 1).map((slot) => {
@@ -2492,14 +2506,28 @@ function MyPoolsContent() {
               {/* ----------- Members ----------- */}
               {!detailsLoading && pool && activeTab === 'members' && (
                 <>
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="mb-3">
                     <h3 className="font-semibold">Pool Members</h3>
-                    {canInvite && (
-                      <button onClick={() => setInviteOpen(true)} className="px-3 py-1 rounded-md bg-indigo-600 text-white hover:bg-indigo-700">
-                        Invite
-                      </button>
-                    )}
                   </div>
+                  {canInvite && (
+                    <section className="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <h4 className="font-semibold text-slate-950">Invite players</h4>
+                          <p className="mt-1 text-sm text-slate-700">
+                            Anyone in this pool can share the invite link until Week {pool.start_week} starts.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setInviteOpen(true)}
+                          className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+                        >
+                          Invite players
+                        </button>
+                      </div>
+                    </section>
+                  )}
                   {members.length === 0 ? (
                     <p className="text-sm text-gray-600">No members found.</p>
                   ) : (

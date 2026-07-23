@@ -1816,8 +1816,11 @@ export type Database = {
           member_count: number
           name: string
           notes: string
+          season: number
           start_week: number
           strikes_allowed: number
+          test_current_week: number
+          test_mode: boolean
           tie_rule: string
         }[]
       }

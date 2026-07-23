@@ -13,6 +13,7 @@ import { supabase } from '@/lib/supabaseClient'
 type Pool = {
   id: string
   name: string
+  season?: number | null
   is_public: boolean
   start_week: number
   include_playoffs: boolean
@@ -22,11 +23,12 @@ type Pool = {
   deadline_fixed: string | null
   notes: string | null
   created_by: string
-  season?: number | null
   plan?: 'free' | 'pro'
   activation_status?: 'draft' | 'active' | 'cancelled' | string | null
   max_members?: number | null
   member_count?: number | null
+  test_mode?: boolean | null
+  test_current_week?: number | null
 }
 
 type RosterExportRow = {
@@ -68,8 +70,11 @@ export default function PoolDetailPage() {
   const isFull = !!(pool?.max_members && memberCount >= pool.max_members)
   const poolStartMs = poolStartAt ? Date.parse(poolStartAt) : null
   const poolStartKnown = poolStartMs !== null && Number.isFinite(poolStartMs)
-  const leagueHasStarted = poolStartKnown && Date.now() >= poolStartMs
-  const canInvite = !!pool && isJoinable && poolStartKnown && !leagueHasStarted
+  const leagueHasStarted = !!pool && (
+    (!!pool.test_mode && (pool.test_current_week || pool.start_week || 1) >= (pool.start_week || 1))
+    || (poolStartKnown && Date.now() >= poolStartMs)
+  )
+  const canInvite = !!pool && isJoinable && poolStartKnown && !leagueHasStarted && (alreadyMember || isOwner)
   const authReturnTo = `/pools/${poolId}`
   const signInHref = `/?auth=signin&returnTo=${encodeURIComponent(authReturnTo)}`
   const signUpHref = `/?auth=signup&returnTo=${encodeURIComponent(authReturnTo)}`
@@ -162,6 +167,10 @@ export default function PoolDetailPage() {
     if (!pool) return
     if (!userId) {
       router.push(signInHref)
+      return
+    }
+    if (leagueHasStarted) {
+      setError('This pool has already started, so it is closed to new members.')
       return
     }
     setJoining(true)
@@ -275,9 +284,15 @@ export default function PoolDetailPage() {
               </div>
               <div className="border rounded-lg p-3">
                 <div className="text-xs uppercase text-gray-500">Status</div>
-                <div className="text-lg font-semibold">{isJoinable ? 'Open' : 'Closed'}</div>
+                <div className="text-lg font-semibold">{leagueHasStarted ? 'Started' : isJoinable ? 'Open' : 'Closed'}</div>
               </div>
             </div>
+
+            {leagueHasStarted && !alreadyMember && !isOwner && (
+              <div className="mb-4 p-3 border border-amber-200 rounded-md bg-amber-50 text-sm text-amber-800">
+                This pool has already started, so it is closed to new members.
+              </div>
+            )}
 
             {!isJoinable && !alreadyMember && !isOwner && (
               <div className="mb-4 p-3 border border-amber-200 rounded-md bg-amber-50 text-sm text-amber-800">
@@ -291,7 +306,7 @@ export default function PoolDetailPage() {
               </div>
             )}
 
-            {!authed && (
+            {!authed && !leagueHasStarted && (
               <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4">
                 <p className="text-sm font-medium text-slate-900">Sign in or create an account to join this pool.</p>
                 <p className="mt-1 text-sm text-slate-600">After that, we will bring you right back here so you can finish joining.</p>
@@ -321,7 +336,7 @@ export default function PoolDetailPage() {
               </div>
             )}
 
-            {authed && !alreadyMember && (
+            {authed && !alreadyMember && !leagueHasStarted && (
               <div className="mt-4 flex flex-wrap gap-2">
                 {!pool.is_public && (
                   <input

@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabaseClient'
 type Pool = {
   id: string
   name: string
+  season?: number | null
   is_public: boolean
   start_week: number
   include_playoffs: boolean
@@ -25,6 +26,8 @@ type Pool = {
   activation_status?: 'draft' | 'active' | 'cancelled' | string | null
   max_members?: number | null
   member_count?: number | null
+  test_mode?: boolean | null
+  test_current_week?: number | null
 }
 
 function isMissingAuthSession(error: unknown) {
@@ -49,9 +52,16 @@ export default function JoinPoolPage() {
   const [joining, setJoining] = useState(false)
   const [password, setPassword] = useState('')
   const [confirmJoinOpen, setConfirmJoinOpen] = useState(false)
+  const [poolStartAt, setPoolStartAt] = useState<string | null>(null)
 
   const isJoinable = pool?.activation_status !== 'cancelled'
   const isFull = !!(pool?.max_members && memberCount >= pool.max_members)
+  const poolStartMs = poolStartAt ? Date.parse(poolStartAt) : null
+  const poolStartKnown = poolStartMs !== null && Number.isFinite(poolStartMs)
+  const poolStarted = !!pool && (
+    (!!pool.test_mode && (pool.test_current_week || pool.start_week || 1) >= (pool.start_week || 1))
+    || (poolStartKnown && Date.now() >= poolStartMs)
+  )
   const authReturnTo = `/join/${poolId}`
   const signInHref = `/?auth=signin&returnTo=${encodeURIComponent(authReturnTo)}`
   const signUpHref = `/?auth=signup&returnTo=${encodeURIComponent(authReturnTo)}`
@@ -82,6 +92,28 @@ export default function JoinPoolPage() {
         setPool(poolRow)
 
         setMemberCount(poolRow.member_count ?? 0)
+
+        const season = poolRow.season ?? new Date().getFullYear()
+        const [{ data: firstStartGame }, { data: startWeek }] = await Promise.all([
+          supabase
+            .from('nfl_games')
+            .select('game_time,kickoff_at_utc')
+            .eq('season', season)
+            .eq('week', poolRow.start_week)
+            .order('kickoff_at_utc', { ascending: true, nullsFirst: false })
+            .order('game_time', { ascending: true })
+            .limit(1)
+            .maybeSingle<{ game_time: string; kickoff_at_utc: string | null }>(),
+          supabase
+            .from('season_weeks')
+            .select('week_sunday_date')
+            .eq('season', season)
+            .eq('week', poolRow.start_week)
+            .maybeSingle<{ week_sunday_date: string }>(),
+        ])
+        if (alive) {
+          setPoolStartAt(firstStartGame?.kickoff_at_utc || firstStartGame?.game_time || (startWeek?.week_sunday_date ? `${startWeek.week_sunday_date}T00:00:00` : null))
+        }
 
         if (user?.id) {
           const { data: mem } = await supabase
@@ -128,11 +160,19 @@ export default function JoinPoolPage() {
       setError('Please sign in first.')
       return
     }
+    if (poolStarted) {
+      setError('This pool has already started, so it is closed to new members.')
+      return
+    }
     setConfirmJoinOpen(true)
   }
 
   const completeJoinPool = async () => {
     if (!pool || !userId) return
+    if (poolStarted) {
+      setError('This pool has already started, so it is closed to new members.')
+      return
+    }
     setConfirmJoinOpen(false)
 
     setJoining(true)
@@ -206,8 +246,14 @@ export default function JoinPoolPage() {
             <div className="grid sm:grid-cols-3 gap-3 mb-6">
               <Info label="Members" value={pool.max_members ? `${memberCount}/${pool.max_members}` : String(memberCount)} />
               <Info label="Visibility" value={pool.is_public ? 'Public' : 'Private'} />
-              <Info label="Status" value={isJoinable ? 'Open' : 'Closed'} />
+              <Info label="Status" value={poolStarted ? 'Started' : isJoinable ? 'Open' : 'Closed'} />
             </div>
+
+            {poolStarted && !alreadyMember && (
+              <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                This pool has already started, so it is closed to new members.
+              </div>
+            )}
 
             {!isJoinable && !isOwner && !alreadyMember && (
               <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
@@ -221,7 +267,7 @@ export default function JoinPoolPage() {
               </div>
             )}
 
-            {!authed && (
+            {!authed && !poolStarted && (
               <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4">
                 <p className="text-sm font-medium text-slate-900">Sign in or create an account to join {pool.name}.</p>
                 <p className="mt-1 text-sm text-slate-600">You will come right back to this invite page after signing in.</p>
@@ -251,7 +297,7 @@ export default function JoinPoolPage() {
               </div>
             )}
 
-            {authed && !alreadyMember && (
+            {authed && !alreadyMember && !poolStarted && (
               <div className="mt-4 flex flex-wrap gap-2">
                 {!pool.is_public && (
                   <input
