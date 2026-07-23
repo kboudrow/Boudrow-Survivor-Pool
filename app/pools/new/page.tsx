@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import { defaultPoolImage } from '@/lib/poolImages'
+import { makeStorageObjectPath, validatePublicImageUpload } from '@/lib/security'
 
 const ALL_WEEKS = Array.from({ length: 18 }, (_, i) => i + 1)
 const START_WEEKS = Array.from({ length: 12 }, (_, i) => i + 1)
@@ -150,6 +151,18 @@ export default function CreatePoolPage() {
 
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] || null
+    const validationError = file ? validatePublicImageUpload(file, 'Pool image') : null
+    if (validationError) {
+      setError(validationError)
+      setImageFile(null)
+      event.currentTarget.value = ''
+      setImagePreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev)
+        return null
+      })
+      return
+    }
+    setError(null)
     setImageFile(file)
     setImagePreview((prev) => {
       if (prev) URL.revokeObjectURL(prev)
@@ -167,11 +180,10 @@ export default function CreatePoolPage() {
   }
 
   const uploadLeagueImage = async (file: File, userId: string) => {
-    if (!file.type.startsWith('image/')) throw new Error('Choose an image file for the pool image.')
-    if (file.size > 5 * 1024 * 1024) throw new Error('Pool image must be 5 MB or smaller.')
+    const validationError = validatePublicImageUpload(file, 'Pool image')
+    if (validationError) throw new Error(validationError)
 
-    const ext = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
-    const path = `${userId}/${Date.now()}.${ext}`
+    const path = makeStorageObjectPath(userId, file)
     const { error: uploadError } = await supabase.storage.from('pool-images').upload(path, file, {
       cacheControl: '3600',
       upsert: true,

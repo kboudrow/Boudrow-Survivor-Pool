@@ -6,6 +6,7 @@ import NextImage from 'next/image'
 import { useRouter } from 'next/navigation'
 import { authCallbackUrl, safeReturnTo } from '@/lib/authRedirect'
 import { getErrorMessage } from '@/lib/errorMessage'
+import { normalizeEmailAddress, validateEmailAddress } from '@/lib/security'
 
 type Mode = 'idle' | 'signin' | 'signup'
 type SupabaseClientModule = typeof import('@/lib/supabaseClient')
@@ -14,14 +15,6 @@ type EnsureProfileModule = typeof import('@/lib/ensureProfile')
 async function getSupabase() {
   const { supabase }: SupabaseClientModule = await import('@/lib/supabaseClient')
   return supabase
-}
-
-function cleanEmail(value: string) {
-  return value.trim().toLowerCase()
-}
-
-function isValidEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }
 
 export default function Home() {
@@ -68,17 +61,15 @@ export default function Home() {
   }
   const authMessage = (error: unknown, fallback: string) => getErrorMessage(error, fallback)
 
-  const saveSignupProfile = async (userId: string, cleanUsername: string) => {
+  const saveSignupProfile = async (cleanUsername: string) => {
     const supabase = await getSupabase()
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        username: cleanUsername,
-        display_name: cleanUsername,
-        first_name: firstName.trim() || null,
-        last_name: lastName.trim() || null,
-      })
-      .eq('id', userId)
+    const { error } = await supabase.rpc('update_my_profile', {
+      p_username: cleanUsername,
+      p_first_name: firstName.trim() || null,
+      p_last_name: lastName.trim() || null,
+      p_avatar_url: null,
+      p_favorite_team: null,
+    })
     if (error) {
       if (isDuplicateUsernameError(error)) throw new Error('That username is already taken. Try another one.')
       throw error
@@ -163,9 +154,10 @@ export default function Home() {
   const signInWithEmail = async () => {
     setAuthError(null)
     setAuthNotice(null)
-    const trimmedEmail = cleanEmail(email)
+    const trimmedEmail = normalizeEmailAddress(email)
     if (!trimmedEmail || !password) return setAuthError('Please enter email and password.')
-    if (!isValidEmail(trimmedEmail)) return setAuthError('Enter a valid email address.')
+    const emailError = validateEmailAddress(trimmedEmail)
+    if (emailError) return setAuthError(emailError)
     const supabase = await getSupabase()
     const { data, error } = await supabase.auth.signInWithPassword({ email: trimmedEmail, password })
     if (error) return setAuthError(getErrorMessage(error, 'Could not sign in. Check your email and password.'))
@@ -180,13 +172,14 @@ export default function Home() {
     setAuthNotice(null)
     if (!firstName || !lastName) return setAuthError('Please enter your first and last name.')
     const cleanUsername = normalizeUsername(username)
-    const trimmedEmail = cleanEmail(email)
+    const trimmedEmail = normalizeEmailAddress(email)
     if (!cleanUsername) return setAuthError('Please choose a username.')
     if (cleanUsername.length < 3) return setAuthError('Username must be at least 3 characters.')
     if (cleanUsername.length > 30) return setAuthError('Username must be 30 characters or fewer.')
     if (!/^[A-Za-z0-9_. -]+$/.test(cleanUsername)) return setAuthError('Username can only use letters, numbers, spaces, periods, underscores, and hyphens.')
     if (!trimmedEmail) return setAuthError('Please enter your email.')
-    if (!isValidEmail(trimmedEmail)) return setAuthError('Enter a valid email address.')
+    const emailError = validateEmailAddress(trimmedEmail)
+    if (emailError) return setAuthError(emailError)
     if (!password) return setAuthError('Please enter a password.')
     if (!password2) return setAuthError('Please re-enter your password.')
     if (!allPwOk) return setAuthError('Please meet all password requirements.')
@@ -216,7 +209,7 @@ export default function Home() {
     } else {
       try {
         await runEnsureProfileOnce(data.session.user.id)
-        await saveSignupProfile(data.session.user.id, cleanUsername)
+        await saveSignupProfile(cleanUsername)
       } catch (e: unknown) {
         return setAuthError(authMessage(e, 'Account created, but we could not save that username.'))
       }

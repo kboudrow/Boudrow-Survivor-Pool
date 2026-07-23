@@ -1344,6 +1344,33 @@ export type Database = {
         }
         Relationships: []
       }
+      security_rate_limit_events: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          metadata: Json
+          subject: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          subject?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          subject?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       test_pool_team_results: {
         Row: {
           created_by: string | null
@@ -1652,8 +1679,23 @@ export type Database = {
         }
         Returns: undefined
       }
+      assert_action_rate_limit: {
+        Args: {
+          p_action: string
+          p_max_attempts: number
+          p_metadata?: Json
+          p_subject?: string
+          p_window_seconds: number
+        }
+        Returns: undefined
+      }
+      assert_user_email_confirmed: {
+        Args: { p_action?: string }
+        Returns: undefined
+      }
       auto_archive_completed_pools: { Args: never; Returns: number }
       backfill_eliminated_week: { Args: never; Returns: number }
+      blog_add_category: { Args: { p_name: string }; Returns: string }
       blog_comment_moderation_queue: {
         Args: never
         Returns: {
@@ -1693,6 +1735,7 @@ export type Database = {
         Args: { p_comment_id: string }
         Returns: string
       }
+      blog_delete_post: { Args: { p_id: string }; Returns: string }
       blog_engagement_for_posts: {
         Args: { p_post_slugs: string[] }
         Returns: {
@@ -1712,7 +1755,36 @@ export type Database = {
           role: string
         }[]
       }
+      blog_report_comment: { Args: { p_comment_id: string }; Returns: string }
+      blog_save_post: {
+        Args: {
+          p_author_name?: string
+          p_category?: string
+          p_description?: string
+          p_hero_image_url?: string
+          p_id?: string
+          p_pinned?: boolean
+          p_sections?: Json
+          p_slug?: string
+          p_status?: string
+          p_title?: string
+        }
+        Returns: Json
+      }
+      blog_set_comment_reaction: {
+        Args: { p_comment_id: string; p_reaction: string }
+        Returns: string
+      }
+      blog_submit_comment: {
+        Args: {
+          p_body: string
+          p_parent_comment_id?: string
+          p_post_slug: string
+        }
+        Returns: string
+      }
       can_manage_blog: { Args: never; Returns: boolean }
+      clean_public_image_url: { Args: { p_url: string }; Returns: string }
       clear_entry_draft_pick: {
         Args: {
           p_entry_id: string
@@ -1749,6 +1821,7 @@ export type Database = {
         Returns: string
       }
       current_blog_role: { Args: never; Returns: string }
+      current_user_email_confirmed: { Args: never; Returns: boolean }
       finalize_locked_picks: {
         Args: { p_pool_id: string; p_week: number }
         Returns: number
@@ -1841,6 +1914,16 @@ export type Database = {
         Returns: {
           profile_id: string
         }[]
+      }
+      log_security_event: {
+        Args: {
+          p_event_type: string
+          p_message?: string
+          p_metadata?: Json
+          p_pool_id?: string
+          p_severity?: string
+        }
+        Returns: undefined
       }
       normalize_username: { Args: { p_username: string }; Returns: string }
       picks_allowed: {

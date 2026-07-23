@@ -5,11 +5,18 @@ import Link from 'next/link'
 import { blogCategories as seedBlogCategories, type BlogPost } from '@/lib/blogPosts'
 import { getErrorMessage } from '@/lib/errorMessage'
 import { logAppEvent } from '@/lib/monitoring'
+import { makeStorageObjectPath, validatePublicImageUpload } from '@/lib/security'
 import { supabase } from '@/lib/supabaseClient'
 
 type BlogRole = '' | 'contributor' | 'editor' | 'admin'
 type Tab = 'posts' | 'new' | 'categories' | 'access' | 'comments'
 type Status = 'draft' | 'published' | 'archived'
+
+type BlogSaveResult = {
+  id?: string
+  slug?: string
+  status?: Status
+}
 
 type BlogPostRow = {
   id: string
@@ -122,6 +129,17 @@ function duplicateSlugMessage(error: unknown) {
   return code === '23505' || message.includes('blog_posts_slug_key') || message.includes('duplicate key value')
 }
 
+function savedPostResult(value: unknown): BlogSaveResult {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  const result = value as Record<string, unknown>
+  const status = result.status === 'published' || result.status === 'archived' || result.status === 'draft' ? result.status : undefined
+  return {
+    id: typeof result.id === 'string' ? result.id : undefined,
+    slug: typeof result.slug === 'string' ? result.slug : undefined,
+    status,
+  }
+}
+
 function paragraphsFromBody(body: string) {
   return body
     .split(/\n{2,}/)
@@ -138,11 +156,6 @@ function bodyFromSections(sections: BlogPost['sections']) {
     .flatMap((section) => section.body || [])
     .filter(Boolean)
     .join('\n\n')
-}
-
-function estimateReadTime(body: string) {
-  const words = body.trim().split(/\s+/).filter(Boolean).length
-  return `${Math.max(1, Math.ceil(words / 220))} min read`
 }
 
 function prettyDate(value: string | null) {
@@ -381,10 +394,9 @@ export default function BlogAdminPage() {
     setUploading(true)
     setError(null)
     try {
-      if (!file.type.startsWith('image/')) throw new Error('Choose an image file.')
-      if (file.size > 5 * 1024 * 1024) throw new Error('Blog images must be 5 MB or smaller.')
-      const ext = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
-      const path = `${userId || 'blog'}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+      const validationError = validatePublicImageUpload(file, 'Blog image')
+      if (validationError) throw new Error(validationError)
+      const path = makeStorageObjectPath(userId || 'blog', file)
       const { error: uploadError } = await supabase.storage.from('blog-images').upload(path, file, {
         cacheControl: '3600',
         upsert: false,
@@ -421,46 +433,51 @@ export default function BlogAdminPage() {
         description: form.description.trim(),
         category: form.category,
         status: safeStatus,
-        author_id: userId,
         author_name: form.authorName.trim() || 'Survive Sunday',
-        read_time: estimateReadTime(form.body),
         pinned: canPublish ? form.pinned : false,
         hero_image_url: form.heroImageUrl.trim() || null,
         sections: sectionsFromBody(form.body),
-        published_at: safeStatus === 'published' ? new Date().toISOString() : null,
       }
 
-      if (form.id) {
-        const { error: updateErr } = await supabase.from('blog_posts').update(payload).eq('id', form.id)
-        if (updateErr) {
-          if (duplicateSlugMessage(updateErr)) {
-            const fallbackSlug = `${slug}-${Date.now().toString(36)}`
-            const { error: retryErr } = await supabase.from('blog_posts').update({ ...payload, slug: fallbackSlug }).eq('id', form.id)
-            if (retryErr) throw retryErr
-            setForm((current) => ({ ...current, slug: fallbackSlug, status: safeStatus }))
-          } else {
-            throw updateErr
-          }
-        } else {
-          setForm((current) => ({ ...current, slug, status: safeStatus }))
-        }
-        setNotice(safeStatus === 'published' ? 'Post published.' : safeStatus === 'archived' ? 'Post archived.' : 'Draft saved.')
-      } else {
-        const { data, error: insertErr } = await supabase.from('blog_posts').insert(payload).select('id').single()
-        if (insertErr) {
-          if (duplicateSlugMessage(insertErr)) {
-            const fallbackSlug = `${slug}-${Date.now().toString(36)}`
-            const { data: retryData, error: retryErr } = await supabase.from('blog_posts').insert({ ...payload, slug: fallbackSlug }).select('id').single()
-            if (retryErr) throw retryErr
-            setForm((current) => ({ ...current, id: retryData.id, slug: fallbackSlug, status: safeStatus }))
-          } else {
-            throw insertErr
-          }
-        } else {
-          setForm((current) => ({ ...current, id: data.id, slug, status: safeStatus }))
-        }
-        setNotice(canPublish && safeStatus === 'published' ? 'Post created and published.' : 'Draft submitted.')
+      let saved: BlogSaveResult
+      const saveViaRpc = async (nextSlug: string) => {
+        const { data, error: saveErr } = await supabase.rpc('blog_save_post', {
+          p_id: form.id || null,
+          p_title: payload.title,
+          p_slug: nextSlug,
+          p_description: payload.description,
+          p_category: payload.category,
+          p_status: payload.status,
+          p_author_name: payload.author_name,
+          p_hero_image_url: payload.hero_image_url,
+          p_sections: payload.sections,
+          p_pinned: payload.pinned,
+        })
+        if (saveErr) throw saveErr
+        return savedPostResult(data)
       }
+
+      try {
+        saved = await saveViaRpc(slug)
+      } catch (saveErr: unknown) {
+        if (!duplicateSlugMessage(saveErr)) throw saveErr
+        const fallbackSlug = `${slug}-${Date.now().toString(36)}`
+        saved = await saveViaRpc(fallbackSlug)
+      }
+
+      const savedStatus = saved.status || safeStatus
+      setForm((current) => ({ ...current, id: saved.id || current.id, slug: saved.slug || slug, status: savedStatus }))
+      setNotice(
+        form.id
+          ? savedStatus === 'published'
+            ? 'Post published.'
+            : savedStatus === 'archived'
+              ? 'Post archived.'
+              : 'Draft saved.'
+          : canPublish && savedStatus === 'published'
+            ? 'Post created and published.'
+            : 'Draft submitted.'
+      )
 
       await loadPosts()
       setActiveTab('posts')
@@ -488,7 +505,7 @@ export default function BlogAdminPage() {
     setSaving(true)
     setError(null)
     try {
-      const { error: deleteErr } = await supabase.from('blog_posts').delete().eq('id', form.id)
+      const { error: deleteErr } = await supabase.rpc('blog_delete_post', { p_id: form.id })
       if (deleteErr) throw deleteErr
       setNotice('Post deleted.')
       await loadPosts()
@@ -535,13 +552,10 @@ export default function BlogAdminPage() {
     setError(null)
     setNotice(null)
     try {
-      const sortOrder = Math.max(100, categories.length * 10 + 10)
-      const { error: insertErr } = await supabase
-        .from('blog_categories')
-        .upsert({ name, sort_order: sortOrder, created_by: userId }, { onConflict: 'name', ignoreDuplicates: true })
-      if (insertErr) throw insertErr
+      const { data, error: addErr } = await supabase.rpc('blog_add_category', { p_name: name })
+      if (addErr) throw addErr
       setNewCategory('')
-      setNotice(`Added ${name} category.`)
+      setNotice(String(data || `Added ${name} category.`))
       await loadCategories()
     } catch (e: unknown) {
       void logAppEvent({ eventType: 'blog_category_add_failed', error: e, metadata: { name } })
@@ -859,7 +873,7 @@ export default function BlogAdminPage() {
                     {uploading ? 'Uploading...' : 'Choose Image'}
                     <input
                       type="file"
-                      accept="image/*"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
                       disabled={uploading || !canEditSelected}
                       onChange={(event) => {
                         const file = event.target.files?.[0]

@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { getErrorMessage } from '@/lib/errorMessage'
 
@@ -31,6 +31,10 @@ type BlogShareAndCommentsProps = {
 
 const THUMBS_UP = '\u{1F44D}'
 const THUMBS_DOWN = '\u{1F44E}'
+const MAX_COMMENT_CHARS = 2000
+const COMMENT_COOLDOWN_MS = 10_000
+const REACTION_COOLDOWN_MS = 750
+const REPORT_COOLDOWN_MS = 5_000
 
 function initials(name: string | null) {
   if (!name) return 'SS'
@@ -45,6 +49,13 @@ function commentDate(value: string) {
     day: 'numeric',
     year: 'numeric',
   })
+}
+
+function cleanCommentBody(value: string) {
+  return value
+    .replace(/\r\n/g, '\n')
+    .replace(/\n{4,}/g, '\n\n\n')
+    .trim()
 }
 
 export function BlogShareAndComments({ postSlug, title, description, shareUrl, commentsFirst = false }: BlogShareAndCommentsProps) {
@@ -62,6 +73,9 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const lastCommentAtRef = useRef(0)
+  const lastReactionAtRef = useRef(0)
+  const lastReportAtRef = useRef(0)
 
   const repliesByParent = useMemo(() => {
     const map = new Map<string, BlogComment[]>()
@@ -160,17 +174,26 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
   }
 
   const submitComment = async (parentCommentId: string | null = null) => {
-    const cleanBody = (parentCommentId ? replyBody : body).trim()
+    const cleanBody = cleanCommentBody(parentCommentId ? replyBody : body)
     if (!userId || !cleanBody || submitting || submittingReply) return
+    if (cleanBody.length > MAX_COMMENT_CHARS) {
+      setError(`Comments must be ${MAX_COMMENT_CHARS} characters or fewer.`)
+      return
+    }
+    const now = Date.now()
+    if (now - lastCommentAtRef.current < COMMENT_COOLDOWN_MS) {
+      setError('Give it a few seconds before posting again.')
+      return
+    }
+    lastCommentAtRef.current = now
     if (parentCommentId) setSubmittingReply(true)
     else setSubmitting(true)
     setError(null)
     try {
-      const { error: insertErr } = await supabase.from('blog_comments').insert({
-        post_slug: postSlug,
-        profile_id: userId,
-        parent_comment_id: parentCommentId,
-        body: cleanBody,
+      const { error: insertErr } = await supabase.rpc('blog_submit_comment', {
+        p_post_slug: postSlug,
+        p_body: cleanBody,
+        p_parent_comment_id: parentCommentId,
       })
       if (insertErr) throw insertErr
       if (parentCommentId) {
@@ -191,22 +214,17 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
 
   const reactToComment = async (comment: BlogComment, reaction: CommentReaction) => {
     if (!userId || reactingId) return
+    const now = Date.now()
+    if (now - lastReactionAtRef.current < REACTION_COOLDOWN_MS) return
+    lastReactionAtRef.current = now
     setReactingId(comment.id)
     setError(null)
     try {
-      if (comment.viewer_reaction === reaction) {
-        const { error: deleteErr } = await supabase
-          .from('blog_comment_reactions')
-          .delete()
-          .eq('comment_id', comment.id)
-          .eq('profile_id', userId)
-        if (deleteErr) throw deleteErr
-      } else {
-        const { error: upsertErr } = await supabase
-          .from('blog_comment_reactions')
-          .upsert({ comment_id: comment.id, profile_id: userId, reaction }, { onConflict: 'comment_id,profile_id' })
-        if (upsertErr) throw upsertErr
-      }
+      const { error: reactionErr } = await supabase.rpc('blog_set_comment_reaction', {
+        p_comment_id: comment.id,
+        p_reaction: reaction,
+      })
+      if (reactionErr) throw reactionErr
       await loadComments()
     } catch (e: unknown) {
       setError(getErrorMessage(e, 'Failed to save reaction.'))
@@ -217,15 +235,19 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
 
   const reportComment = async (comment: BlogComment) => {
     if (!userId || reportingId) return
+    const now = Date.now()
+    if (now - lastReportAtRef.current < REPORT_COOLDOWN_MS) {
+      setError('Give it a few seconds before reporting another comment.')
+      return
+    }
     const confirmed = window.confirm('Report this comment for review?')
     if (!confirmed) return
+    lastReportAtRef.current = now
     setReportingId(comment.id)
     setError(null)
     try {
-      const { error: reportErr } = await supabase
-        .from('blog_comment_reports')
-        .insert({ comment_id: comment.id, profile_id: userId, reason: 'reader_report' })
-      if (reportErr && reportErr.code !== '23505') throw reportErr
+      const { error: reportErr } = await supabase.rpc('blog_report_comment', { p_comment_id: comment.id })
+      if (reportErr) throw reportErr
     } catch (e: unknown) {
       setError(getErrorMessage(e, 'Failed to report comment.'))
     } finally {
@@ -302,12 +324,12 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
               <textarea
                 value={body}
                 onChange={(event) => setBody(event.target.value)}
-                maxLength={2000}
+                maxLength={MAX_COMMENT_CHARS}
                 placeholder="Add your comment..."
                 className="min-h-28 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-6 focus:border-[#c5161d] focus:outline-none focus:ring-2 focus:ring-red-100"
               />
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs text-slate-500">{body.trim().length}/2000</span>
+                <span className="text-xs text-slate-500">{body.trim().length}/{MAX_COMMENT_CHARS}</span>
                 <button
                   type="button"
                   onClick={() => submitComment()}
@@ -409,12 +431,12 @@ export function BlogShareAndComments({ postSlug, title, description, shareUrl, c
                         <textarea
                           value={replyBody}
                           onChange={(event) => setReplyBody(event.target.value)}
-                          maxLength={2000}
+                          maxLength={MAX_COMMENT_CHARS}
                           placeholder={`Reply to ${comment.author_name || 'this comment'}...`}
                           className="min-h-20 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-6 focus:border-[#c5161d] focus:outline-none focus:ring-2 focus:ring-red-100"
                         />
                         <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                          <span className="text-xs text-slate-500">{replyBody.trim().length}/2000</span>
+                          <span className="text-xs text-slate-500">{replyBody.trim().length}/{MAX_COMMENT_CHARS}</span>
                           <div className="flex gap-2">
                             <button
                               type="button"

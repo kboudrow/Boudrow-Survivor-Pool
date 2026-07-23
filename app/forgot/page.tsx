@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { getErrorMessage } from '@/lib/errorMessage'
+import { normalizeEmailAddress, validateEmailAddress } from '@/lib/security'
 import { supabase } from '@/lib/supabaseClient'
 
 export default function ForgotPasswordPage() {
@@ -15,9 +16,14 @@ export default function ForgotPasswordPage() {
     setStatus(null)
     setError(null)
 
-    const trimmedEmail = email.trim()
+    const trimmedEmail = normalizeEmailAddress(email)
     if (!trimmedEmail) {
       setError('Enter the email address for your account.')
+      return
+    }
+    const emailError = validateEmailAddress(trimmedEmail)
+    if (emailError) {
+      setError(emailError)
       return
     }
 

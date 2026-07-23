@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { getErrorMessage } from '@/lib/errorMessage'
+import { makeStorageObjectPath, normalizeEmailAddress, validateEmailAddress, validatePublicImageUpload } from '@/lib/security'
 import { supabase } from '@/lib/supabaseClient'
 import { ensureProfile } from '@/lib/ensureProfile'
 
@@ -87,48 +88,6 @@ function isDuplicateUsernameError(error: unknown) {
 
 function normalizeUsername(value: string) {
   return value.trim().replace(/\s+/g, ' ')
-}
-
-const COMMON_PROVIDER_DOMAINS: Record<string, string[]> = {
-  gmail: ['gmail.com', 'googlemail.com'],
-  yahoo: ['yahoo.com', 'ymail.com', 'rocketmail.com', 'yahoo.co.uk', 'yahoo.ca', 'yahoo.com.au'],
-  outlook: ['outlook.com'],
-  hotmail: ['hotmail.com'],
-  live: ['live.com'],
-  icloud: ['icloud.com', 'me.com', 'mac.com'],
-  aol: ['aol.com'],
-}
-
-function validateEmailAddress(value: string): string | null {
-  const email = value.trim()
-  if (!email) return 'Please enter an email address.'
-  if (email.length > 254) return 'Email address is too long.'
-  if (/\s/.test(email)) return 'Email cannot contain spaces.'
-
-  const parts = email.split('@')
-  if (parts.length !== 2 || !parts[0] || !parts[1]) return 'Enter a valid email address, like name@example.com.'
-
-  const [local, rawDomain] = parts
-  const domain = rawDomain.toLowerCase()
-  if (local.startsWith('.') || local.endsWith('.') || local.includes('..')) return 'Enter a valid email address before continuing.'
-  if (!/^[^\s@]+$/.test(local)) return 'Enter a valid email address before continuing.'
-  if (!domain.includes('.')) return 'Email domain must include a dot, like example.com.'
-
-  const labels = domain.split('.')
-  if (labels.some((label) => !label || label.startsWith('-') || label.endsWith('-') || !/^[a-z0-9-]+$/.test(label))) {
-    return 'Enter a valid email domain.'
-  }
-
-  const tld = labels.at(-1) || ''
-  if (!/^[a-z]{2,24}$/.test(tld)) return 'Enter a valid email domain ending, like .com.'
-
-  const providerRoot = labels[0]
-  const allowedProviderDomains = COMMON_PROVIDER_DOMAINS[providerRoot]
-  if (allowedProviderDomains && !allowedProviderDomains.includes(domain)) {
-    return `Use a full ${providerRoot} email domain, like ${allowedProviderDomains[0]}.`
-  }
-
-  return null
 }
 
 function computeBestFinish(rows: HistoryRow[]) {
@@ -384,6 +343,18 @@ export default function ProfilePage() {
 
   const handleAvatarFile = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] || null
+    const validationError = file ? validatePublicImageUpload(file, 'Profile picture') : null
+    if (validationError) {
+      setErr(validationError)
+      setAvatarFile(null)
+      event.currentTarget.value = ''
+      setAvatarPreviewUrl((current) => {
+        if (current) URL.revokeObjectURL(current)
+        return null
+      })
+      return
+    }
+    setErr(null)
     setAvatarFile(file)
     setAvatarMsg(null)
     setAvatarPreviewUrl((current) => {
@@ -403,11 +374,10 @@ export default function ProfilePage() {
     setAvatarMsg(null)
     setErr(null)
     try {
-      if (!avatarFile.type.startsWith('image/')) throw new Error('Choose an image file.')
-      if (avatarFile.size > 5 * 1024 * 1024) throw new Error('Profile picture must be 5 MB or smaller.')
+      const validationError = validatePublicImageUpload(avatarFile, 'Profile picture')
+      if (validationError) throw new Error(validationError)
 
-      const ext = avatarFile.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
-      const path = `${userId}/${Date.now()}.${ext}`
+      const path = makeStorageObjectPath(userId, avatarFile)
       const { error: uploadError } = await supabase.storage.from('avatars').upload(path, avatarFile, {
         cacheControl: '3600',
         upsert: true,
@@ -437,7 +407,7 @@ export default function ProfilePage() {
     setEmailErr(null)
     setErr(null)
     try {
-      const cleaned = newEmail.trim()
+      const cleaned = normalizeEmailAddress(newEmail)
       const validationError = validateEmailAddress(cleaned)
       if (validationError) {
         setEmailErr(validationError)

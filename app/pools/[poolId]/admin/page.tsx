@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { InviteModal } from '@/components/InviteModal'
 import { getErrorMessage } from '@/lib/errorMessage'
 import { poolImageUrl } from '@/lib/poolImages'
+import { makeStorageObjectPath, validatePublicImageUpload } from '@/lib/security'
 import { supabase } from '@/lib/supabaseClient'
 
 const SUPERADMIN_EMAIL = 'survivesunday1@gmail.com'
@@ -682,6 +683,18 @@ export default function PoolAdminPage() {
 
   const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] || null
+    const validationError = file ? validatePublicImageUpload(file, 'Pool image') : null
+    if (validationError) {
+      setError(validationError)
+      setImageFileDraft(null)
+      event.currentTarget.value = ''
+      setImagePreviewDraft((prev) => {
+        if (prev) URL.revokeObjectURL(prev)
+        return null
+      })
+      return
+    }
+    setError(null)
     setImageFileDraft(file)
     setImagePreviewDraft((prev) => {
       if (prev) URL.revokeObjectURL(prev)
@@ -690,11 +703,10 @@ export default function PoolAdminPage() {
   }
 
   const uploadLeagueImage = async (file: File, poolIdValue: string) => {
-    if (!file.type.startsWith('image/')) throw new Error('Choose an image file for the pool image.')
-    if (file.size > 5 * 1024 * 1024) throw new Error('Pool image must be 5 MB or smaller.')
+    const validationError = validatePublicImageUpload(file, 'Pool image')
+    if (validationError) throw new Error(validationError)
 
-    const ext = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
-    const path = `${poolIdValue}/${Date.now()}.${ext}`
+    const path = makeStorageObjectPath(poolIdValue, file)
     const { error: uploadError } = await supabase.storage.from('pool-images').upload(path, file, {
       cacheControl: '3600',
       upsert: true,

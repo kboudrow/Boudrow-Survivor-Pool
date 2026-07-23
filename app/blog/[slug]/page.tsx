@@ -2,22 +2,18 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { BlogShareAndComments } from '@/components/BlogShareAndComments'
-import { getPublicBlogPost, getPublicBlogPosts, getRelatedPublicBlogPosts } from '@/lib/blogDb'
+import { getPublicBlogPost, getRelatedPublicBlogPosts } from '@/lib/blogDb'
 import { SITE_URL, absoluteUrl } from '@/lib/site'
 
 export const revalidate = 300
+export const dynamicParams = true
 
 type Props = {
   params: Promise<{ slug: string }>
 }
 
 export async function generateStaticParams() {
-  try {
-    const posts = await getPublicBlogPosts()
-    return posts.map((post) => ({ slug: post.slug }))
-  } catch {
-    return []
-  }
+  return []
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
