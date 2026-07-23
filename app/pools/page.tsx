@@ -73,7 +73,7 @@ type SeasonWeek = { season: number; week: number; week_sunday_date: string }
 type PickRow = { user_id: string; entry_id: string; week: number; slot: number; team_abbr: string; locked_at: string | null; result: 'win' | 'loss' | 'push' | null }
 type DraftPickRow = { entry_id: string; week: number; slot: number; team_abbr: string; updated_at: string | null }
 type FinalPickRow = { entry_id: string; week: number; slot: number; team_abbr: string; locked_at: string; result: 'win' | 'loss' | 'push' | null }
-type PickNotice = { team: Team; week: number; slot: number; action: 'saved' | 'cleared' }
+type PickNotice = { team?: Team; week?: number; slot?: number; action: 'saved' | 'cleared' | 'all-cleared'; count?: number }
 type WeekPickCompletion = {
   pool_id: string
   week: number
@@ -525,20 +525,27 @@ function TeamLogo({ team, size = 28 }: { team: Team; size?: number }) {
 
 function PickSavedToast({ notice, onClose }: { notice: PickNotice; onClose: () => void }) {
   const isCleared = notice.action === 'cleared'
+  const isAllCleared = notice.action === 'all-cleared'
 
   return (
     <div className="fixed bottom-5 right-5 z-[70] w-[min(360px,calc(100vw-2rem))] rounded-lg border border-emerald-200 bg-white p-4 shadow-xl">
       <div className="flex items-start gap-3">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-emerald-50">
-          <TeamLogo team={notice.team} size={34} />
+          {notice.team ? <TeamLogo team={notice.team} size={34} /> : <span className="text-sm font-bold text-emerald-700">OK</span>}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-slate-950">{isCleared ? 'Pick cleared' : 'Pick saved'}</div>
-          <div className="mt-0.5 text-sm text-slate-700">
-            Week {notice.week}
-            {notice.slot > 1 ? `, Pick ${notice.slot}` : ''}: {isCleared ? 'No team selected' : `${notice.team.name} (${notice.team.abbr})`}
-          </div>
-          <div className="mt-1 text-xs text-slate-500">You can change this pick until its deadline.</div>
+          <div className="text-sm font-semibold text-slate-950">{isAllCleared ? 'Picks cleared' : isCleared ? 'Pick cleared' : 'Pick saved'}</div>
+          {isAllCleared ? (
+            <div className="mt-0.5 text-sm text-slate-700">
+              {notice.count || 0} editable {(notice.count || 0) === 1 ? 'pick was' : 'picks were'} cleared.
+            </div>
+          ) : (
+            <div className="mt-0.5 text-sm text-slate-700">
+              Week {notice.week}
+              {(notice.slot || 1) > 1 ? `, Pick ${notice.slot}` : ''}: {isCleared ? 'No team selected' : `${notice.team?.name} (${notice.team?.abbr})`}
+            </div>
+          )}
+          <div className="mt-1 text-xs text-slate-500">{isAllCleared ? 'Locked picks were left alone.' : 'You can change this pick until its deadline.'}</div>
         </div>
         <button type="button" onClick={onClose} className="rounded px-2 py-1 text-sm text-slate-500 hover:bg-slate-100 hover:text-slate-900" aria-label="Close pick confirmation">
           x
@@ -1411,25 +1418,60 @@ function MyPoolsContent() {
       showMessage('Picks are closed for this entry', 'You are eliminated, so you can view matchups but cannot make more picks.', 'warning')
       return
     }
-    setMyDraftPicks((prev) => {
-      const next = { ...prev }
-      availableWeeks.forEach((week) => {
-        for (let slot = 1; slot <= picksAllowedForWeek(week); slot += 1) {
-          const key = pickKey(week, slot)
-          if (!myFinalPicks[key]) next[key] = null
-        }
+    const editableDrafts = Object.entries(myDraftPicks)
+      .map(([key, team]) => {
+        const [weekRaw, slotRaw] = key.split(':').map(Number)
+        return { key, week: weekRaw, slot: slotRaw || 1, team }
       })
-      return next
-    })
-    try {
-      const { error } = await supabase.from('pool_pick_drafts').delete().eq('pool_id', selectedId).eq('entry_id', selectedEntryId)
-      if (error) throw error
-      setDraftSavedAt(new Date().toISOString())
-      await refreshPoolPickStatus()
-    } catch (e: unknown) {
-      void logAppEvent({ eventType: 'pick_clear_failed', error: e, poolId: selectedId, metadata: { selected_week: selectedPickWeek, entry_id: selectedEntryId } })
-      showMessage('Picks not cleared', getErrorMessage(e, 'Failed to clear picks'), 'danger')
+      .filter(({ key, week, team }) => {
+        if (!team || !Number.isFinite(week)) return false
+        if (myFinalPicks[key]) return false
+        if (pool?.test_mode && week < (pool.test_current_week || pool.start_week || 1)) return false
+        return week >= (pool?.start_week ?? 1)
+      })
+
+    if (editableDrafts.length === 0) {
+      showMessage('No editable picks to clear', 'Locked picks stay in place, and there are no editable draft picks to clear.', 'info')
+      return
     }
+
+    confirmAction({
+      title: 'Clear all editable picks?',
+      message: `This will remove ${editableDrafts.length} editable ${editableDrafts.length === 1 ? 'pick' : 'picks'} for this entry. Locked picks will not be changed.`,
+      tone: 'danger',
+      confirmLabel: 'Clear picks',
+      onConfirm: async () => {
+        const previousDrafts = { ...myDraftPicks }
+        setMyDraftPicks((prev) => {
+          const next = { ...prev }
+          editableDrafts.forEach(({ key }) => {
+            next[key] = null
+          })
+          return next
+        })
+        try {
+          const results = await Promise.all(
+            editableDrafts.map(({ week, slot }) =>
+              supabase.rpc('clear_entry_draft_pick', {
+                p_pool_id: selectedId,
+                p_entry_id: selectedEntryId,
+                p_week: week,
+                p_slot: slot,
+              }),
+            ),
+          )
+          const firstError = results.find((result) => result.error)?.error
+          if (firstError) throw firstError
+          setDraftSavedAt(new Date().toISOString())
+          await refreshPoolPickStatus()
+          showPickNotice({ action: 'all-cleared', count: editableDrafts.length })
+        } catch (e: unknown) {
+          setMyDraftPicks(previousDrafts)
+          void logAppEvent({ eventType: 'pick_clear_failed', error: e, poolId: selectedId, metadata: { selected_week: selectedPickWeek, entry_id: selectedEntryId } })
+          showMessage('Picks not cleared', getErrorMessage(e, 'Failed to clear picks'), 'danger')
+        }
+      },
+    })
   }
 
   const selectEntry = async (entryId: string) => {

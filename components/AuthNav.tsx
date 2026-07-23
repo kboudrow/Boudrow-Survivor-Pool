@@ -113,11 +113,11 @@ export function AuthNav() {
 
   if (!loaded || !isAuthed) {
     return (
-      <div className="flex shrink-0 items-center gap-1">
-        <Link href="/about" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
+      <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+        <Link href="/about" className="rounded-md px-2 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white sm:px-3">
           About
         </Link>
-        <Link href="/blog" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
+        <Link href="/blog" className="rounded-md px-2 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white sm:px-3">
           Blog
         </Link>
         <Link
@@ -128,7 +128,7 @@ export function AuthNav() {
               window.location.href = '/?auth=signin'
             }
           }}
-          className="rounded-md bg-[#c5161d] px-3.5 py-2 text-sm font-extrabold uppercase tracking-wide text-white shadow-sm transition hover:bg-[#a91218]"
+          className="rounded-md bg-[#c5161d] px-3 py-2 text-sm font-extrabold uppercase tracking-wide text-white shadow-sm transition hover:bg-[#a91218] sm:px-3.5"
         >
           Sign In
         </Link>
@@ -137,27 +137,27 @@ export function AuthNav() {
   }
 
   return (
-    <div className="flex shrink-0 items-center gap-1">
-      <Link href="/blog" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
+    <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+      <Link href="/blog" className="rounded-md px-2 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white sm:px-3">
         Blog
       </Link>
-      <Link href="/pools" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
+      <Link href="/pools" className="rounded-md px-2 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white sm:px-3">
         My Pools
       </Link>
-      <Link href="/join/search" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
+      <Link href="/join/search" className="rounded-md px-2 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white sm:px-3">
         Join Pool
       </Link>
       {hasBlogAccess && (
-        <Link href="/admin/blog" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
+        <Link href="/admin/blog" className="rounded-md px-2 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white sm:px-3">
           Blog Admin
         </Link>
       )}
       {isSuperAdmin && (
-        <Link href="/admin" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
+        <Link href="/admin" className="rounded-md px-2 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white sm:px-3">
           Admin
         </Link>
       )}
-      <Link href="/pools/new" className="rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white">
+      <Link href="/pools/new" className="rounded-md px-2 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white sm:px-3">
         Create Pool
       </Link>
       <Link
@@ -176,7 +176,7 @@ export function AuthNav() {
       <button
         type="button"
         onClick={signOut}
-        className="rounded-md border border-white/15 px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white"
+        className="rounded-md border border-white/15 px-2 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white sm:px-3"
       >
         Sign out
       </button>

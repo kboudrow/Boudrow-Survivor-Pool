@@ -89,6 +89,48 @@ function normalizeUsername(value: string) {
   return value.trim().replace(/\s+/g, ' ')
 }
 
+const COMMON_PROVIDER_DOMAINS: Record<string, string[]> = {
+  gmail: ['gmail.com', 'googlemail.com'],
+  yahoo: ['yahoo.com', 'ymail.com', 'rocketmail.com', 'yahoo.co.uk', 'yahoo.ca', 'yahoo.com.au'],
+  outlook: ['outlook.com'],
+  hotmail: ['hotmail.com'],
+  live: ['live.com'],
+  icloud: ['icloud.com', 'me.com', 'mac.com'],
+  aol: ['aol.com'],
+}
+
+function validateEmailAddress(value: string): string | null {
+  const email = value.trim()
+  if (!email) return 'Please enter an email address.'
+  if (email.length > 254) return 'Email address is too long.'
+  if (/\s/.test(email)) return 'Email cannot contain spaces.'
+
+  const parts = email.split('@')
+  if (parts.length !== 2 || !parts[0] || !parts[1]) return 'Enter a valid email address, like name@example.com.'
+
+  const [local, rawDomain] = parts
+  const domain = rawDomain.toLowerCase()
+  if (local.startsWith('.') || local.endsWith('.') || local.includes('..')) return 'Enter a valid email address before continuing.'
+  if (!/^[^\s@]+$/.test(local)) return 'Enter a valid email address before continuing.'
+  if (!domain.includes('.')) return 'Email domain must include a dot, like example.com.'
+
+  const labels = domain.split('.')
+  if (labels.some((label) => !label || label.startsWith('-') || label.endsWith('-') || !/^[a-z0-9-]+$/.test(label))) {
+    return 'Enter a valid email domain.'
+  }
+
+  const tld = labels.at(-1) || ''
+  if (!/^[a-z]{2,24}$/.test(tld)) return 'Enter a valid email domain ending, like .com.'
+
+  const providerRoot = labels[0]
+  const allowedProviderDomains = COMMON_PROVIDER_DOMAINS[providerRoot]
+  if (allowedProviderDomains && !allowedProviderDomains.includes(domain)) {
+    return `Use a full ${providerRoot} email domain, like ${allowedProviderDomains[0]}.`
+  }
+
+  return null
+}
+
 function computeBestFinish(rows: HistoryRow[]) {
   if (rows.some((r) => isWon(r.status))) return 'Won'
 
@@ -147,6 +189,7 @@ export default function ProfilePage() {
   const [newEmail, setNewEmail] = useState('')
   const [savingEmail, setSavingEmail] = useState(false)
   const [emailMsg, setEmailMsg] = useState<string | null>(null)
+  const [emailErr, setEmailErr] = useState<string | null>(null)
 
   // password
   const [newPassword, setNewPassword] = useState('')
@@ -178,6 +221,13 @@ export default function ProfilePage() {
   const profileComplete = username.trim().length >= 3
   const profileTitle = username.trim() || [firstName.trim(), lastName.trim()].filter(Boolean).join(' ') || currentEmail || 'Profile'
   const visibleAvatarUrl = avatarPreviewUrl || avatarUrl
+  const emailPreviewError = useMemo(() => {
+    const cleaned = newEmail.trim()
+    if (!cleaned || cleaned.toLowerCase() === currentEmail.trim().toLowerCase()) return null
+    return validateEmailAddress(cleaned)
+  }, [currentEmail, newEmail])
+  const visibleEmailError = emailErr || emailPreviewError
+  const canUpdateEmail = !savingEmail && !!newEmail.trim() && !visibleEmailError && newEmail.trim().toLowerCase() !== currentEmail.trim().toLowerCase()
 
   const loadHistory = async () => {
     setHistoryLoading(true)
@@ -384,11 +434,19 @@ export default function ProfilePage() {
   const saveEmail = async () => {
     setSavingEmail(true)
     setEmailMsg(null)
+    setEmailErr(null)
     setErr(null)
     try {
       const cleaned = newEmail.trim()
-      if (!cleaned) throw new Error('Please enter an email address.')
-      if (cleaned === currentEmail) throw new Error("That's already your current email.")
+      const validationError = validateEmailAddress(cleaned)
+      if (validationError) {
+        setEmailErr(validationError)
+        return
+      }
+      if (cleaned.toLowerCase() === currentEmail.trim().toLowerCase()) {
+        setEmailErr("That's already your current email.")
+        return
+      }
 
       const { error } = await supabase.auth.updateUser({ email: cleaned })
       if (error) throw error
@@ -449,11 +507,11 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="min-h-[70vh] py-8 px-4">
+    <main className="min-h-[70vh] overflow-x-hidden px-3 py-6 sm:px-6 sm:py-8">
       <div className="mx-auto w-full max-w-4xl">
-        <div className="flex items-center justify-between mb-4">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-bold">Profile</h1>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Link href="/pools" className="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200">
               My Pools
             </Link>
@@ -621,17 +679,25 @@ export default function ProfilePage() {
                   <label className="block text-sm font-medium mb-1">Change email</label>
                   <input
                     value={newEmail}
-                    onChange={(e) => setNewEmail(e.target.value)}
-                    className="w-full border rounded-md px-3 py-2"
+                    onChange={(e) => {
+                      setNewEmail(e.target.value)
+                      setEmailMsg(null)
+                      setEmailErr(null)
+                    }}
+                    className={`w-full rounded-md border px-3 py-2 ${visibleEmailError ? 'border-red-300 bg-red-50' : ''}`}
                     placeholder="you@example.com"
                     type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    aria-invalid={!!visibleEmailError}
                   />
                   {emailMsg && <div className="text-sm text-emerald-700 mt-2">{emailMsg}</div>}
+                  {visibleEmailError && <div className="mt-2 text-sm text-red-700">{visibleEmailError}</div>}
                 </div>
                 <div className="flex items-end">
                   <button
                     onClick={saveEmail}
-                    disabled={savingEmail}
+                    disabled={!canUpdateEmail}
                     className="w-full px-4 py-2 rounded-md bg-black text-white hover:bg-gray-900 disabled:opacity-50"
                   >
                     {savingEmail ? 'Saving...' : 'Update email'}

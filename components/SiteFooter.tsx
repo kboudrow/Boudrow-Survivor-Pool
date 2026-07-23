@@ -2,8 +2,8 @@ import Link from 'next/link'
 
 export function SiteFooter() {
   return (
-    <footer className="mt-auto border-t bg-white px-6 py-8 text-sm text-gray-600">
-      <div className="mx-auto grid max-w-5xl gap-6 sm:grid-cols-2 lg:grid-cols-4">
+    <footer className="mt-auto w-full overflow-x-clip border-t bg-white px-4 py-8 text-sm text-gray-600 sm:px-6">
+      <div className="mx-auto grid w-full max-w-5xl gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <div className="mb-2 font-semibold">Survive Sunday</div>
           <p>Pool management for friends, families, and offices. No payouts, no sportsbook angle, just rules, picks, and bragging rights.</p>
@@ -36,7 +36,7 @@ export function SiteFooter() {
           <p className="text-xs">Not affiliated with or endorsed by the NFL or its clubs. Team names/logos are used for identification only.</p>
         </div>
       </div>
-      <div className="mx-auto mt-6 max-w-5xl text-xs text-gray-500">&copy; {new Date().getFullYear()} Survive Sunday. All rights reserved.</div>
+      <div className="mx-auto mt-6 w-full max-w-5xl text-xs text-gray-500">&copy; {new Date().getFullYear()} Survive Sunday. All rights reserved.</div>
     </footer>
   )
 }
