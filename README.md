@@ -78,6 +78,8 @@ npm run dev
 npm run lint
 npm run build
 npm run start
+npm run load:test
+npm run backup:db
 ```
 
 Use `npm run lint` and `npm run build` before deploying or pushing major changes.
@@ -120,11 +122,24 @@ Then deploy from the GitHub repository connected to Vercel.
 
 `CRON_SECRET` is required for scheduled pick locking and scoring. The cron route rejects requests without `Authorization: Bearer <CRON_SECRET>`.
 
+Production cron schedules live in `vercel.json`. The score-sync route is safe to run repeatedly and updates NFL scores/results; the lock-picks route finalizes eligible draft picks and adjudicates completed weeks. The superadmin page shows cron health, score-feed health, and recent production event logs.
+
 AdSense is opt-in. Set `NEXT_PUBLIC_ENABLE_ADSENSE=true`, `NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT`, and the relevant `NEXT_PUBLIC_AD_SLOT_*` values only when ads should render.
 
 ## Development Notes
 
-- The app currently talks directly to Supabase from client components.
-- Several important workflows are implemented as Supabase RPC functions, including pool joining, pool search, archive/clone behavior, and admin actions.
+- Sensitive write workflows are implemented as Supabase RPC functions, including pool creation, joining, picks, entries, profile updates, blog writes, archive/clone behavior, and admin actions.
 - Row Level Security policies in Supabase are essential. The browser anon key is not a substitute for RLS.
 - Keep the README free of real keys or private credentials.
+
+## Backups And Recovery
+
+Use `npm run backup:db` before migrations, broad repairs, schedule imports, or public test events. Dumps are written to `/backups`, which is intentionally gitignored. See `docs/backup-recovery.md` for the full operator runbook.
+
+## Load Testing
+
+Use `npm run load:test` against local or production targets to check read-heavy pages before game-day traffic. Example:
+
+```bash
+LOAD_TEST_TARGET=https://www.survivesunday.com LOAD_TEST_CONCURRENCY=40 LOAD_TEST_ROUNDS=5 npm run load:test
+```

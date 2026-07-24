@@ -80,6 +80,21 @@ type ScoreFeedHealthRow = {
   issue_count: number
 }
 
+type CronHealthRow = {
+  job_name: string
+  route: string
+  expected_every_minutes: number
+  last_run_at: string | null
+  last_success_at: string | null
+  last_error_at: string | null
+  latest_severity: string
+  latest_message: string | null
+  latest_metadata: Record<string, unknown> | null
+  minutes_since_success: number | null
+  next_expected_at: string | null
+  status: string
+}
+
 type AppEventLogRow = {
   id: string
   created_at: string
@@ -114,6 +129,9 @@ function statusClass(status: string) {
   if (lower === 'error') return 'border-red-200 bg-red-50 text-red-700'
   if (lower === 'warning') return 'border-amber-200 bg-amber-50 text-amber-700'
   if (lower === 'info') return 'border-blue-200 bg-blue-50 text-blue-700'
+  if (lower === 'healthy') return 'border-emerald-200 bg-emerald-50 text-emerald-700'
+  if (lower === 'late') return 'border-amber-200 bg-amber-50 text-amber-700'
+  if (lower === 'missing') return 'border-slate-200 bg-slate-50 text-slate-700'
   return 'border-slate-200 bg-slate-50 text-slate-700'
 }
 
@@ -173,6 +191,7 @@ export default function SuperAdminPage() {
   const [runningAction, setRunningAction] = useState<string | null>(null)
   const [scheduleAudit, setScheduleAudit] = useState<ScheduleAuditRow[]>([])
   const [scoreFeedHealth, setScoreFeedHealth] = useState<ScoreFeedHealthRow[]>([])
+  const [cronHealth, setCronHealth] = useState<CronHealthRow[]>([])
   const [auditSeason, setAuditSeason] = useState('2026')
   const [eventLogs, setEventLogs] = useState<AppEventLogRow[]>([])
   const [eventLogsLoading, setEventLogsLoading] = useState(false)
@@ -210,11 +229,6 @@ export default function SuperAdminPage() {
     )
   }, [pools])
   const auditIssues = useMemo(() => scheduleAudit.filter((row) => row.issue_count > 0), [scheduleAudit])
-  const poolHealth = useMemo(() => {
-    return {
-      testPools: pools.filter((pool) => pool.test_mode).length,
-    }
-  }, [pools])
   const eventHealth = useMemo(() => {
     const errors = eventLogs.filter((event) => ['error', 'critical'].includes(event.severity.toLowerCase())).length
     const warnings = eventLogs.filter((event) => event.severity.toLowerCase() === 'warning').length
@@ -245,6 +259,13 @@ export default function SuperAdminPage() {
       ),
     [scoreFeedHealth],
   )
+  const cronIssues = useMemo(() => cronHealth.filter((job) => job.status !== 'healthy'), [cronHealth])
+  const latestCronSuccess = useMemo(() => {
+    return cronHealth.reduce<string | null>((latest, job) => {
+      if (!job.last_success_at) return latest
+      return !latest || job.last_success_at > latest ? job.last_success_at : latest
+    }, null)
+  }, [cronHealth])
 
   const loadPools = async () => {
     setError(null)
@@ -272,6 +293,12 @@ export default function SuperAdminPage() {
     })
     if (healthErr) throw healthErr
     setScoreFeedHealth((data || []) as ScoreFeedHealthRow[])
+  }
+
+  const loadCronHealth = async () => {
+    const { data, error: cronErr } = await supabase.rpc('superadmin_cron_health')
+    if (cronErr) throw cronErr
+    setCronHealth((data || []) as CronHealthRow[])
   }
 
   const loadEventLogs = async () => {
@@ -319,7 +346,7 @@ export default function SuperAdminPage() {
         const canAccess = userEmail === SUPERADMIN_EMAIL
         setAuthorized(canAccess)
         if (!canAccess) return
-        await Promise.all([loadPools(), loadScheduleAudit(), loadScoreFeedHealth(), loadEventLogs()])
+        await Promise.all([loadPools(), loadScheduleAudit(), loadScoreFeedHealth(), loadCronHealth(), loadEventLogs()])
       } catch (e: unknown) {
         if (!alive) return
         setError(getErrorMessage(e, 'Failed to load superadmin dashboard.'))
@@ -342,6 +369,7 @@ export default function SuperAdminPage() {
   const refreshSelectedPool = async () => {
     await loadPools()
     await loadScoreFeedHealth()
+    await loadCronHealth()
     await loadEventLogs()
     if (selectedPoolId) {
       await loadEntries(selectedPoolId)
@@ -489,7 +517,7 @@ export default function SuperAdminPage() {
               <p className="text-sm text-slate-600">A quick pulse check from recent app events, schedule audits, and pool status.</p>
             </div>
             <button
-              onClick={() => Promise.all([loadScheduleAudit(), loadScoreFeedHealth(), loadEventLogs()]).catch((e) => setError(getErrorMessage(e, 'Health refresh failed.')))}
+              onClick={() => Promise.all([loadScheduleAudit(), loadScoreFeedHealth(), loadCronHealth(), loadEventLogs()]).catch((e) => setError(getErrorMessage(e, 'Health refresh failed.')))}
               disabled={eventLogsLoading}
               className="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
             >
@@ -499,12 +527,12 @@ export default function SuperAdminPage() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
             <Info label="Recent Errors" value={String(eventHealth.errors)} />
             <Info label="Recent Warnings" value={String(eventHealth.warnings)} />
+            <Info label="Cron Issues" value={String(cronIssues.length)} />
             <Info label="Schedule Issues" value={String(totalAuditIssueCount)} />
             <Info label="Score Feed Issues" value={String(scoreFeedIssues.length)} />
-            <Info label="Test Pools" value={String(poolHealth.testPools)} />
-            <Info label="Last Score Sync" value={fmt(scoreFeedTotals.latestSync)} />
+            <Info label="Last Cron Success" value={fmt(latestCronSuccess)} />
           </div>
-          {(eventHealth.errors > 0 || totalAuditIssueCount > 0) ? (
+          {(eventHealth.errors > 0 || totalAuditIssueCount > 0 || cronIssues.length > 0) ? (
             <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
               Review the sections below. The schedule audit is read-only; pool repair actions only apply to the selected pool.
             </p>
@@ -514,6 +542,81 @@ export default function SuperAdminPage() {
             </p>
           )}
         </section>
+
+        <details className="mb-5 rounded-lg border border-slate-200 bg-white p-4" open>
+          <summary className="cursor-pointer font-semibold text-slate-950">Automation health</summary>
+          <div className="mt-3 mb-3 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-slate-950">Cron Jobs</h2>
+              <p className="text-sm text-slate-600">Pick locking and score syncing are idempotent. These checks tell you whether the scheduled jobs are actually running on time.</p>
+            </div>
+            <button
+              onClick={() => Promise.all([loadCronHealth(), loadEventLogs()]).catch((e) => setError(getErrorMessage(e, 'Cron health refresh failed.')))}
+              className="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white"
+            >
+              Refresh cron
+            </button>
+          </div>
+          {cronHealth.length === 0 ? (
+            <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              No cron health rows are available yet. After the next scheduled run, this section will show job freshness.
+            </p>
+          ) : (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {cronHealth.map((job) => (
+                <div key={job.job_name} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <h3 className="font-bold text-slate-950">{job.job_name}</h3>
+                      <p className="mt-1 font-mono text-xs text-slate-500">{job.route}</p>
+                    </div>
+                    <span className={`rounded-full border px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${statusClass(job.status)}`}>
+                      {job.status}
+                    </span>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Info label="Expected Every" value={`${job.expected_every_minutes} min`} />
+                    <Info label="Since Success" value={job.minutes_since_success === null ? '-' : `${job.minutes_since_success} min`} />
+                    <Info label="Last Run" value={fmt(job.last_run_at)} />
+                    <Info label="Last Success" value={fmt(job.last_success_at)} />
+                    <Info label="Last Error" value={fmt(job.last_error_at)} />
+                    <Info label="Next Expected" value={fmt(job.next_expected_at)} />
+                  </div>
+                  {job.latest_message && (
+                    <p className="mt-3 rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-700">{job.latest_message}</p>
+                  )}
+                  {job.latest_metadata && compactJson(job.latest_metadata) !== '-' && (
+                    <p className="mt-2 break-words rounded-md border border-slate-200 bg-white p-3 font-mono text-xs text-slate-600">
+                      {compactJson(job.latest_metadata)}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </details>
+
+        <details className="mb-5 rounded-lg border border-slate-200 bg-white p-4">
+          <summary className="cursor-pointer font-semibold text-slate-950">Backup and recovery</summary>
+          <div className="mt-3 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.55fr)]">
+            <div>
+              <h2 className="font-semibold text-slate-950">Manual Backup Runbook</h2>
+              <p className="mt-1 text-sm leading-6 text-slate-600">
+                Run a database backup before migrations, schedule imports, bulk repairs, or Sunday beta tests. Backups are local files and should never be committed.
+              </p>
+              <div className="mt-3 grid gap-2">
+                <code className="block rounded-md border border-slate-200 bg-slate-950 p-3 text-xs text-white">npm run backup:db</code>
+                <code className="block rounded-md border border-slate-200 bg-slate-950 p-3 text-xs text-white">npm run backup:db -- --schema-only</code>
+                <code className="block rounded-md border border-slate-200 bg-slate-950 p-3 text-xs text-white">npm run backup:db -- --data-only</code>
+              </div>
+            </div>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+              <h3 className="font-semibold text-amber-950">Recovery rules</h3>
+              <p className="mt-2">Restore to a temporary Supabase project first when possible. Prefer pool-scoped repair tools over a full production restore. After recovery, refresh cron health, score feed health, and schedule audit here.</p>
+              <p className="mt-2 font-semibold">Full runbook: docs/backup-recovery.md</p>
+            </div>
+          </div>
+        </details>
 
         <details className="mb-5 rounded-lg border border-slate-200 bg-white p-4" open>
           <summary className="cursor-pointer font-semibold text-slate-950">Score feed health</summary>

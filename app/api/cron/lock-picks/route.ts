@@ -19,13 +19,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const startedAt = Date.now()
   const supabaseAdmin = getSupabaseAdmin()
-  const logCronEvent = async (eventType: string, message: string, metadata: Record<string, unknown> = {}, poolId?: string) => {
+  const logCronEvent = async (
+    eventType: string,
+    severity: 'info' | 'warning' | 'error',
+    message: string,
+    metadata: Record<string, unknown> = {},
+    poolId?: string,
+  ) => {
     try {
       await supabaseAdmin.from('app_event_logs').insert({
         event_type: eventType,
-        severity: 'error',
+        severity,
         source: 'cron',
+        route: '/api/cron/lock-picks',
         pool_id: poolId || null,
         message,
         metadata: metadata as Json,
@@ -42,7 +50,7 @@ export async function GET(request: NextRequest) {
     .eq('activation_status', 'active')
 
   if (poolsError) {
-    await logCronEvent('cron_pool_load_failed', poolsError.message)
+    await logCronEvent('cron_pool_load_failed', 'error', poolsError.message)
     return NextResponse.json({ error: poolsError.message }, { status: 500 })
   }
 
@@ -54,7 +62,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabaseAdmin.rpc('finalize_locked_picks_for_pool', { p_pool_id: pool.id })
     if (error) {
       errors.push(`${pool.id}: ${error.message}`)
-      await logCronEvent('cron_finalize_pool_failed', error.message, { season: pool.season }, pool.id)
+      await logCronEvent('cron_finalize_pool_failed', 'error', error.message, { season: pool.season }, pool.id)
       continue
     }
     finalized += typeof data === 'number' ? data : 0
@@ -66,11 +74,25 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabaseAdmin.rpc('adjudicate_completed_weeks', { p_season: season })
     if (error) {
       errors.push(`season ${season}: ${error.message}`)
-      await logCronEvent('cron_adjudicate_season_failed', error.message, { season })
+      await logCronEvent('cron_adjudicate_season_failed', 'error', error.message, { season })
       continue
     }
     adjudicated += typeof data === 'number' ? data : 0
   }
+
+  await logCronEvent(
+    errors.length ? 'cron_lock_picks_completed_with_errors' : 'cron_lock_picks_completed',
+    errors.length ? 'warning' : 'info',
+    errors.length ? 'Pick lock cron completed with errors.' : 'Pick lock cron completed.',
+    {
+      duration_ms: Date.now() - startedAt,
+      pools_checked: pools?.length || 0,
+      seasons: Array.from(seasons).sort(),
+      picks_finalized: finalized,
+      results_adjudicated: adjudicated,
+      errors,
+    },
+  )
 
   return NextResponse.json({
     ok: errors.length === 0,

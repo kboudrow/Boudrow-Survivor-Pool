@@ -2,11 +2,11 @@
   "crons": [
     {
       "path": "/api/cron/sync-scores",
-      "schedule": "10 6 * * *"
+      "schedule": "*/10 * * * *"
     },
     {
       "path": "/api/cron/lock-picks",
-      "schedule": "5 18 * * *"
+      "schedule": "*/5 * * * *"
     }
   ]
 }

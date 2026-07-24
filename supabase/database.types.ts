@@ -2074,6 +2074,23 @@ export type Database = {
         Args: { p_pool_id: string; p_week: number }
         Returns: string
       }
+      superadmin_cron_health: {
+        Args: never
+        Returns: {
+          expected_every_minutes: number
+          job_name: string
+          last_error_at: string
+          last_run_at: string
+          last_success_at: string
+          latest_message: string
+          latest_metadata: Json
+          latest_severity: string
+          minutes_since_success: number
+          next_expected_at: string
+          route: string
+          status: string
+        }[]
+      }
       superadmin_finalize_test_week_drafts: {
         Args: { p_pool_id: string; p_week: number }
         Returns: number

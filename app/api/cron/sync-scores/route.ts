@@ -208,6 +208,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const startedAt = Date.now()
   const supabaseAdmin = getSupabaseAdmin()
   const logCronEvent = async (eventType: string, severity: 'info' | 'warning' | 'error', message: string, metadata: Record<string, unknown> = {}, poolId?: string) => {
     try {
@@ -305,6 +306,7 @@ export async function GET(request: NextRequest) {
       {
         seasons,
         target_weeks: syncedBySeasonWeek,
+        duration_ms: Date.now() - startedAt,
         games_synced: gamesSynced,
         final_games_synced: finalGamesSynced,
         pools_checked: activePools.length,
@@ -327,7 +329,7 @@ export async function GET(request: NextRequest) {
     })
   } catch (e: unknown) {
     const message = getErrorMessage(e, 'Score sync failed.')
-    await logCronEvent('cron_score_sync_failed', 'error', message)
+    await logCronEvent('cron_score_sync_failed', 'error', message, { duration_ms: Date.now() - startedAt })
     return NextResponse.json({ ok: false, error: message }, { status: 500 })
   }
 }
