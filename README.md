@@ -122,7 +122,9 @@ Then deploy from the GitHub repository connected to Vercel.
 
 `CRON_SECRET` is required for scheduled pick locking and scoring. The cron route rejects requests without `Authorization: Bearer <CRON_SECRET>`.
 
-Production cron schedules live in `vercel.json`. The score-sync route is safe to run repeatedly and updates NFL scores/results; the lock-picks route finalizes eligible draft picks and adjudicates completed weeks. The superadmin page shows cron health, score-feed health, and recent production event logs.
+Production cron schedules live in `vercel.json`. The current Vercel Hobby fallback is daily, because Hobby rejects higher-frequency cron schedules. For the NFL season, use Vercel Pro crons or an external scheduler to call score sync every 10 minutes and pick locking every 5 minutes. The routes are safe to run repeatedly. See `docs/cron-setup.md`.
+
+The superadmin page shows cron health, score-feed health, and recent production event logs.
 
 AdSense is opt-in. Set `NEXT_PUBLIC_ENABLE_ADSENSE=true`, `NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT`, and the relevant `NEXT_PUBLIC_AD_SLOT_*` values only when ads should render.
 

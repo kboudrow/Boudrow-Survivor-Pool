@@ -548,7 +548,9 @@ export default function SuperAdminPage() {
           <div className="mt-3 mb-3 flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="font-semibold text-slate-950">Cron Jobs</h2>
-              <p className="text-sm text-slate-600">Pick locking and score syncing are idempotent. These checks tell you whether the scheduled jobs are actually running on time.</p>
+              <p className="text-sm text-slate-600">
+                Pick locking and score syncing are idempotent. Vercel Hobby runs the fallback jobs daily; the health targets below assume the game-day external or Pro cadence.
+              </p>
             </div>
             <button
               onClick={() => Promise.all([loadCronHealth(), loadEventLogs()]).catch((e) => setError(getErrorMessage(e, 'Cron health refresh failed.')))}
