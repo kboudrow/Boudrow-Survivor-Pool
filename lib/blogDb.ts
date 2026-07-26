@@ -43,6 +43,23 @@ const publicBlogClient = supabaseUrl && supabaseAnonKey
     })
   : null
 
+const BLOG_CACHE_TTL_MS = 5 * 60 * 1000
+let publicPostsCache: { expiresAt: number; value: PublicBlogPost[] } | null = null
+let publicCategoriesCache: { expiresAt: number; value: string[] } | null = null
+
+async function getTtlCached<T>(
+  cache: { expiresAt: number; value: T } | null,
+  load: () => Promise<T>,
+  setCache: (next: { expiresAt: number; value: T }) => void,
+) {
+  const now = Date.now()
+  if (cache && cache.expiresAt > now) return cache.value
+
+  const value = await load()
+  setCache({ expiresAt: now + BLOG_CACHE_TTL_MS, value })
+  return value
+}
+
 async function withTimeout<T>(promise: PromiseLike<T>, ms = 4500): Promise<T> {
   let timeout: ReturnType<typeof setTimeout> | null = null
   try {
@@ -130,7 +147,7 @@ async function getDatabaseBlogSlugs() {
   }
 }
 
-export async function getPublicBlogPosts() {
+async function loadPublicBlogPosts() {
   const [dbPosts, dbSlugs] = await Promise.all([getDatabaseBlogPosts('published'), getDatabaseBlogSlugs()])
   const merged = new Map<string, PublicBlogPost>()
 
@@ -149,7 +166,13 @@ export async function getPublicBlogPosts() {
   }))
 }
 
-export async function getPublicBlogCategories() {
+export async function getPublicBlogPosts() {
+  return getTtlCached(publicPostsCache, loadPublicBlogPosts, (next) => {
+    publicPostsCache = next
+  })
+}
+
+async function loadPublicBlogCategories() {
   const fallback = Array.from(new Set(blogPosts.map((post) => post.category)))
   if (!publicBlogClient) return fallback
 
@@ -168,6 +191,12 @@ export async function getPublicBlogCategories() {
   } catch {
     return fallback
   }
+}
+
+export async function getPublicBlogCategories() {
+  return getTtlCached(publicCategoriesCache, loadPublicBlogCategories, (next) => {
+    publicCategoriesCache = next
+  })
 }
 
 export async function getPublicBlogPost(slug: string) {
