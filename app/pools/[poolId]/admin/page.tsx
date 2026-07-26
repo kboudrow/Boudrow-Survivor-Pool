@@ -16,6 +16,7 @@ type Pool = {
   id: string
   name: string
   created_by: string
+  cloned_from_pool_id?: string | null
   is_public: boolean
   visibility?: 'public' | 'private' | string | null
   double_pick_weeks: number[] | null
@@ -97,6 +98,19 @@ type TestGameOption = {
   needs_outcome: boolean
 }
 
+type ReinviteRow = {
+  source_pool_id: string
+  source_pool_name: string
+  profile_id: string
+  display_name: string
+  username: string
+  avatar_url: string | null
+  previous_entry_count: number
+  previous_role: string
+  current_entry_count: number
+  joined_new_pool: boolean
+}
+
 type ConfirmDialog = {
   title: string
   message: string
@@ -162,6 +176,13 @@ const fmtShort = (value?: string | null) =>
         minute: '2-digit',
       })
     : '-'
+const avatarInitials = (name: string) =>
+  name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || '')
+    .join('') || 'P'
 
 function poolStage(pool: Pool, settingsLocked: boolean) {
   if (pool.archived) {
@@ -297,6 +318,8 @@ export default function PoolAdminPage() {
   const [testWeek, setTestWeek] = useState('1')
   const [testGames, setTestGames] = useState<TestGameOption[]>([])
   const [testToolsLoading, setTestToolsLoading] = useState(false)
+  const [reinviteRows, setReinviteRows] = useState<ReinviteRow[]>([])
+  const [reinviteLoading, setReinviteLoading] = useState(false)
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog | null>(null)
 
   const entryRows = useMemo(() => {
@@ -345,6 +368,7 @@ export default function PoolAdminPage() {
   const leagueHasStarted = poolStartKnown && Date.now() >= poolStartMs
   const settingsLocked = leagueHasStarted
   const canInvite = !!pool && isPoolJoinable && poolStartKnown && !leagueHasStarted
+  const canReinvite = !!pool && isPoolJoinable && !settingsLocked
   const lifecycle = pool ? poolStage(pool, settingsLocked) : null
   const visibilityChanged = !!pool && isPublicDraft !== pool.is_public
   const selectedDoubleWeeks = useMemo(() => {
@@ -372,6 +396,25 @@ export default function PoolAdminPage() {
       return [memberLabel(row), row.user_id, row.role, ...entries.map((entry) => entry.entry_id)].some((value) => value.toLowerCase().includes(q))
     })
   }, [memberRows, memberSearch])
+  const reinviteStats = useMemo(() => {
+    const joined = reinviteRows.filter((row) => row.joined_new_pool).length
+    return {
+      joined,
+      missing: Math.max(0, reinviteRows.length - joined),
+      sourceName: reinviteRows[0]?.source_pool_name || null,
+    }
+  }, [reinviteRows])
+  const inviteUrl = useMemo(() => {
+    if (!pool?.id) return ''
+    if (typeof window === 'undefined') return `/join/${pool.id}`
+    return `${window.location.origin}/join/${pool.id}`
+  }, [pool?.id])
+  const reinviteMessage = useMemo(() => {
+    if (!pool || !inviteUrl) return ''
+    const source = reinviteStats.sourceName ? ` from ${reinviteStats.sourceName}` : ''
+    const privateNote = pool.is_public ? '' : ' This pool is private, so I will send the password separately.'
+    return `I created ${pool.name}${source} for the new season. Join here: ${inviteUrl}.${privateNote}`
+  }, [inviteUrl, pool, reinviteStats.sourceName])
 
   const requestConfirm = (options: Omit<ConfirmDialog, 'resolve'>) =>
     new Promise<boolean>((resolve) => {
@@ -426,13 +469,29 @@ export default function PoolAdminPage() {
     }
   }
 
+  const loadReinviteOverview = async (poolIdValue: string) => {
+    setReinviteLoading(true)
+    try {
+      const { data, error: reinviteErr } = await supabase.rpc('pool_reinvite_overview', {
+        p_pool_id: poolIdValue,
+      })
+      if (reinviteErr) throw reinviteErr
+      setReinviteRows((data || []) as ReinviteRow[])
+    } catch (e: unknown) {
+      setReinviteRows([])
+      setError(getErrorMessage(e, 'Failed to load previous season members.'))
+    } finally {
+      setReinviteLoading(false)
+    }
+  }
+
   const loadOverview = async (week = selectedWeek) => {
     if (!poolId) return
     setRefreshing(true)
     setError(null)
     try {
       const [{ data: p, error: pErr }, { data: overview, error: overviewErr }] = await Promise.all([
-        supabase.from('pools').select('id,name,created_by,is_public,visibility,double_pick_weeks,archived,season,start_week,activation_status,max_members,allow_multiple_entries,max_entries_per_user,payment_status,image_url,test_mode,test_current_week').eq('id', poolId).maybeSingle<Pool>(),
+        supabase.from('pools').select('id,name,created_by,cloned_from_pool_id,is_public,visibility,double_pick_weeks,archived,season,start_week,activation_status,max_members,allow_multiple_entries,max_entries_per_user,payment_status,image_url,test_mode,test_current_week').eq('id', poolId).maybeSingle<Pool>(),
         supabase.rpc('admin_pool_entry_week_overview', { p_pool_id: poolId, p_week: week }),
       ])
       if (pErr) throw pErr
@@ -469,6 +528,11 @@ export default function PoolAdminPage() {
         await loadTestOptions(p.id, nextTestWeek)
       } else {
         setTestGames([])
+      }
+      if (p.cloned_from_pool_id) {
+        await loadReinviteOverview(p.id)
+      } else {
+        setReinviteRows([])
       }
 
       const { data: firstStartGame } = await supabase
@@ -870,6 +934,42 @@ export default function PoolAdminPage() {
       return `${label} removed.`
     })
 
+  const copyText = async (text: string, successMessage: string) => {
+    if (!text) return
+    setError(null)
+    setNotice(null)
+    try {
+      if (typeof navigator === 'undefined' || !navigator.clipboard) {
+        throw new Error('Clipboard is not available.')
+      }
+      await navigator.clipboard.writeText(text)
+      setNotice(successMessage)
+    } catch {
+      setError('Could not copy automatically. Select and copy the invite link manually.')
+    }
+  }
+
+  const copyReinviteLink = () => copyText(inviteUrl, 'Invite link copied.')
+  const copyReinviteMessage = () => copyText(reinviteMessage, 'Invite message copied.')
+
+  const shareReinviteMessage = async () => {
+    if (!pool || !reinviteMessage) return
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: `Join ${pool.name}`,
+          text: reinviteMessage,
+          url: inviteUrl,
+        })
+        setNotice('Invite ready to share.')
+        return
+      } catch (e: unknown) {
+        if (e instanceof Error && e.name === 'AbortError') return
+      }
+    }
+    await copyReinviteMessage()
+  }
+
   const toggleTestMode = async () => {
     if (!pool || !isSuperAdmin) return
     const enabling = !pool.test_mode
@@ -1106,6 +1206,89 @@ export default function PoolAdminPage() {
                 <div className="text-sm font-semibold">{doubleWeekCount ? `${doubleWeekCount} selected` : 'None'}</div>
               </div>
             </section>
+
+            {pool.cloned_from_pool_id && (
+              <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Next Season</p>
+                    <h2 className="text-lg font-semibold text-slate-950">Bring back last season&apos;s group</h2>
+                    <p className="mt-1 max-w-3xl text-sm text-slate-700">
+                      This pool was created from {reinviteStats.sourceName || 'an archived pool'}. Members are not added automatically, so send them this invite when you want them back for the new season.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={copyReinviteLink}
+                      disabled={!canReinvite || !inviteUrl}
+                      className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-slate-800 ring-1 ring-emerald-200 hover:bg-emerald-100 disabled:opacity-50"
+                    >
+                      Copy link
+                    </button>
+                    <button
+                      type="button"
+                      onClick={copyReinviteMessage}
+                      disabled={!canReinvite || !reinviteMessage}
+                      className="rounded-md bg-emerald-700 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+                    >
+                      Copy message
+                    </button>
+                    <button
+                      type="button"
+                      onClick={shareReinviteMessage}
+                      disabled={!canReinvite || !reinviteMessage}
+                      className="rounded-md bg-slate-950 px-3 py-2 text-sm font-semibold text-white hover:bg-black disabled:opacity-50"
+                    >
+                      Share
+                    </button>
+                  </div>
+                </div>
+
+                {!canReinvite && (
+                  <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                    Invites are closed because this pool has started or is not accepting members.
+                  </p>
+                )}
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <ReinviteStat label="Last season members" value={reinviteLoading ? 'Loading...' : String(reinviteRows.length)} />
+                  <ReinviteStat label="Joined this season" value={reinviteLoading ? '-' : String(reinviteStats.joined)} />
+                  <ReinviteStat label="Still missing" value={reinviteLoading ? '-' : String(reinviteStats.missing)} />
+                </div>
+
+                <div className="mt-4 rounded-md border border-emerald-200 bg-white p-3">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Invite link</div>
+                  <div className="mt-1 break-all text-sm font-medium text-slate-900">{inviteUrl || 'Invite link unavailable.'}</div>
+                  {!pool.is_public && <p className="mt-2 text-xs font-medium text-amber-700">This pool is private. Send the password separately.</p>}
+                </div>
+
+                <div className="mt-4">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-sm font-semibold text-slate-950">Previous members</h3>
+                    <button
+                      type="button"
+                      onClick={() => loadReinviteOverview(pool.id)}
+                      disabled={reinviteLoading}
+                      className="rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-emerald-200 hover:bg-emerald-100 disabled:opacity-50"
+                    >
+                      {reinviteLoading ? 'Refreshing...' : 'Refresh list'}
+                    </button>
+                  </div>
+                  {reinviteRows.length > 0 ? (
+                    <div className="grid gap-2 md:grid-cols-2">
+                      {reinviteRows.map((row) => (
+                        <ReinviteMember key={row.profile_id} row={row} />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="rounded-md border border-emerald-200 bg-white p-3 text-sm text-slate-600">
+                      {reinviteLoading ? 'Loading previous members...' : 'No previous members found for this archived pool.'}
+                    </p>
+                  )}
+                </div>
+              </section>
+            )}
 
             {isSuperAdmin && (
               <section className={`rounded-lg border p-4 ${pool.test_mode ? 'border-violet-200 bg-violet-50' : 'border-slate-200 bg-white'}`}>
@@ -1755,6 +1938,50 @@ function InfoTile({ label, value }: { label: string; value: string }) {
     <div className="rounded-md border border-violet-100 bg-white p-3">
       <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
       <div className="mt-1 text-sm font-semibold text-slate-950">{value}</div>
+    </div>
+  )
+}
+
+function ReinviteStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-emerald-200 bg-white p-3">
+      <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
+      <div className="mt-1 text-lg font-bold text-slate-950">{value}</div>
+    </div>
+  )
+}
+
+function ReinviteMember({ row }: { row: ReinviteRow }) {
+  const entryLabelText = row.previous_entry_count === 1 ? 'entry' : 'entries'
+  const currentEntryLabel = row.current_entry_count === 1 ? 'entry' : 'entries'
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md border border-emerald-200 bg-white p-3">
+      <div className="flex min-w-0 items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-950 text-sm font-bold text-white">
+          {row.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={row.avatar_url} alt="" className="h-full w-full object-cover" />
+          ) : (
+            avatarInitials(row.display_name)
+          )}
+        </div>
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold text-slate-950">{row.display_name}</div>
+          <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-1 text-xs text-slate-500">
+            <span>{row.previous_entry_count} last season {entryLabelText}</span>
+            {row.current_entry_count > 0 && <span>{row.current_entry_count} this season {currentEntryLabel}</span>}
+            {row.previous_role === 'admin' && <span>Previous admin</span>}
+          </div>
+        </div>
+      </div>
+      <span
+        className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${
+          row.joined_new_pool ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'
+        }`}
+      >
+        {row.joined_new_pool ? 'Joined' : 'Not joined yet'}
+      </span>
     </div>
   )
 }

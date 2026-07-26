@@ -1971,6 +1971,21 @@ export type Database = {
           total_members: number
         }[]
       }
+      pool_reinvite_overview: {
+        Args: { p_pool_id: string }
+        Returns: {
+          avatar_url: string
+          current_entry_count: number
+          display_name: string
+          joined_new_pool: boolean
+          previous_entry_count: number
+          previous_role: string
+          profile_id: string
+          source_pool_id: string
+          source_pool_name: string
+          username: string
+        }[]
+      }
       pool_standings_snapshot: {
         Args: { p_pool_id: string; p_week: number }
         Returns: {

@@ -221,7 +221,7 @@ export default function ArchivesPage() {
       const newPoolId = data as string
       if (!newPoolId) throw new Error('Clone succeeded but no pool id was returned.')
 
-      router.push(`/pools/${newPoolId}`)
+      router.push(`/pools/${newPoolId}/admin`)
     } catch (e: unknown) {
       setModalErr(getErrorMessage(e, 'Failed to create next season.'))
     } finally {
@@ -244,7 +244,7 @@ export default function ArchivesPage() {
         </div>
 
         <div className="mb-5 rounded-lg border border-slate-200 bg-white p-4 text-sm leading-6 text-slate-600 shadow-sm">
-          Archiving removes a pool from the active dashboard without deleting its history. Creating next season copies the pool settings into a fresh pool; members, picks, standings, and results are not copied.
+          Archiving removes a pool from the active dashboard without deleting its history. Creating next season copies the pool settings into a fresh pool and gives you an invite list for last season&apos;s members. Members, picks, standings, and results are not copied.
         </div>
 
         {loading && <p className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">Loading...</p>}
@@ -319,7 +319,7 @@ export default function ArchivesPage() {
             </div>
 
             <p className="text-sm text-gray-700 mb-4">
-              This creates a <b>fresh</b> pool from <b>{activePool.name}</b>. It copies settings only. Members, picks, standings, and results are not copied.
+              This creates a <b>fresh</b> pool from <b>{activePool.name}</b>. It copies settings and gives you a re-invite list for last season&apos;s members. Members, picks, standings, and results are not copied.
             </p>
 
             <div className="border rounded-lg p-3 mb-4 bg-gray-50">
