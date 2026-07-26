@@ -2077,7 +2077,10 @@ export type Database = {
       superadmin_cron_health: {
         Args: never
         Returns: {
+          current_cadence: string
           expected_every_minutes: number
+          fallback_every_minutes: number
+          health_note: string
           job_name: string
           last_error_at: string
           last_run_at: string
@@ -2085,6 +2088,8 @@ export type Database = {
           latest_message: string
           latest_metadata: Json
           latest_severity: string
+          live_every_minutes: number
+          live_next_expected_at: string
           minutes_since_success: number
           next_expected_at: string
           route: string

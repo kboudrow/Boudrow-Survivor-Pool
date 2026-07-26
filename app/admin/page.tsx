@@ -84,6 +84,9 @@ type CronHealthRow = {
   job_name: string
   route: string
   expected_every_minutes: number
+  live_every_minutes?: number
+  fallback_every_minutes?: number
+  current_cadence?: string | null
   last_run_at: string | null
   last_success_at: string | null
   last_error_at: string | null
@@ -92,7 +95,9 @@ type CronHealthRow = {
   latest_metadata: Record<string, unknown> | null
   minutes_since_success: number | null
   next_expected_at: string | null
+  live_next_expected_at?: string | null
   status: string
+  health_note?: string | null
 }
 
 type AppEventLogRow = {
@@ -144,6 +149,80 @@ function compactJson(value: unknown) {
   } catch {
     return '-'
   }
+}
+
+const CRON_COPY: Record<string, { purpose: string; liveLabel: string }> = {
+  '/api/cron/lock-picks': {
+    purpose: 'Turns eligible picks into locked picks after each pool deadline, then applies completed game results.',
+    liveLabel: 'Every 5 minutes on game days',
+  },
+  '/api/cron/sync-scores': {
+    purpose: 'Pulls NFL game status and scores, then updates final winners when games finish.',
+    liveLabel: 'Every 10 minutes during game windows',
+  },
+}
+
+function formatMinutes(minutes?: number | null) {
+  if (minutes === null || minutes === undefined) return '-'
+  if (minutes < 60) return `${minutes} min`
+  if (minutes === 1440) return 'Daily'
+  if (minutes % 1440 === 0) return `Every ${minutes / 1440} days`
+  if (minutes % 60 === 0) return `Every ${minutes / 60} hr`
+  return `${minutes} min`
+}
+
+function formatDurationMs(value: unknown) {
+  const ms = Number(value)
+  if (!Number.isFinite(ms)) return null
+  if (ms < 1000) return `${Math.round(ms)} ms`
+  return `${(ms / 1000).toFixed(1)} sec`
+}
+
+function cronStatusLabel(status: string) {
+  const lower = status.toLowerCase()
+  if (lower === 'healthy') return 'OK'
+  if (lower === 'warning') return 'Warning'
+  if (lower === 'error') return 'Failed'
+  if (lower === 'missing') return 'No runs yet'
+  if (lower === 'late') return 'Overdue'
+  return status
+}
+
+function isActionableCronIssue(job: CronHealthRow) {
+  return ['error', 'missing', 'late'].includes(job.status.toLowerCase())
+}
+
+function metadataNumber(metadata: Record<string, unknown> | null, key: string) {
+  const value = metadata?.[key]
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric : null
+}
+
+function metadataArrayLength(metadata: Record<string, unknown> | null, key: string) {
+  const value = metadata?.[key]
+  return Array.isArray(value) ? value.length : null
+}
+
+function cronRunSummary(job: CronHealthRow) {
+  const metadata = job.latest_metadata
+  const summary: Array<{ label: string; value: string }> = []
+  const poolsChecked = metadataNumber(metadata, 'pools_checked')
+  const picksFinalized = metadataNumber(metadata, 'picks_finalized')
+  const resultsAdjudicated = metadataNumber(metadata, 'results_adjudicated')
+  const gamesSynced = metadataNumber(metadata, 'games_synced')
+  const finalGamesSynced = metadataNumber(metadata, 'final_games_synced')
+  const errors = metadataArrayLength(metadata, 'errors')
+  const duration = formatDurationMs(metadata?.duration_ms)
+
+  if (poolsChecked !== null) summary.push({ label: 'Pools checked', value: String(poolsChecked) })
+  if (picksFinalized !== null) summary.push({ label: 'Picks locked', value: String(picksFinalized) })
+  if (resultsAdjudicated !== null) summary.push({ label: 'Results applied', value: String(resultsAdjudicated) })
+  if (gamesSynced !== null) summary.push({ label: 'Games synced', value: String(gamesSynced) })
+  if (finalGamesSynced !== null) summary.push({ label: 'Final games', value: String(finalGamesSynced) })
+  if (errors !== null) summary.push({ label: 'Errors', value: String(errors) })
+  if (duration) summary.push({ label: 'Duration', value: duration })
+
+  return summary
 }
 
 function ConfirmDialogModal({ dialog, onClose }: { dialog: ConfirmDialog | null; onClose: () => void }) {
@@ -259,7 +338,7 @@ export default function SuperAdminPage() {
       ),
     [scoreFeedHealth],
   )
-  const cronIssues = useMemo(() => cronHealth.filter((job) => job.status !== 'healthy'), [cronHealth])
+  const cronIssues = useMemo(() => cronHealth.filter(isActionableCronIssue), [cronHealth])
   const latestCronSuccess = useMemo(() => {
     return cronHealth.reduce<string | null>((latest, job) => {
       if (!job.last_success_at) return latest
@@ -549,7 +628,7 @@ export default function SuperAdminPage() {
             <div>
               <h2 className="font-semibold text-slate-950">Cron Jobs</h2>
               <p className="text-sm text-slate-600">
-                Pick locking and score syncing are idempotent. Vercel Hobby runs the fallback jobs daily; the health targets below assume the game-day external or Pro cadence.
+                These jobs are safe to run more than once. Production is currently monitored against the daily fallback schedule; the live-season cadence is shown separately.
               </p>
             </div>
             <button
@@ -566,33 +645,7 @@ export default function SuperAdminPage() {
           ) : (
             <div className="grid gap-3 lg:grid-cols-2">
               {cronHealth.map((job) => (
-                <div key={job.job_name} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                  <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <h3 className="font-bold text-slate-950">{job.job_name}</h3>
-                      <p className="mt-1 font-mono text-xs text-slate-500">{job.route}</p>
-                    </div>
-                    <span className={`rounded-full border px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${statusClass(job.status)}`}>
-                      {job.status}
-                    </span>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <Info label="Expected Every" value={`${job.expected_every_minutes} min`} />
-                    <Info label="Since Success" value={job.minutes_since_success === null ? '-' : `${job.minutes_since_success} min`} />
-                    <Info label="Last Run" value={fmt(job.last_run_at)} />
-                    <Info label="Last Success" value={fmt(job.last_success_at)} />
-                    <Info label="Last Error" value={fmt(job.last_error_at)} />
-                    <Info label="Next Expected" value={fmt(job.next_expected_at)} />
-                  </div>
-                  {job.latest_message && (
-                    <p className="mt-3 rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-700">{job.latest_message}</p>
-                  )}
-                  {job.latest_metadata && compactJson(job.latest_metadata) !== '-' && (
-                    <p className="mt-2 break-words rounded-md border border-slate-200 bg-white p-3 font-mono text-xs text-slate-600">
-                      {compactJson(job.latest_metadata)}
-                    </p>
-                  )}
-                </div>
+                <CronJobCard key={job.job_name} job={job} />
               ))}
             </div>
           )}
@@ -1035,6 +1088,85 @@ function Info({ label, value }: { label: string; value: string }) {
     <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
       <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
       <div className="mt-1 text-sm font-semibold text-slate-900">{value}</div>
+    </div>
+  )
+}
+
+function CronJobCard({ job }: { job: CronHealthRow }) {
+  const copy = CRON_COPY[job.route]
+  const summary = cronRunSummary(job)
+  const status = job.status.toLowerCase()
+  const cardClass =
+    status === 'error'
+      ? 'border-red-200 bg-red-50/40'
+      : status === 'late' || status === 'missing'
+        ? 'border-amber-200 bg-amber-50/40'
+        : status === 'warning'
+          ? 'border-blue-200 bg-blue-50/30'
+          : 'border-slate-200 bg-slate-50'
+
+  return (
+    <div className={`rounded-lg border p-4 ${cardClass}`}>
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="font-bold text-slate-950">{job.job_name}</h3>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+            {copy?.purpose || 'Runs background maintenance for production pool scoring.'}
+          </p>
+          <p className="mt-1 break-words font-mono text-xs text-slate-500">{job.route}</p>
+        </div>
+        <span className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${statusClass(job.status)}`}>
+          {cronStatusLabel(job.status)}
+        </span>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <Info label="Fallback Schedule" value={formatMinutes(job.fallback_every_minutes ?? job.expected_every_minutes)} />
+        <Info label="Live Target" value={copy?.liveLabel || formatMinutes(job.live_every_minutes)} />
+        <Info label="Last Success" value={fmt(job.last_success_at)} />
+        <Info label="Next Fallback" value={fmt(job.next_expected_at)} />
+      </div>
+
+      <div className="mt-3 rounded-md border border-slate-200 bg-white p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Latest Run</div>
+            <p className="mt-1 text-sm font-semibold text-slate-950">{job.latest_message || 'No run message recorded yet.'}</p>
+          </div>
+          <div className="text-right text-xs text-slate-500">
+            <div>Last run</div>
+            <div className="font-semibold text-slate-800">{fmt(job.last_run_at)}</div>
+          </div>
+        </div>
+
+        {summary.length > 0 && (
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            {summary.map((item) => (
+              <div key={item.label} className="rounded-md bg-slate-50 px-3 py-2">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{item.label}</div>
+                <div className="mt-0.5 text-sm font-bold text-slate-950">{item.value}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <p className="mt-3 rounded-md border border-blue-100 bg-blue-50 p-2 text-xs leading-5 text-blue-800">
+          {job.health_note || 'Daily fallback is current. Use a faster external scheduler for live season automation.'}
+        </p>
+
+        {job.latest_metadata && compactJson(job.latest_metadata) !== '-' && (
+          <details className="mt-3">
+            <summary className="cursor-pointer text-xs font-semibold text-slate-500 hover:text-slate-800">Technical details</summary>
+            <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md border border-slate-200 bg-slate-950 p-3 text-xs text-slate-100">
+              {JSON.stringify(job.latest_metadata, null, 2)}
+            </pre>
+          </details>
+        )}
+      </div>
+
+      {job.last_error_at && (
+        <p className="mt-3 text-xs text-slate-500">Last recorded error: {fmt(job.last_error_at)}</p>
+      )}
     </div>
   )
 }
