@@ -138,10 +138,20 @@ function winnerFor(status: SyncedGame['status'], homeTeam: string, awayTeam: str
 }
 
 async function fetchEspnWeek(season: number, week: number): Promise<EspnEvent[]> {
+  const playoffWeekMap: Record<number, number> = {
+    19: 1,
+    20: 2,
+    21: 3,
+    22: 5,
+  }
+  const seasontype = week <= 18 ? '2' : '3'
+  const espnWeek = week <= 18 ? week : playoffWeekMap[week]
+  if (!espnWeek) return []
+
   const url = new URL('https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard')
   url.searchParams.set('dates', String(season))
-  url.searchParams.set('seasontype', '2')
-  url.searchParams.set('week', String(week))
+  url.searchParams.set('seasontype', seasontype)
+  url.searchParams.set('week', String(espnWeek))
 
   const response = await fetch(url, { next: { revalidate: 0 } })
   if (!response.ok) {
@@ -200,7 +210,7 @@ function targetWeeksFromGames(games: ExistingGame[]) {
     if (inWindow || status === 'in_progress') weeks.add(game.week)
   }
 
-  return Array.from(weeks).filter((week) => week >= 1 && week <= 18).sort((a, b) => a - b)
+  return Array.from(weeks).filter((week) => week >= 1 && week <= 22).sort((a, b) => a - b)
 }
 
 export async function GET(request: NextRequest) {
@@ -232,6 +242,7 @@ export async function GET(request: NextRequest) {
       .select('id, season')
       .eq('archived', false)
       .eq('activation_status', 'active')
+      .or('test_mode.is.null,test_mode.eq.false')
 
     if (poolsError) throw poolsError
 

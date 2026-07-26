@@ -1371,6 +1371,64 @@ export type Database = {
         }
         Relationships: []
       }
+      test_pool_playoff_games: {
+        Row: {
+          away_team: string
+          created_at: string
+          home_team: string
+          kickoff_at: string
+          pool_id: string
+          slot: number
+          status: string
+          updated_at: string
+          week: number
+        }
+        Insert: {
+          away_team: string
+          created_at?: string
+          home_team: string
+          kickoff_at: string
+          pool_id: string
+          slot: number
+          status?: string
+          updated_at?: string
+          week: number
+        }
+        Update: {
+          away_team?: string
+          created_at?: string
+          home_team?: string
+          kickoff_at?: string
+          pool_id?: string
+          slot?: number
+          status?: string
+          updated_at?: string
+          week?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_pool_playoff_games_pool_id_fkey"
+            columns: ["pool_id"]
+            isOneToOne: false
+            referencedRelation: "pools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_pool_playoff_games_pool_id_fkey"
+            columns: ["pool_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_pool_history"
+            referencedColumns: ["pool_id"]
+          },
+          {
+            foreignKeyName: "test_pool_playoff_games_pool_id_fkey"
+            columns: ["pool_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_pools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       test_pool_team_results: {
         Row: {
           created_by: string | null
@@ -1947,6 +2005,7 @@ export type Database = {
           username: string
         }[]
       }
+      pool_max_pick_week: { Args: { p_pool_id: string }; Returns: number }
       pool_member_roster: {
         Args: { p_pool_id: string }
         Returns: {
@@ -2011,6 +2070,23 @@ export type Database = {
       pool_week_deadline_at: {
         Args: { p_pool_id: string; p_week: number }
         Returns: string
+      }
+      pool_week_games: {
+        Args: { p_pool_id: string; p_week: number }
+        Returns: {
+          away_score: number
+          away_team: string
+          game_time: string
+          home_score: number
+          home_team: string
+          id: string
+          is_test_game: boolean
+          kickoff_at_utc: string
+          season: number
+          status: string
+          week: number
+          winner: string
+        }[]
       }
       pool_week_pick_completion: {
         Args: { p_pool_id: string; p_week: number }
@@ -2110,6 +2186,10 @@ export type Database = {
           route: string
           status: string
         }[]
+      }
+      superadmin_ensure_test_pool_playoff_games: {
+        Args: { p_pool_id: string }
+        Returns: number
       }
       superadmin_finalize_test_week_drafts: {
         Args: { p_pool_id: string; p_week: number }

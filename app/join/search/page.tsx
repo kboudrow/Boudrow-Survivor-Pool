@@ -143,23 +143,19 @@ export default function JoinSearchPage() {
           excludePoolIds = Array.from(new Set([...(memRows || []).map((row) => row.pool_id), ...(createdRows || []).map((row) => row.id)]))
         }
 
-        let request = supabase
-          .from('pools')
-          .select('id, name, is_public, allow_discovery, start_week, include_playoffs, strikes_allowed, tie_rule, deadline_mode, deadline_fixed, notes, created_by, created_at, activation_status, max_members')
-          .eq('archived', false)
-          .eq('is_public', true)
-          .order('created_at', { ascending: false })
-          .limit(30)
-
-        if (excludePoolIds.length > 0) {
-          request = request.not('id', 'in', `(${excludePoolIds.join(',')})`)
-        }
-
-        const { data, error } = await request
+        const { data, error } = await supabase.rpc('search_pools', { p_term: '' })
         if (error) throw error
         if (!alive) return
 
-        setRecent((data || []) as Pool[])
+        const nextRecent = ((data || []) as Pool[]).filter((pool) => !excludePoolIds.includes(pool.id)).slice(0, 30)
+        setRecent(nextRecent)
+        setPoolMemberCounts((prev) => {
+          const next = { ...prev }
+          for (const pool of nextRecent) {
+            if (typeof pool.member_count === 'number') next[pool.id] = pool.member_count
+          }
+          return next
+        })
       } catch (e: unknown) {
         if (!alive) return
         void logAppEvent({ eventType: 'pool_search_recent_failed', error: e })

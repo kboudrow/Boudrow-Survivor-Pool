@@ -48,6 +48,7 @@ export async function GET(request: NextRequest) {
     .select('id, season')
     .eq('archived', false)
     .eq('activation_status', 'active')
+    .or('test_mode.is.null,test_mode.eq.false')
 
   if (poolsError) {
     await logCronEvent('cron_pool_load_failed', 'error', poolsError.message)
