@@ -195,6 +195,10 @@ const toAbbr = (input: string): string => {
   return byName ? byName.abbr : up
 }
 const pickKey = (week: number, slot = 1) => `${week}:${slot}`
+const pickWeekFromKey = (key: string) => Number(key.split(':')[0])
+function filterPickRecordThroughWeek<T>(picks: Record<string, T>, maxWeek: number): Record<string, T> {
+  return Object.fromEntries(Object.entries(picks).filter(([key]) => pickWeekFromKey(key) <= maxWeek))
+}
 const maxWeekForPool = (pool?: Pick<Pool, 'include_playoffs' | 'test_mode'> | null) =>
   pool?.test_mode && pool.include_playoffs ? TEST_PLAYOFF_MAX_WEEK : REGULAR_SEASON_MAX_WEEK
 const weekLabel = (week: number) => FULL_PLAYOFF_WEEK_LABELS[week] || `Week ${week}`
@@ -841,6 +845,7 @@ function MyPoolsContent() {
   const canInvite = !!pool && !isTestMode && pool.activation_status !== 'cancelled' && poolStartKnown && !leagueHasStarted
   const selectedWeekLockedByTestMode = isTestMode && selectedPickWeek < simulatedWeek
   const myStats = selectedEntryId ? statsByUser[selectedEntryId] : undefined
+  const myEliminatedWeek = myStats?.eliminated && myStats.eliminated_week ? myStats.eliminated_week : null
   const isEliminated = leagueHasStarted && !!myStats?.eliminated
   const uniqueMemberCount = useMemo(() => new Set(members.map((member) => member.profile_id || member.id)).size || memberCount, [members, memberCount])
   const canMakePicks = !!pool && !!selectedEntryId && !isEliminated && selectedPickWeek >= pool.start_week && !selectedWeekLockedByTestMode
@@ -885,15 +890,18 @@ function MyPoolsContent() {
     if (finalErr) throw finalErr
     if (draftErr) throw draftErr
 
+    const visibleFinalPicks = ((finalPicks || []) as FinalPickRow[]).filter((pick) => !myEliminatedWeek || pick.week <= myEliminatedWeek)
+    const visibleDrafts = ((drafts || []) as DraftPickRow[]).filter((pick) => !myEliminatedWeek || pick.week <= myEliminatedWeek)
+
     const locked: Record<string, FinalPickRow> = {}
-    for (const pick of (finalPicks || []) as FinalPickRow[]) {
+    for (const pick of visibleFinalPicks) {
       locked[pickKey(pick.week, pick.slot)] = pick
     }
     setMyFinalPicks(locked)
 
     const next: Record<string, Team | null> = {}
     let latest: string | null = null
-    for (const r of (drafts || []) as DraftPickRow[]) {
+    for (const r of visibleDrafts) {
       next[pickKey(r.week, r.slot)] = teamByAbbr(r.team_abbr) || { abbr: r.team_abbr, name: r.team_abbr }
       const upAt = r.updated_at
       if (upAt && (!latest || upAt > latest)) latest = upAt
@@ -1191,6 +1199,12 @@ function MyPoolsContent() {
       if (pickNoticeTimerRef.current) window.clearTimeout(pickNoticeTimerRef.current)
     }
   }, [])
+
+  useEffect(() => {
+    if (!myEliminatedWeek) return
+    setMyDraftPicks((prev) => filterPickRecordThroughWeek(prev, myEliminatedWeek))
+    setMyFinalPicks((prev) => filterPickRecordThroughWeek(prev, myEliminatedWeek))
+  }, [myEliminatedWeek])
 
   /** ---------- Selected week games + fixed lock ---------- */
   useEffect(() => {

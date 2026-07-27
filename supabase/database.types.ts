@@ -2101,6 +2101,14 @@ export type Database = {
           week: number
         }[]
       }
+      prune_picks_after_elimination: {
+        Args: { p_pool_id?: string }
+        Returns: number
+      }
+      rebuild_pool_member_stats: {
+        Args: { p_pool_id: string }
+        Returns: number
+      }
       restore_unlocked_picks_for_pool: {
         Args: { p_pool_id: string }
         Returns: number
