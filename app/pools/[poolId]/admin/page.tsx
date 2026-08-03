@@ -112,6 +112,33 @@ type ReinviteRow = {
   joined_new_pool: boolean
 }
 
+type EntryAuditRow = {
+  entry_id: string
+  user_id: string
+  entry_number: number
+  display_name: string
+  week: number
+  slot: number
+  pick_state: 'draft' | 'final' | 'empty' | string
+  draft_team_abbr: string | null
+  draft_updated_at: string | null
+  final_team_abbr: string | null
+  locked_at: string | null
+  result: string | null
+  strikes_after_week: number
+  strikes_left_after_week: number
+  status_after_week: 'alive' | 'out' | string
+  eliminated_week: number | null
+  issue: string | null
+}
+
+type IntegrityCheckRow = {
+  check_name: string
+  status: 'pass' | 'warning' | 'fail' | string
+  issue_count: number
+  detail: string
+}
+
 type ConfirmDialog = {
   title: string
   message: string
@@ -197,6 +224,27 @@ const avatarInitials = (name: string) =>
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() || '')
     .join('') || 'P'
+const integrityStatusClass = (status: string) => {
+  if (status === 'fail') return 'border-red-200 bg-red-50 text-red-700'
+  if (status === 'warning') return 'border-amber-200 bg-amber-50 text-amber-700'
+  return 'border-emerald-200 bg-emerald-50 text-emerald-700'
+}
+const integrityDotClass = (status: string) => {
+  if (status === 'fail') return 'bg-red-500'
+  if (status === 'warning') return 'bg-amber-500'
+  return 'bg-emerald-500'
+}
+const auditResultClass = (result?: string | null) => {
+  if (result === 'win') return 'bg-emerald-100 text-emerald-700'
+  if (result === 'loss') return 'bg-red-100 text-red-700'
+  if (result === 'push') return 'bg-amber-100 text-amber-700'
+  return 'bg-slate-100 text-slate-600'
+}
+const checkNameLabel = (name: string) =>
+  name
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
 
 function poolStage(pool: Pool, settingsLocked: boolean) {
   if (pool.archived) {
@@ -306,6 +354,11 @@ export default function PoolAdminPage() {
   const [adminActions, setAdminActions] = useState<AdminActionRow[]>([])
   const [pickEvents, setPickEvents] = useState<PickSaveEventRow[]>([])
   const [auditLoading, setAuditLoading] = useState(false)
+  const [entryAuditRows, setEntryAuditRows] = useState<EntryAuditRow[]>([])
+  const [entryAuditLoading, setEntryAuditLoading] = useState(false)
+  const [selectedAuditEntryId, setSelectedAuditEntryId] = useState<string | null>(null)
+  const [integrityRows, setIntegrityRows] = useState<IntegrityCheckRow[]>([])
+  const [integrityLoading, setIntegrityLoading] = useState(false)
 
   const [selectedWeek, setSelectedWeek] = useState(1)
   const [doubleWeeksText, setDoubleWeeksText] = useState('')
@@ -422,6 +475,34 @@ export default function PoolAdminPage() {
       sourceName: reinviteRows[0]?.source_pool_name || null,
     }
   }, [reinviteRows])
+  const auditEntries = useMemo(() => {
+    const map = new Map<string, EntryAuditRow>()
+    for (const row of entryAuditRows) {
+      if (!map.has(row.entry_id)) map.set(row.entry_id, row)
+    }
+    return Array.from(map.values()).sort((a, b) => a.display_name.localeCompare(b.display_name) || a.entry_number - b.entry_number)
+  }, [entryAuditRows])
+  const selectedAuditEntry = useMemo(
+    () => auditEntries.find((entry) => entry.entry_id === selectedAuditEntryId) || auditEntries[0] || null,
+    [auditEntries, selectedAuditEntryId],
+  )
+  const selectedEntryAuditRows = useMemo(
+    () => (selectedAuditEntry ? entryAuditRows.filter((row) => row.entry_id === selectedAuditEntry.entry_id) : []),
+    [entryAuditRows, selectedAuditEntry],
+  )
+  const selectedAuditSummary = useMemo(() => {
+    if (!selectedEntryAuditRows.length) return null
+    const latest = [...selectedEntryAuditRows].sort((a, b) => b.week - a.week || b.slot - a.slot)[0]
+    const issues = selectedEntryAuditRows.filter((row) => !!row.issue).length
+    return {
+      latest,
+      issues,
+      finalPicks: selectedEntryAuditRows.filter((row) => row.pick_state === 'final').length,
+      drafts: selectedEntryAuditRows.filter((row) => row.pick_state === 'draft').length,
+    }
+  }, [selectedEntryAuditRows])
+  const integrityIssueCount = useMemo(() => integrityRows.reduce((sum, row) => sum + (row.issue_count || 0), 0), [integrityRows])
+  const integrityFailCount = useMemo(() => integrityRows.filter((row) => row.status === 'fail').length, [integrityRows])
   const inviteUrl = useMemo(() => {
     if (!pool?.id) return ''
     if (typeof window === 'undefined') return `/join/${pool.id}`
@@ -465,6 +546,42 @@ export default function PoolAdminPage() {
       setError(getErrorMessage(e, 'Failed to load audit trail.'))
     } finally {
       setAuditLoading(false)
+    }
+  }
+
+  const loadEntryAudit = async (poolIdValue = poolId) => {
+    if (!poolIdValue) return
+    setEntryAuditLoading(true)
+    try {
+      const { data, error: auditErr } = await supabase.rpc('admin_pool_entry_audit', {
+        p_pool_id: poolIdValue,
+      })
+      if (auditErr) throw auditErr
+      const nextRows = (data || []) as EntryAuditRow[]
+      setEntryAuditRows(nextRows)
+      setSelectedAuditEntryId((current) => (current && nextRows.some((row) => row.entry_id === current) ? current : nextRows[0]?.entry_id ?? null))
+    } catch (e: unknown) {
+      setEntryAuditRows([])
+      setError(getErrorMessage(e, 'Failed to load entry audit.'))
+    } finally {
+      setEntryAuditLoading(false)
+    }
+  }
+
+  const loadIntegrityChecks = async (poolIdValue = poolId) => {
+    if (!poolIdValue) return
+    setIntegrityLoading(true)
+    try {
+      const { data, error: integrityErr } = await supabase.rpc('admin_pool_scoring_integrity', {
+        p_pool_id: poolIdValue,
+      })
+      if (integrityErr) throw integrityErr
+      setIntegrityRows((data || []) as IntegrityCheckRow[])
+    } catch (e: unknown) {
+      setIntegrityRows([])
+      setError(getErrorMessage(e, 'Failed to run scoring checks.'))
+    } finally {
+      setIntegrityLoading(false)
     }
   }
 
@@ -582,7 +699,7 @@ export default function PoolAdminPage() {
       }
       setDraftTeams(nextDrafts)
       setFinalTeams(nextFinals)
-      await loadAuditTrail()
+      await Promise.all([loadAuditTrail(), loadEntryAudit(p.id), loadIntegrityChecks(p.id)])
     } catch (e: unknown) {
       setError(getErrorMessage(e, 'Failed to load admin data.'))
     } finally {
@@ -1070,9 +1187,9 @@ export default function PoolAdminPage() {
     const selectedLabel = weekLabel(week)
     const nextLabel = weekLabel(nextWeek)
     const copy: Record<typeof action, string> = {
-      'randomize-outcomes': `Fill empty ${selectedLabel} outcomes for ${pool.name}? Existing choices stay as-is.`,
-      score: `Score ${selectedLabel} and move ${pool.name} to ${nextLabel}?\n\nThis grades submitted picks, counts missed picks as losses, updates standings, and advances only this test pool.`,
-      clear: `Clear ${selectedLabel} results for ${pool.name}?\n\nPicks stay in place. This week's fake outcomes and scoring are removed, then standings are rebuilt.`,
+      'randomize-outcomes': `Randomize empty game winners for ${selectedLabel} in ${pool.name}? Existing choices stay as-is.`,
+      score: `Score ${selectedLabel} and advance ${pool.name} to ${nextLabel}?\n\nThis grades submitted picks, counts missed picks as losses, updates standings, clears impossible future picks after elimination, and advances only this test pool.`,
+      clear: `Unscore ${selectedLabel} for ${pool.name}?\n\nPicks stay in place. This week's fake outcomes, no-pick losses, and scoring are removed, then standings are rebuilt.`,
       reset: `Reset the full test run for ${pool.name}?\n\nMembers and settings stay. Test picks, fake outcomes, and test standings are cleared.`,
     }
     if (action === 'score' && testGamesNeedingOutcome.length > 0) {
@@ -1087,22 +1204,22 @@ export default function PoolAdminPage() {
     const confirmed = await requestConfirm({
       title:
         action === 'score'
-          ? 'Score this week?'
+          ? 'Score and advance?'
           : action === 'clear'
-            ? 'Clear this week?'
+            ? 'Unscore this week?'
             : action === 'reset'
               ? 'Reset simulation?'
-              : 'Fill empty outcomes?',
+              : 'Randomize empty winners?',
       message: copy[action],
       tone: action === 'reset' ? 'danger' : 'warning',
       confirmLabel:
         action === 'score'
-          ? 'Score week'
+          ? 'Score & advance'
           : action === 'clear'
-            ? 'Clear week'
+            ? 'Unscore week'
             : action === 'reset'
-              ? 'Reset simulation'
-              : 'Fill outcomes',
+              ? 'Reset test run'
+              : 'Randomize winners',
     })
     if (!confirmed) return
     setRunningAction(`test-${action}`)
@@ -1134,6 +1251,24 @@ export default function PoolAdminPage() {
     } finally {
       setRunningAction(null)
     }
+  }
+
+  const repairScoringState = async () => {
+    if (!pool) return
+    const confirmed = await requestConfirm({
+      title: 'Repair scoring state?',
+      message: `Rebuild scoring for ${pool.name} from the pick ledger?\n\nThis recalculates wins, losses, strikes, alive/out status, and clears picks after an entry has been eliminated. It only affects this pool.`,
+      confirmLabel: 'Repair scoring',
+      tone: 'warning',
+    })
+    if (!confirmed) return
+    await runAction('Repair scoring state', async () => {
+      const { data, error: repairErr } = await supabase.rpc('admin_repair_pool_scoring_state', {
+        p_pool_id: pool.id,
+      })
+      if (repairErr) throw repairErr
+      return String(data || 'Scoring state repaired.')
+    })
   }
 
   return (
@@ -1228,6 +1363,68 @@ export default function PoolAdminPage() {
               </div>
             </section>
 
+            <section className="rounded-lg border bg-white p-4">
+              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="font-semibold">Scoring Confidence</h2>
+                  <p className="text-sm text-gray-600">Checks for impossible scoring states in this pool before they become standings problems.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => loadIntegrityChecks(pool.id)}
+                    disabled={integrityLoading}
+                    className="rounded-md bg-gray-100 px-3 py-1.5 text-sm font-semibold text-gray-800 hover:bg-gray-200 disabled:opacity-50"
+                  >
+                    {integrityLoading ? 'Checking...' : 'Run checks'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={repairScoringState}
+                    disabled={!!runningAction}
+                    className="rounded-md bg-slate-950 px-3 py-1.5 text-sm font-semibold text-white hover:bg-black disabled:opacity-50"
+                  >
+                    Repair this pool
+                  </button>
+                </div>
+              </div>
+
+              <div className="mb-4 grid gap-3 sm:grid-cols-3">
+                <div className={`rounded-lg border p-3 ${integrityIssueCount === 0 ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+                  <div className="text-xs uppercase tracking-wide text-slate-500">Issues Found</div>
+                  <div className="mt-1 text-2xl font-bold text-slate-950">{integrityLoading ? '-' : integrityIssueCount}</div>
+                </div>
+                <div className={`rounded-lg border p-3 ${integrityFailCount === 0 ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'}`}>
+                  <div className="text-xs uppercase tracking-wide text-slate-500">Failed Checks</div>
+                  <div className="mt-1 text-2xl font-bold text-slate-950">{integrityLoading ? '-' : integrityFailCount}</div>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <div className="text-xs uppercase tracking-wide text-slate-500">Last Refresh</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-950">{refreshing || integrityLoading ? 'Refreshing...' : 'Current page load'}</div>
+                </div>
+              </div>
+
+              <div className="grid gap-2 md:grid-cols-2">
+                {integrityRows.map((row) => (
+                  <div key={row.check_name} className={`rounded-md border p-3 ${integrityStatusClass(row.status)}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className={`h-2.5 w-2.5 rounded-full ${integrityDotClass(row.status)}`} />
+                          <span className="text-sm font-semibold text-slate-950">{checkNameLabel(row.check_name)}</span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-700">{row.detail}</p>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-xs font-semibold uppercase text-slate-700">{row.status}</span>
+                    </div>
+                  </div>
+                ))}
+                {!integrityLoading && integrityRows.length === 0 && (
+                  <p className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">No checks have been loaded yet.</p>
+                )}
+              </div>
+            </section>
+
             {pool.cloned_from_pool_id && (
               <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
                 <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -1316,9 +1513,9 @@ export default function PoolAdminPage() {
                 <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-wide text-violet-700">Superadmin Only</p>
-                    <h2 className="text-lg font-semibold text-slate-950">Season Simulator</h2>
+                    <h2 className="text-lg font-semibold text-slate-950">Test Season Controls</h2>
                     <p className="mt-1 max-w-3xl text-sm text-slate-600">
-                      Run this pool through fake weeks using the real schedule. Only the superadmin account can see these controls.
+                      Simulate this pool week by week using the real schedule. These controls only affect this pool and only the superadmin account can see them.
                     </p>
                   </div>
                   <button
@@ -1335,15 +1532,15 @@ export default function PoolAdminPage() {
                 {pool.test_mode ? (
                   <>
                     <div className="mb-4 grid gap-2 rounded-md border border-violet-200 bg-white p-3 text-sm text-slate-700 md:grid-cols-3">
-                      <div><span className="font-semibold text-slate-950">1.</span> Set the simulated week.</div>
-                      <div><span className="font-semibold text-slate-950">2.</span> Pick winners or fill empty outcomes.</div>
-                      <div><span className="font-semibold text-slate-950">3.</span> Score the week to advance the pool.</div>
+                      <div><span className="font-semibold text-slate-950">1.</span> Choose the week the pool should act like.</div>
+                      <div><span className="font-semibold text-slate-950">2.</span> Set fake winners for that week&apos;s games.</div>
+                      <div><span className="font-semibold text-slate-950">3.</span> Score & advance so standings move forward.</div>
                     </div>
 
                     <div className="grid gap-3 lg:grid-cols-[minmax(240px,320px)_1fr]">
                       <div className="rounded-md border border-violet-200 bg-white p-3">
                         <label className="text-sm font-semibold text-slate-800">
-                          Simulated week
+                          Pool is pretending it is
                           <select
                             value={testWeek}
                             onChange={(event) => setTestWeek(event.target.value)}
@@ -1360,7 +1557,7 @@ export default function PoolAdminPage() {
                             disabled={runningAction === 'test-week'}
                             className="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
                           >
-                            {runningAction === 'test-week' ? 'Saving...' : 'Set Week'}
+                            {runningAction === 'test-week' ? 'Saving...' : 'Show This Week'}
                           </button>
                           <button
                             onClick={() => loadTestOptions(pool.id, testWeek)}
@@ -1370,47 +1567,47 @@ export default function PoolAdminPage() {
                             {testToolsLoading ? 'Loading...' : 'Refresh'}
                           </button>
                         </div>
-                        <p className="mt-2 text-xs text-slate-600">The pool page behaves as if this is the active pool week.</p>
+                        <p className="mt-2 text-xs text-slate-600">Members see the pool exactly as if this were the current active week.</p>
                       </div>
 
                       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                        <InfoTile label="Matchups" value={String(testGames.length)} />
-                        <InfoTile label="Picked matchups" value={String(testGamesWithPicks.length)} />
-                        <InfoTile label="Outcomes set" value={`${testGamesWithOutcomes.length}/${testGames.length || 0}`} />
-                        <InfoTile label="Need outcome" value={String(testGamesNeedingOutcome.length)} />
+                        <InfoTile label="Games this week" value={String(testGames.length)} />
+                        <InfoTile label="Games with picks" value={String(testGamesWithPicks.length)} />
+                        <InfoTile label="Winners set" value={`${testGamesWithOutcomes.length}/${testGames.length || 0}`} />
+                        <InfoTile label="Need winner" value={String(testGamesNeedingOutcome.length)} />
                       </div>
                     </div>
 
                     {testGamesNeedingOutcome.length > 0 && (
                       <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                        Before scoring, set outcomes for: {testGamesNeedingOutcome.map((game) => `${game.away_team} @ ${game.home_team}`).slice(0, 6).join(', ')}.
+                        Before you score and advance, set winners for: {testGamesNeedingOutcome.map((game) => `${game.away_team} @ ${game.home_team}`).slice(0, 6).join(', ')}.
                       </p>
                     )}
 
                     <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                       <TestActionButton
-                        title="Fill Empty Outcomes"
-                        description="Randomly choose winners only for games not set yet."
+                        title="Randomize Empty Winners"
+                        description="Choose winners only for games that are still blank."
                         onClick={() => runTestAction('randomize-outcomes')}
                         disabled={!!runningAction}
                         tone="indigo"
                       />
                       <TestActionButton
-                        title="Score This Week"
-                        description="Grade picks, count missed picks, and move to next week."
+                        title="Score & Advance"
+                        description="Grade picks, count missed picks, and move forward."
                         onClick={() => runTestAction('score')}
                         disabled={!!runningAction || testGamesNeedingOutcome.length > 0}
                         tone="emerald"
                       />
                       <TestActionButton
-                        title="Clear This Week"
-                        description="Remove this week's outcomes and scoring only."
+                        title="Unscore Selected Week"
+                        description="Remove this week's fake results and scoring only."
                         onClick={() => runTestAction('clear')}
                         disabled={!!runningAction}
                         tone="slate"
                       />
                       <TestActionButton
-                        title="Reset Simulation"
+                        title="Reset Test Run"
                         description="Clear the full fake season for this pool."
                         onClick={() => runTestAction('reset')}
                         disabled={!!runningAction}
@@ -1425,7 +1622,7 @@ export default function PoolAdminPage() {
                             <th className="border-b border-violet-100 p-2 text-left">Matchup</th>
                             <th className="border-b border-violet-100 p-2 text-left">Kickoff</th>
                             <th className="border-b border-violet-100 p-2 text-left">Pick split</th>
-                            <th className="border-b border-violet-100 p-2 text-left">Outcome</th>
+                            <th className="border-b border-violet-100 p-2 text-left">Winner</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1437,7 +1634,7 @@ export default function PoolAdminPage() {
                                   <span>{weekLabel(game.week)}</span>
                                   {(game.total_pick_count ?? game.away_pick_count + game.home_pick_count) > 0 && (
                                     <span className={`rounded-full px-2 py-0.5 font-semibold ${game.needs_outcome ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
-                                      {game.needs_outcome ? 'Needs outcome' : 'Ready'}
+                                      {game.needs_outcome ? 'Needs winner' : 'Ready'}
                                     </span>
                                   )}
                                 </div>
@@ -1454,7 +1651,7 @@ export default function PoolAdminPage() {
                                   disabled={!!runningAction}
                                   className="w-full min-w-36 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
                                 >
-                                  <option value="">Not set</option>
+                                  <option value="">Winner not set</option>
                                   <option value="away">{game.away_team} wins</option>
                                   <option value="home">{game.home_team} wins</option>
                                   <option value="tie">Tie</option>
@@ -1475,7 +1672,7 @@ export default function PoolAdminPage() {
                   </>
                 ) : (
                   <p className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-                    Enable the season simulator when you want this pool to behave like a future week without waiting for the real NFL calendar.
+                    Enable test season controls when you want this pool to behave like future weeks without waiting for the real NFL calendar.
                   </p>
                 )}
               </section>
@@ -1677,6 +1874,121 @@ export default function PoolAdminPage() {
                     placeholder="e.g. 5,8,12"
                   />
                 </div>
+              </div>
+            </section>
+
+            <section className="rounded-lg border bg-white p-4">
+              <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h2 className="font-semibold">Entry Audit</h2>
+                  <p className="text-sm text-gray-600">Week-by-week pick state, result, strikes, and alive/out status for one entry.</p>
+                </div>
+                <div className="flex flex-wrap items-end gap-2">
+                  <label className="text-sm font-medium text-slate-700">
+                    Entry
+                    <select
+                      value={selectedAuditEntry?.entry_id || ''}
+                      onChange={(event) => setSelectedAuditEntryId(event.target.value || null)}
+                      className="mt-1 block min-w-64 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                    >
+                      {auditEntries.map((entry) => (
+                        <option key={entry.entry_id} value={entry.entry_id}>
+                          {entry.display_name}{entry.entry_number > 1 ? ` (${entry.entry_number})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => loadEntryAudit(pool.id)}
+                    disabled={entryAuditLoading}
+                    className="rounded-md bg-gray-100 px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-200 disabled:opacity-50"
+                  >
+                    {entryAuditLoading ? 'Loading...' : 'Refresh audit'}
+                  </button>
+                </div>
+              </div>
+
+              {selectedAuditSummary && (
+                <div className="mb-4 grid gap-3 sm:grid-cols-4">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <div className="text-xs uppercase tracking-wide text-slate-500">Current Audit Status</div>
+                    <div className="mt-1 text-lg font-bold capitalize text-slate-950">{selectedAuditSummary.latest.status_after_week}</div>
+                    {selectedAuditSummary.latest.eliminated_week && <div className="text-xs text-slate-500">Out in {weekLabel(selectedAuditSummary.latest.eliminated_week)}</div>}
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <div className="text-xs uppercase tracking-wide text-slate-500">Strikes After Latest Week</div>
+                    <div className="mt-1 text-lg font-bold text-slate-950">{selectedAuditSummary.latest.strikes_after_week}</div>
+                    <div className="text-xs text-slate-500">{selectedAuditSummary.latest.strikes_left_after_week} mulligan(s) left</div>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <div className="text-xs uppercase tracking-wide text-slate-500">Official Picks</div>
+                    <div className="mt-1 text-lg font-bold text-slate-950">{selectedAuditSummary.finalPicks}</div>
+                    <div className="text-xs text-slate-500">{selectedAuditSummary.drafts} saved draft slot(s)</div>
+                  </div>
+                  <div className={`rounded-lg border p-3 ${selectedAuditSummary.issues ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
+                    <div className="text-xs uppercase tracking-wide text-slate-500">Audit Notes</div>
+                    <div className="mt-1 text-lg font-bold text-slate-950">{selectedAuditSummary.issues}</div>
+                    <div className="text-xs text-slate-500">{selectedAuditSummary.issues ? 'Needs review' : 'No notes'}</div>
+                  </div>
+                </div>
+              )}
+
+              <div className="overflow-x-auto rounded-md border border-slate-200">
+                <table className="w-full min-w-[980px] text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2 text-left">Week</th>
+                      <th className="px-3 py-2 text-left">Pick</th>
+                      <th className="px-3 py-2 text-left">State</th>
+                      <th className="px-3 py-2 text-left">Result</th>
+                      <th className="px-3 py-2 text-left">Strikes After</th>
+                      <th className="px-3 py-2 text-left">Status After</th>
+                      <th className="px-3 py-2 text-left">Note</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {selectedEntryAuditRows.map((row) => {
+                      const pick = row.final_team_abbr || row.draft_team_abbr || '-'
+                      return (
+                        <tr key={`${row.entry_id}:${row.week}:${row.slot}`} className={row.issue ? 'bg-amber-50/60' : undefined}>
+                          <td className="px-3 py-2 font-medium text-slate-950">
+                            {weekLabel(row.week)}
+                            {row.slot > 1 && <span className="ml-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">Pick {row.slot}</span>}
+                          </td>
+                          <td className="px-3 py-2">
+                            <span className="font-semibold text-slate-950">{pick}</span>
+                            {row.locked_at && <div className="text-xs text-slate-500">Locked {fmtShort(row.locked_at)}</div>}
+                            {!row.locked_at && row.draft_updated_at && <div className="text-xs text-slate-500">Saved {fmtShort(row.draft_updated_at)}</div>}
+                          </td>
+                          <td className="px-3 py-2">
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold capitalize text-slate-700">{row.pick_state}</span>
+                          </td>
+                          <td className="px-3 py-2">
+                            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${auditResultClass(row.result)}`}>{row.result || 'pending'}</span>
+                          </td>
+                          <td className="px-3 py-2 text-slate-700">
+                            {row.strikes_after_week}
+                            <div className="text-xs text-slate-500">{row.strikes_left_after_week} left</div>
+                          </td>
+                          <td className="px-3 py-2">
+                            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${row.status_after_week === 'out' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                              {row.status_after_week}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-slate-600">{row.issue || '-'}</td>
+                        </tr>
+                      )
+                    })}
+                    {!entryAuditLoading && selectedEntryAuditRows.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="p-4 text-sm text-slate-500">
+                          No audit rows found for this pool.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </section>
 

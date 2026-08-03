@@ -1634,6 +1634,28 @@ export type Database = {
             }
             Returns: undefined
           }
+      admin_pool_entry_audit: {
+        Args: { p_pool_id: string }
+        Returns: {
+          display_name: string
+          draft_team_abbr: string
+          draft_updated_at: string
+          eliminated_week: number
+          entry_id: string
+          entry_number: number
+          final_team_abbr: string
+          issue: string
+          locked_at: string
+          pick_state: string
+          result: string
+          slot: number
+          status_after_week: string
+          strikes_after_week: number
+          strikes_left_after_week: number
+          user_id: string
+          week: number
+        }[]
+      }
       admin_pool_entry_week_overview: {
         Args: { p_pool_id: string; p_week: number }
         Returns: {
@@ -1656,6 +1678,15 @@ export type Database = {
           strikes_used: number
           user_id: string
           wins: number
+        }[]
+      }
+      admin_pool_scoring_integrity: {
+        Args: { p_pool_id: string }
+        Returns: {
+          check_name: string
+          detail: string
+          issue_count: number
+          status: string
         }[]
       }
       admin_pool_week_overview: {
@@ -1690,6 +1721,10 @@ export type Database = {
       admin_remove_pool_member: {
         Args: { p_pool_id: string; p_profile_id: string }
         Returns: number
+      }
+      admin_repair_pool_scoring_state: {
+        Args: { p_pool_id: string }
+        Returns: string
       }
       admin_set_double_weeks: {
         Args: { p_pool_id: string; p_weeks: number[] }
