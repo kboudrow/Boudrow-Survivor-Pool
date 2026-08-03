@@ -48,10 +48,10 @@ npm install
 Create a local environment file:
 
 ```bash
-cp .env.example .env.local
+cp .env.local.example .env.local
 ```
 
-If `.env.example` does not exist yet, create `.env.local` manually:
+If `.env.local.example` does not exist yet, create `.env.local` manually:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
@@ -133,6 +133,7 @@ AdSense is opt-in. Set `NEXT_PUBLIC_ENABLE_ADSENSE=true`, `NEXT_PUBLIC_GOOGLE_AD
 - Sensitive write workflows are implemented as Supabase RPC functions, including pool creation, joining, picks, entries, profile updates, blog writes, archive/clone behavior, and admin actions.
 - Row Level Security policies in Supabase are essential. The browser anon key is not a substitute for RLS.
 - Keep the README free of real keys or private credentials.
+- Pools are currently free. Stripe environment variables may remain unset unless payment functionality is intentionally re-enabled later.
 
 ## Backups And Recovery
 

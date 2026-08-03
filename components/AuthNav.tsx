@@ -6,6 +6,7 @@ import Link from 'next/link'
 type SupabaseClientModule = typeof import('@/lib/supabaseClient')
 
 const SUPERADMIN_EMAIL = 'survivesunday1@gmail.com'
+const AUTH_EVENT_KEY = 'surviveSunday:auth-event'
 
 type ProfileBadge = {
   display_name: string | null
@@ -31,6 +32,15 @@ function getInitials(email: string | null, profile: ProfileBadge | null) {
   if (!email) return 'SS'
   const name = email.split('@')[0] || email
   return name.slice(0, 2).toUpperCase()
+}
+
+function privatePathRequiresAuth(pathname: string) {
+  return pathname.startsWith('/pools') || pathname.startsWith('/profile') || pathname.startsWith('/admin') || pathname.startsWith('/archives')
+}
+
+function signedOutRedirectHref() {
+  const path = `${window.location.pathname}${window.location.search}`
+  return `/?auth=signin&returnTo=${encodeURIComponent(path)}`
 }
 
 export function AuthNav() {
@@ -70,6 +80,16 @@ export function AuthNav() {
 
     const load = async () => {
       const { supabase }: SupabaseClientModule = await import('@/lib/supabaseClient')
+      const handleSignedOut = () => {
+        setEmail(null)
+        setProfile(null)
+        setHasBlogAccess(false)
+        setLoaded(true)
+        if (privatePathRequiresAuth(window.location.pathname)) {
+          window.location.assign(signedOutRedirectHref())
+        }
+      }
+
       const {
         data: { user },
       } = await supabase.auth.getUser()
@@ -83,12 +103,27 @@ export function AuthNav() {
       setLoaded(true)
 
       const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (!session?.user) {
+          handleSignedOut()
+          return
+        }
         setEmail(session?.user?.email ?? null)
         loadProfile(supabase, session?.user?.id ?? null).catch(() => setProfile(null))
         loadBlogAccess(supabase, session?.user?.id ?? null).catch(() => setHasBlogAccess(false))
         setLoaded(true)
       })
       unsubscribe = () => data.subscription.unsubscribe()
+
+      const onStorage = (event: StorageEvent) => {
+        if (event.key === AUTH_EVENT_KEY && event.newValue === 'signed-out') {
+          handleSignedOut()
+        }
+      }
+      window.addEventListener('storage', onStorage)
+      unsubscribe = () => {
+        data.subscription.unsubscribe()
+        window.removeEventListener('storage', onStorage)
+      }
     }
 
     load()
@@ -105,8 +140,8 @@ export function AuthNav() {
     setProfile(null)
     setHasBlogAccess(false)
     try {
-      window.localStorage.setItem('surviveSunday:auth-event', 'signed-out')
-      window.localStorage.removeItem('surviveSunday:auth-event')
+      window.localStorage.setItem(AUTH_EVENT_KEY, 'signed-out')
+      window.localStorage.removeItem(AUTH_EVENT_KEY)
     } catch {}
     window.location.href = '/'
   }

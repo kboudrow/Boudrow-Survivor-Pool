@@ -1991,7 +1991,7 @@ export type Database = {
         }[]
       }
       grant_blog_permission: {
-        Args: { p_email: string; p_role: string }
+        Args: { p_email: string; p_role?: string }
         Returns: string
       }
       is_blog_superadmin: { Args: never; Returns: boolean }

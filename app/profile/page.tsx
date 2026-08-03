@@ -473,6 +473,10 @@ export default function ProfilePage() {
 
   const signOut = async () => {
     await supabase.auth.signOut()
+    try {
+      window.localStorage.setItem('surviveSunday:auth-event', 'signed-out')
+      window.localStorage.removeItem('surviveSunday:auth-event')
+    } catch {}
     router.push('/')
   }
 
