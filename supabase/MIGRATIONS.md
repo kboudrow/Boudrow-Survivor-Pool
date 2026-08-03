@@ -13,5 +13,4 @@ npx supabase db dump --linked --schema public --file supabase/migrations/2026071
 ```
 
 After that, create new forward-only schema changes as additional timestamped
-files and apply them with `supabase db query --linked --file <migration.sql>`.
-
+files and apply them with `npx supabase db push`.
