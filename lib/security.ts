@@ -10,6 +10,8 @@ const COMMON_PROVIDER_DOMAINS: Record<string, string[]> = {
 
 const IMAGE_EXTENSION_BY_MIME: Record<string, string> = {
   'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/pjpeg': 'jpg',
   'image/png': 'png',
   'image/webp': 'webp',
   'image/gif': 'gif',
@@ -61,7 +63,7 @@ export function validateEmailAddress(value: string): string | null {
 
 export function validatePublicImageUpload(file: UploadFileLike, label = 'Image'): string | null {
   if (!ALLOWED_PUBLIC_IMAGE_MIME_TYPES.includes(file.type)) {
-    return `${label} must be a PNG, JPG, WebP, or GIF file.`
+    return `${label} must be a PNG, JPG/JPEG, WebP, or GIF file.`
   }
   if (file.size > MAX_PUBLIC_IMAGE_UPLOAD_BYTES) {
     return `${label} must be 5 MB or smaller.`

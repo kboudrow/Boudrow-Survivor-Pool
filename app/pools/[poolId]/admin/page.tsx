@@ -1754,7 +1754,7 @@ export default function PoolAdminPage() {
                       <input
                         ref={imageInputRef}
                         type="file"
-                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        accept="image/png,image/jpeg,image/jpg,image/pjpeg,image/webp,image/gif"
                         onChange={handleImageChange}
                         disabled={savingImage}
                         className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white disabled:opacity-50"

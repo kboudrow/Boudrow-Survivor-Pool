@@ -73,6 +73,7 @@ export default function CreatePoolPage() {
   const topRef = useRef<HTMLDivElement | null>(null)
   const nameInputRef = useRef<HTMLInputElement | null>(null)
   const imageInputRef = useRef<HTMLInputElement | null>(null)
+  const imageFieldRef = useRef<HTMLDivElement | null>(null)
 
   // Pool fields
   const [poolName, setPoolName] = useState('')
@@ -84,6 +85,7 @@ export default function CreatePoolPage() {
   const [notes, setNotes] = useState('')
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [imageError, setImageError] = useState<string | null>(null)
 
   // visibility
   const [isPublic, setIsPublic] = useState(true)
@@ -152,8 +154,9 @@ export default function CreatePoolPage() {
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] || null
     const validationError = file ? validatePublicImageUpload(file, 'Pool image') : null
+    setError(null)
     if (validationError) {
-      setError(validationError)
+      setImageError(validationError)
       setImageFile(null)
       event.currentTarget.value = ''
       setImagePreview((prev) => {
@@ -162,7 +165,7 @@ export default function CreatePoolPage() {
       })
       return
     }
-    setError(null)
+    setImageError(null)
     setImageFile(file)
     setImagePreview((prev) => {
       if (prev) URL.revokeObjectURL(prev)
@@ -171,6 +174,7 @@ export default function CreatePoolPage() {
   }
 
   const clearImageSelection = () => {
+    setImageError(null)
     setImageFile(null)
     setImagePreview((prev) => {
       if (prev) URL.revokeObjectURL(prev)
@@ -186,7 +190,7 @@ export default function CreatePoolPage() {
     const path = makeStorageObjectPath(userId, file)
     const { error: uploadError } = await supabase.storage.from('pool-images').upload(path, file, {
       cacheControl: '3600',
-      upsert: true,
+      upsert: false,
     })
     if (uploadError) {
       console.error('Pool image upload failed', uploadError)
@@ -233,7 +237,17 @@ export default function CreatePoolPage() {
       let deadline_fixed: string | null = '13:00'
       if (pickDeadline === 'Before Monday Night Football') deadline_fixed = '20:15'
       if (pickDeadline === 'Rolling: each game locks at kickoff') deadline_mode = 'rolling'
-      const leagueImageUrl = imageFile ? await uploadLeagueImage(imageFile, user.id) : defaultPoolImage(trimmedName)
+      let leagueImageUrl = defaultPoolImage(trimmedName)
+      if (imageFile) {
+        try {
+          leagueImageUrl = await uploadLeagueImage(imageFile, user.id)
+        } catch (uploadError) {
+          console.error('Pool image upload failed during pool creation', uploadError)
+          setImageError('We could not upload that pool image. Remove it and create the pool without an image, or try a different JPG/JPEG, PNG, WebP, or GIF.')
+          imageFieldRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          return
+        }
+      }
 
       const { data: poolId, error: createErr } = await supabase.rpc('create_pool_with_owner', {
         p_name: trimmedName,
@@ -494,7 +508,7 @@ export default function CreatePoolPage() {
           />
         </div>
 
-        <div className="field">
+        <div className="field" ref={imageFieldRef}>
           <label htmlFor="leagueImage">Pool Image</label>
           <div className="imageUpload">
             <div className="imagePreview">
@@ -510,7 +524,7 @@ export default function CreatePoolPage() {
                 ref={imageInputRef}
                 id="leagueImage"
                 type="file"
-                accept="image/png,image/jpeg,image/webp,image/gif"
+                accept="image/png,image/jpeg,image/jpg,image/pjpeg,image/webp,image/gif"
                 onChange={handleImageChange}
                 className="fileInput"
               />
@@ -524,6 +538,7 @@ export default function CreatePoolPage() {
                 </button>
               )}
               <p className="hint">Optional. Upload a logo or pool image up to 5 MB.</p>
+              {imageError && <p className="imageError">{imageError}</p>}
             </div>
           </div>
         </div>
@@ -584,6 +599,16 @@ export default function CreatePoolPage() {
         }
 
         .hint { margin-top: 6px; font-size: 12px; color: #666; }
+        .imageError {
+          margin: 10px 0 0;
+          border: 1px solid #fecaca;
+          border-radius: 10px;
+          background: #fef2f2;
+          color: #b91c1c;
+          padding: 10px 12px;
+          font-size: 13px;
+          line-height: 1.4;
+        }
         .imageUpload {
           display: grid;
           grid-template-columns: 140px 1fr;
