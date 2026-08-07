@@ -1394,6 +1394,18 @@ function MyPoolsContent() {
     }
   }
 
+  const commitPickTeam = async (week: number, slot: number, team: Team, previousPick: Team | null) => {
+    const key = pickKey(week, slot)
+    setMyDraftPicks((prev) => ({ ...prev, [key]: team }))
+    setTeamPickerTarget(null)
+    const saved = await saveDraft(week, slot, team)
+    if (saved) {
+      showPickNotice({ team, week, slot, action: 'saved' })
+    } else {
+      setMyDraftPicks((prev) => ({ ...prev, [key]: previousPick }))
+    }
+  }
+
   const onPickTeam = async (week: number, slot: number, team: Team) => {
     const key = pickKey(week, slot)
     if (pool?.test_mode && week < (pool.test_current_week || pool.start_week || 1)) {
@@ -1424,14 +1436,19 @@ function MyPoolsContent() {
       return
     }
     const previousPick = myDraftPicks[key] ?? null
-    setMyDraftPicks((prev) => ({ ...prev, [key]: team }))
-    setTeamPickerTarget(null)
-    const saved = await saveDraft(week, slot, team)
-    if (saved) {
-      showPickNotice({ team, week, slot, action: 'saved' })
-    } else {
-      setMyDraftPicks((prev) => ({ ...prev, [key]: previousPick }))
+    if (previousPick && previousPick.abbr !== team.abbr) {
+      setTeamPickerTarget(null)
+      confirmAction({
+        title: 'Change pick?',
+        message: `Change your ${weekLabel(week)} pick from ${previousPick.name} (${previousPick.abbr}) to ${team.name} (${team.abbr})?`,
+        tone: 'warning',
+        confirmLabel: 'Yes, change pick',
+        cancelLabel: 'No',
+        onConfirm: () => commitPickTeam(week, slot, team, previousPick),
+      })
+      return
     }
+    await commitPickTeam(week, slot, team, previousPick)
   }
 
   const clearPick = async (week: number, slot: number) => {
