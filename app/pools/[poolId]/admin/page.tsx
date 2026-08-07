@@ -1,7 +1,7 @@
 ﻿'use client'
 
 import type { ChangeEvent } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { InviteModal } from '@/components/InviteModal'
@@ -377,6 +377,9 @@ export default function PoolAdminPage() {
   const [imageUrlDraft, setImageUrlDraft] = useState('')
   const [imageFileDraft, setImageFileDraft] = useState<File | null>(null)
   const [imagePreviewDraft, setImagePreviewDraft] = useState<string | null>(null)
+  const [imageError, setImageError] = useState<string | null>(null)
+  const [imageNotice, setImageNotice] = useState<string | null>(null)
+  const imageInputRef = useRef<HTMLInputElement | null>(null)
   const [runningAction, setRunningAction] = useState<string | null>(null)
   const [draftTeams, setDraftTeams] = useState<Record<string, string>>({})
   const [finalTeams, setFinalTeams] = useState<Record<string, string>>({})
@@ -652,10 +655,13 @@ export default function PoolAdminPage() {
       setVisibilityPassword('')
       setImageUrlDraft(p.image_url || '')
       setImageFileDraft(null)
+      if (imageInputRef.current) imageInputRef.current.value = ''
       setImagePreviewDraft((prev) => {
         if (prev) URL.revokeObjectURL(prev)
         return null
       })
+      setImageError(null)
+      setImageNotice(null)
       setRows((overview || []) as AdminRow[])
       const nextTestWeek = String(p.test_current_week || p.start_week || 1)
       setTestWeek(nextTestWeek)
@@ -883,8 +889,11 @@ export default function PoolAdminPage() {
   const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] || null
     const validationError = file ? validatePublicImageUpload(file, 'Pool image') : null
+    setError(null)
+    setNotice(null)
     if (validationError) {
-      setError(validationError)
+      setImageError(validationError)
+      setImageNotice(null)
       setImageFileDraft(null)
       event.currentTarget.value = ''
       setImagePreviewDraft((prev) => {
@@ -893,7 +902,8 @@ export default function PoolAdminPage() {
       })
       return
     }
-    setError(null)
+    setImageError(null)
+    setImageNotice(null)
     setImageFileDraft(file)
     setImagePreviewDraft((prev) => {
       if (prev) URL.revokeObjectURL(prev)
@@ -901,32 +911,56 @@ export default function PoolAdminPage() {
     })
   }
 
-  const uploadLeagueImage = async (file: File, poolIdValue: string) => {
+  const uploadLeagueImage = async (file: File, ownerId: string) => {
     const validationError = validatePublicImageUpload(file, 'Pool image')
     if (validationError) throw new Error(validationError)
 
-    const path = makeStorageObjectPath(poolIdValue, file)
+    const path = makeStorageObjectPath(ownerId, file)
     const { error: uploadError } = await supabase.storage.from('pool-images').upload(path, file, {
       cacheControl: '3600',
-      upsert: true,
+      upsert: false,
     })
-    if (uploadError) throw uploadError
+    if (uploadError) {
+      console.error('Pool image upload failed', uploadError)
+      throw new Error('Pool image upload failed')
+    }
 
     const { data } = supabase.storage.from('pool-images').getPublicUrl(path)
     return data.publicUrl
   }
 
+  const imageSaveErrorMessage = (error: unknown) => {
+    const message = getErrorMessage(error, 'Pool image could not be saved. Try a different image or add it again in a minute.')
+    if (message === 'You do not have permission to do that.') {
+      return 'Pool image could not be saved. Make sure you are signed in as a pool admin and try again.'
+    }
+    if (message === 'Pool image upload failed') {
+      return 'Pool image upload failed. Try a different image or add it again in a minute.'
+    }
+    return message
+  }
+
   const saveImage = async () => {
     if (!pool) return
     if (!imageFileDraft) {
-      setError('Choose an image file before saving.')
+      setImageError('Choose an image file before saving.')
+      setImageNotice(null)
+      setError(null)
       return
     }
     setSavingImage(true)
     setError(null)
     setNotice(null)
+    setImageError(null)
+    setImageNotice(null)
     try {
-      const nextImage = await uploadLeagueImage(imageFileDraft, pool.id)
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser()
+      if (userError || !user) throw new Error('Please sign in again to save this pool image.')
+
+      const nextImage = await uploadLeagueImage(imageFileDraft, user.id)
       const { error } = await supabase.rpc('admin_update_pool_image', {
         p_pool_id: pool.id,
         p_image_url: nextImage,
@@ -935,13 +969,14 @@ export default function PoolAdminPage() {
       setPool({ ...pool, image_url: nextImage || null })
       setImageUrlDraft(nextImage)
       setImageFileDraft(null)
+      if (imageInputRef.current) imageInputRef.current.value = ''
       setImagePreviewDraft((prev) => {
         if (prev) URL.revokeObjectURL(prev)
         return null
       })
-      setNotice('Pool image saved.')
+      setImageNotice('Pool image saved.')
     } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Failed to save pool image.'))
+      setImageError(imageSaveErrorMessage(e))
     } finally {
       setSavingImage(false)
     }
@@ -952,6 +987,8 @@ export default function PoolAdminPage() {
     setSavingImage(true)
     setError(null)
     setNotice(null)
+    setImageError(null)
+    setImageNotice(null)
     try {
       const { error } = await supabase.rpc('admin_update_pool_image', {
         p_pool_id: pool.id,
@@ -961,13 +998,14 @@ export default function PoolAdminPage() {
       setPool({ ...pool, image_url: null })
       setImageUrlDraft('')
       setImageFileDraft(null)
+      if (imageInputRef.current) imageInputRef.current.value = ''
       setImagePreviewDraft((prev) => {
         if (prev) URL.revokeObjectURL(prev)
         return null
       })
-      setNotice('Pool image reset to a default.')
+      setImageNotice('Pool image reset to a default.')
     } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Failed to save pool image.'))
+      setImageError(imageSaveErrorMessage(e))
     } finally {
       setSavingImage(false)
     }
@@ -1714,6 +1752,7 @@ export default function PoolAdminPage() {
                     </div>
                     <div>
                       <input
+                        ref={imageInputRef}
                         type="file"
                         accept="image/png,image/jpeg,image/webp,image/gif"
                         onChange={handleImageChange}
@@ -1721,6 +1760,34 @@ export default function PoolAdminPage() {
                         className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white disabled:opacity-50"
                       />
                       <p className="mt-1 text-xs text-gray-600">Upload a logo or pool image up to 5 MB.</p>
+                      {imageFileDraft && (
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                          <span className="font-medium text-slate-800">{imageFileDraft.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setImageFileDraft(null)
+                              if (imageInputRef.current) imageInputRef.current.value = ''
+                              setImageError(null)
+                              setImageNotice(null)
+                              setImagePreviewDraft((prev) => {
+                                if (prev) URL.revokeObjectURL(prev)
+                                return null
+                              })
+                            }}
+                            disabled={savingImage}
+                            className="rounded-md border border-slate-300 bg-white px-2 py-1 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            Remove selected image
+                          </button>
+                        </div>
+                      )}
+                      {imageError && (
+                        <p className="mt-2 rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">{imageError}</p>
+                      )}
+                      {imageNotice && (
+                        <p className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 p-2 text-sm text-emerald-700">{imageNotice}</p>
+                      )}
                     </div>
                     <div className="flex flex-wrap gap-2 md:flex-col">
                       <button onClick={saveImage} disabled={savingImage || !imageFileDraft} className="rounded-md bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50">
