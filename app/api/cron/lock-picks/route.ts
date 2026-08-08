@@ -5,6 +5,9 @@ import { getErrorMessage } from '@/lib/errorMessage'
 import type { Json } from '@/supabase/database.types'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
+
+const CRON_TIME_BUDGET_MS = Number(process.env.CRON_TIME_BUDGET_MS || 50_000)
 
 function isAuthorized(request: NextRequest) {
   const secret = cleanEnvValue(process.env.CRON_SECRET)
@@ -21,6 +24,7 @@ export async function GET(request: NextRequest) {
 
   const startedAt = Date.now()
   const supabaseAdmin = getSupabaseAdmin()
+  const hasTimeBudget = () => Date.now() - startedAt < CRON_TIME_BUDGET_MS
   const logCronEvent = async (
     eventType: string,
     severity: 'info' | 'warning' | 'error',
@@ -43,6 +47,8 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  await logCronEvent('cron_lock_picks_started', 'info', 'Pick lock cron started.')
+
   const { data: pools, error: poolsError } = await supabaseAdmin
     .from('pools')
     .select('id, season')
@@ -56,10 +62,21 @@ export async function GET(request: NextRequest) {
   }
 
   let finalized = 0
+  let poolsChecked = 0
   const seasons = new Set<number>()
   const errors: string[] = []
 
   for (const pool of pools || []) {
+    if (!hasTimeBudget()) {
+      const message = 'Pick lock cron stopped before the platform timeout. The next scheduled run will continue.'
+      errors.push(message)
+      await logCronEvent('cron_lock_picks_time_budget_exhausted', 'warning', message, {
+        duration_ms: Date.now() - startedAt,
+        pools_checked_so_far: poolsChecked,
+      })
+      break
+    }
+    poolsChecked += 1
     const { data, error } = await supabaseAdmin.rpc('finalize_locked_picks_for_pool', { p_pool_id: pool.id })
     if (error) {
       errors.push(`${pool.id}: ${error.message}`)
@@ -72,6 +89,15 @@ export async function GET(request: NextRequest) {
 
   let adjudicated = 0
   for (const season of seasons) {
+    if (!hasTimeBudget()) {
+      const message = 'Pick lock cron skipped remaining adjudication before the platform timeout. The next scheduled run will continue.'
+      errors.push(message)
+      await logCronEvent('cron_lock_picks_adjudication_deferred', 'warning', message, {
+        duration_ms: Date.now() - startedAt,
+        seasons_checked_so_far: adjudicated,
+      })
+      break
+    }
     const { data, error } = await supabaseAdmin.rpc('adjudicate_completed_weeks', { p_season: season })
     if (error) {
       errors.push(`season ${season}: ${error.message}`)
@@ -87,7 +113,8 @@ export async function GET(request: NextRequest) {
     errors.length ? 'Pick lock cron completed with errors.' : 'Pick lock cron completed.',
     {
       duration_ms: Date.now() - startedAt,
-      pools_checked: pools?.length || 0,
+      pools_checked: poolsChecked,
+      pools_total: pools?.length || 0,
       seasons: Array.from(seasons).sort(),
       picks_finalized: finalized,
       results_adjudicated: adjudicated,
@@ -97,7 +124,8 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     ok: errors.length === 0,
-    poolsChecked: pools?.length || 0,
+    poolsChecked,
+    poolsTotal: pools?.length || 0,
     picksFinalized: finalized,
     resultsAdjudicated: adjudicated,
     errors,

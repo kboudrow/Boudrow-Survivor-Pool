@@ -5,6 +5,10 @@ import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
 import type { Json } from '@/supabase/database.types'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
+
+const SCORE_SYNC_TIME_BUDGET_MS = Number(process.env.SCORE_SYNC_TIME_BUDGET_MS || 50_000)
+const ESPN_FETCH_TIMEOUT_MS = Number(process.env.ESPN_FETCH_TIMEOUT_MS || 12_000)
 
 type ActivePool = {
   id: string
@@ -153,7 +157,10 @@ async function fetchEspnWeek(season: number, week: number): Promise<EspnEvent[]>
   url.searchParams.set('seasontype', seasontype)
   url.searchParams.set('week', String(espnWeek))
 
-  const response = await fetch(url, { next: { revalidate: 0 } })
+  const response = await fetch(url, {
+    next: { revalidate: 0 },
+    signal: AbortSignal.timeout(ESPN_FETCH_TIMEOUT_MS),
+  })
   if (!response.ok) {
     throw new Error(`ESPN score sync failed for ${season} Week ${week}: ${response.status} ${response.statusText}`)
   }
@@ -220,6 +227,7 @@ export async function GET(request: NextRequest) {
 
   const startedAt = Date.now()
   const supabaseAdmin = getSupabaseAdmin()
+  const hasTimeBudget = () => Date.now() - startedAt < SCORE_SYNC_TIME_BUDGET_MS
   const logCronEvent = async (eventType: string, severity: 'info' | 'warning' | 'error', message: string, metadata: Record<string, unknown> = {}, poolId?: string) => {
     try {
       await supabaseAdmin.from('app_event_logs').insert({
@@ -237,6 +245,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    await logCronEvent('cron_score_sync_started', 'info', 'Score sync cron started.')
+
     const { data: pools, error: poolsError } = await supabaseAdmin
       .from('pools')
       .select('id, season')
@@ -255,6 +265,15 @@ export async function GET(request: NextRequest) {
     let finalGamesSynced = 0
 
     for (const season of seasons) {
+      if (!hasTimeBudget()) {
+        const message = 'Score sync stopped before the platform timeout. The next scheduled run will continue.'
+        syncErrors.push(message)
+        await logCronEvent('cron_score_sync_time_budget_exhausted', 'warning', message, {
+          duration_ms: Date.now() - startedAt,
+          seasons_checked: Object.keys(syncedBySeasonWeek),
+        })
+        break
+      }
       const { data: existingGames, error: gamesError } = await supabaseAdmin
         .from('nfl_games')
         .select('season, week, game_time, kickoff_at_utc, status')
@@ -269,6 +288,16 @@ export async function GET(request: NextRequest) {
       syncedBySeasonWeek[String(season)] = targetWeeks
 
       for (const week of targetWeeks) {
+        if (!hasTimeBudget()) {
+          const message = `Score sync deferred remaining weeks for ${season} before the platform timeout.`
+          syncErrors.push(message)
+          await logCronEvent('cron_score_sync_time_budget_exhausted', 'warning', message, {
+            duration_ms: Date.now() - startedAt,
+            season,
+            weeks_checked: syncedBySeasonWeek[String(season)],
+          })
+          break
+        }
         try {
           const events = await fetchEspnWeek(season, week)
           const games = events.map((event) => parseEspnGame(event, season, week)).filter(Boolean) as SyncedGame[]
@@ -290,7 +319,19 @@ export async function GET(request: NextRequest) {
     let finalized = 0
     let adjudicated = 0
     const activePools = (pools || []) as ActivePool[]
+    let poolsChecked = 0
     for (const pool of activePools) {
+      if (!hasTimeBudget()) {
+        const message = 'Score sync deferred remaining pick finalization before the platform timeout. The next scheduled run will continue.'
+        syncErrors.push(message)
+        await logCronEvent('cron_score_sync_finalize_deferred', 'warning', message, {
+          duration_ms: Date.now() - startedAt,
+          pools_checked: poolsChecked,
+          pools_total: activePools.length,
+        })
+        break
+      }
+      poolsChecked += 1
       const { data, error } = await supabaseAdmin.rpc('finalize_locked_picks_for_pool', { p_pool_id: pool.id })
       if (error) {
         syncErrors.push(`${pool.id}: ${error.message}`)
@@ -301,6 +342,15 @@ export async function GET(request: NextRequest) {
     }
 
     for (const season of seasons) {
+      if (!hasTimeBudget()) {
+        const message = 'Score sync deferred remaining adjudication before the platform timeout. The next scheduled run will continue.'
+        syncErrors.push(message)
+        await logCronEvent('cron_score_sync_adjudication_deferred', 'warning', message, {
+          duration_ms: Date.now() - startedAt,
+          results_adjudicated: adjudicated,
+        })
+        break
+      }
       const { data, error } = await supabaseAdmin.rpc('adjudicate_completed_weeks', { p_season: season })
       if (error) {
         syncErrors.push(`${season}: ${error.message}`)
@@ -320,7 +370,8 @@ export async function GET(request: NextRequest) {
         duration_ms: Date.now() - startedAt,
         games_synced: gamesSynced,
         final_games_synced: finalGamesSynced,
-        pools_checked: activePools.length,
+        pools_checked: poolsChecked,
+        pools_total: activePools.length,
         picks_finalized: finalized,
         results_adjudicated: adjudicated,
         errors: syncErrors,
@@ -333,7 +384,8 @@ export async function GET(request: NextRequest) {
       targetWeeks: syncedBySeasonWeek,
       gamesSynced,
       finalGamesSynced,
-      poolsChecked: activePools.length,
+      poolsChecked,
+      poolsTotal: activePools.length,
       picksFinalized: finalized,
       resultsAdjudicated: adjudicated,
       errors: syncErrors,

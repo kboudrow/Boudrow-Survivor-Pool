@@ -33,6 +33,7 @@ type Pool = {
   image_url?: string | null
   test_mode?: boolean | null
   test_current_week?: number | null
+  test_now_at?: string | null
 }
 
 type Profile = {
@@ -183,7 +184,7 @@ const FULL_PLAYOFF_WEEK_LABELS: Record<number, string> = {
   22: 'Super Bowl',
 }
 
-const POOL_CARD_SELECT = 'id,name,season,is_public,start_week,include_playoffs,strikes_allowed,tie_rule,image_url,max_members,allow_multiple_entries,max_entries_per_user,activation_status,double_pick_weeks,test_mode,test_current_week'
+const POOL_CARD_SELECT = 'id,name,season,is_public,start_week,include_playoffs,strikes_allowed,tie_rule,image_url,max_members,allow_multiple_entries,max_entries_per_user,activation_status,double_pick_weeks,test_mode,test_current_week,test_now_at'
 const teamByAbbr = (abbr?: string | null) => NFL_TEAMS.find((t) => t.abbr === abbr) || null
 const isNoPick = (abbr?: string | null) => !!abbr?.startsWith('NO_PICK')
 const toAbbr = (input: string): string => {
@@ -634,9 +635,9 @@ function TeamPickerModal(props: {
   weekGames: Game[]
   deadlineMode: 'fixed' | 'rolling'
   fixedLockUtc: string | null
-  nowTick: number
+  currentTimeMs: number
 }) {
-  const { week, slot, onClose, teamSearch, setTeamSearch, filteredTeams, usedTeamAbbrs, myDraftPicks, onPickTeam, gamesLoading, weekGames, deadlineMode, fixedLockUtc, nowTick } =
+  const { week, slot, onClose, teamSearch, setTeamSearch, filteredTeams, usedTeamAbbrs, myDraftPicks, onPickTeam, gamesLoading, weekGames, deadlineMode, fixedLockUtc, currentTimeMs } =
     props
   const selectedKey = pickKey(week, slot)
 
@@ -706,8 +707,8 @@ function TeamPickerModal(props: {
                   // hybrid lock = earlier of kickoff OR global fixed lock (if in fixed mode)
                   const fixedMs = deadlineMode === 'fixed' && fixedLockUtc ? Date.parse(fixedLockUtc) : Infinity
                   const lockMs = Math.min(kickoffMs, fixedMs)
-                  const locked = Date.now() >= lockMs
-                  const countdown = locked ? 'Locked' : `Locks in ${msToCountdown(lockMs - nowTick)}`
+                  const locked = currentTimeMs >= lockMs
+                  const countdown = locked ? 'Locked' : `Locks in ${msToCountdown(lockMs - currentTimeMs)}`
 
                   const cards = [
                     { abbr: awayAbbr, side: 'Away' as const },
@@ -841,6 +842,8 @@ function MyPoolsContent() {
   const poolStartKnown = poolStartMs !== null && Number.isFinite(poolStartMs)
   const isTestMode = !!pool?.test_mode
   const simulatedWeek = pool?.test_current_week || pool?.start_week || 1
+  const testNowMs = pool?.test_mode && pool.test_now_at ? Date.parse(pool.test_now_at) : null
+  const effectiveNowMs = testNowMs !== null && Number.isFinite(testNowMs) ? testNowMs : nowTick
   const leagueHasStarted = isTestMode ? simulatedWeek >= (pool?.start_week ?? 1) : poolStartKnown && Date.now() >= poolStartMs
   const canInvite = !!pool && !isTestMode && pool.activation_status !== 'cancelled' && poolStartKnown && !leagueHasStarted
   const selectedWeekLockedByTestMode = isTestMode && selectedPickWeek < simulatedWeek
@@ -855,7 +858,9 @@ function MyPoolsContent() {
       : 'Sunday 1 PM ET'
   const selectedWeekCloseLabel =
     isTestMode
-      ? 'Test mode: this week advances when the superadmin scores it.'
+      ? pool?.test_now_at
+        ? `Test clock: ${fmtEtDateTime(pool.test_now_at)}.`
+        : 'Test mode: this week advances when the superadmin scores it.'
       : pool?.deadline_mode === 'rolling'
       ? 'Each matchup closes at kickoff.'
       : fixedLockUtc
@@ -1218,7 +1223,7 @@ function MyPoolsContent() {
       if (!error) setWeekGames(games)
       setGamesLoading(false)
 
-      if (!pool.test_mode && pool?.deadline_mode === 'fixed') {
+      if (pool?.deadline_mode === 'fixed') {
         const t24 = normalizeTimeTo24h(pool.deadline_fixed) || '13:00'
         const season = pool?.season ?? games[0]?.season ?? new Date().getFullYear()
         const { data: sw } = await supabase
@@ -1407,13 +1412,13 @@ function MyPoolsContent() {
       showMessage('Pick locked', `Week ${week}, Pick ${slot} is locked and can no longer be changed.`, 'warning')
       return
     }
-    if (!pool?.test_mode && teamPickerTarget?.week === week) {
+    if (teamPickerTarget?.week === week) {
       const game = weekGames.find((g) => toAbbr(g.home_team) === team.abbr || toAbbr(g.away_team) === team.abbr)
       if (game) {
         const kickoffMs = Date.parse(game.kickoff_at_utc || game.game_time)
         const fixedMs = pool?.deadline_mode === 'fixed' && fixedLockUtc ? Date.parse(fixedLockUtc) : Infinity
         const lockMs = Math.min(kickoffMs, fixedMs)
-        if (Date.now() >= lockMs) {
+        if (effectiveNowMs >= lockMs) {
           showMessage('Team locked', `${team.name} is locked for Week ${week}.`, 'warning')
           return
         }
@@ -2384,7 +2389,7 @@ function MyPoolsContent() {
                       weekGames={weekGames}
                       deadlineMode={pool.deadline_mode}
                       fixedLockUtc={fixedLockUtc}
-                      nowTick={nowTick}
+                      currentTimeMs={effectiveNowMs}
                     />
                   )}
                   {pickNotice && <PickSavedToast notice={pickNotice} onClose={() => setPickNotice(null)} />}

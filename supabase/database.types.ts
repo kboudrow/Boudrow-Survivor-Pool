@@ -1111,6 +1111,7 @@ export type Database = {
           stripe_payment_intent_id: string | null
           test_current_week: number | null
           test_mode: boolean
+          test_now_at: string | null
           tie_rule: string | null
           ties: Database["public"]["Enums"]["ties_rule"]
           visibility: Database["public"]["Enums"]["pool_visibility"]
@@ -1156,6 +1157,7 @@ export type Database = {
           stripe_payment_intent_id?: string | null
           test_current_week?: number | null
           test_mode?: boolean
+          test_now_at?: string | null
           tie_rule?: string | null
           ties?: Database["public"]["Enums"]["ties_rule"]
           visibility?: Database["public"]["Enums"]["pool_visibility"]
@@ -1201,6 +1203,7 @@ export type Database = {
           stripe_payment_intent_id?: string | null
           test_current_week?: number | null
           test_mode?: boolean
+          test_now_at?: string | null
           tie_rule?: string | null
           ties?: Database["public"]["Enums"]["ties_rule"]
           visibility?: Database["public"]["Enums"]["pool_visibility"]
@@ -2102,6 +2105,14 @@ export type Database = {
           week: number
         }[]
       }
+      pool_effective_now: {
+        Args: { p_pool_id: string }
+        Returns: string
+      }
+      pool_test_clock_at: {
+        Args: { p_pool_id: string; p_stage: string; p_week: number }
+        Returns: string
+      }
       pool_week_deadline_at: {
         Args: { p_pool_id: string; p_week: number }
         Returns: string
@@ -2290,8 +2301,13 @@ export type Database = {
           stats_rows_count: number
           test_current_week: number
           test_mode: boolean
+          test_now_at: string | null
           unique_members_count: number
         }[]
+      }
+      superadmin_finalize_test_locked_picks: {
+        Args: { p_pool_id: string; p_week: number }
+        Returns: number
       }
       superadmin_randomize_test_week_outcomes: {
         Args: { p_pool_id: string; p_week: number }
@@ -2361,6 +2377,10 @@ export type Database = {
       }
       superadmin_set_pool_test_mode: {
         Args: { p_enabled: boolean; p_pool_id: string }
+        Returns: string
+      }
+      superadmin_set_test_pool_clock: {
+        Args: { p_pool_id: string; p_stage?: string; p_week: number }
         Returns: string
       }
       superadmin_set_test_game_outcome: {

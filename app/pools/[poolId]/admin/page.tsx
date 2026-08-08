@@ -32,6 +32,7 @@ type Pool = {
   image_url?: string | null
   test_mode?: boolean | null
   test_current_week?: number | null
+  test_now_at?: string | null
 }
 
 type AdminRow = {
@@ -158,6 +159,38 @@ const PLAYOFF_WEEK_LABELS: Record<number, string> = {
 }
 
 const ALL_WEEKS = Array.from({ length: REGULAR_SEASON_MAX_WEEK }, (_, i) => i + 1)
+const TEST_CLOCK_STAGES = [
+  {
+    value: 'before_week',
+    label: 'Before week starts',
+    description: 'No league picks have reached a lock time yet.',
+  },
+  {
+    value: 'first_kickoff',
+    label: 'After first kickoff',
+    description: 'The first kicked-off matchup is locked and visible.',
+  },
+  {
+    value: 'sunday_1pm',
+    label: 'After Sunday 1 PM',
+    description: 'Standard-deadline picks are locked and visible.',
+  },
+  {
+    value: 'sunday_late',
+    label: 'After Sunday late games',
+    description: 'Late-afternoon kickoff picks are locked and visible.',
+  },
+  {
+    value: 'sunday_night',
+    label: 'After Sunday night',
+    description: 'Sunday night picks are locked and visible.',
+  },
+  {
+    value: 'week_done',
+    label: 'After final game',
+    description: 'The week is ready to score and advance.',
+  },
+] as const
 const MEMBER_LIMIT_OPTIONS = [10, 25, 50, 100, 250, 500]
 const ENTRY_LIMIT_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1)
 const TEAMS = [
@@ -386,6 +419,7 @@ export default function PoolAdminPage() {
   const [inviteOpen, setInviteOpen] = useState(false)
   const [memberSearch, setMemberSearch] = useState('')
   const [testWeek, setTestWeek] = useState('1')
+  const [testClockStage, setTestClockStage] = useState<(typeof TEST_CLOCK_STAGES)[number]['value']>('before_week')
   const [testGames, setTestGames] = useState<TestGameOption[]>([])
   const [testToolsLoading, setTestToolsLoading] = useState(false)
   const [reinviteRows, setReinviteRows] = useState<ReinviteRow[]>([])
@@ -629,7 +663,7 @@ export default function PoolAdminPage() {
     setError(null)
     try {
       const [{ data: p, error: pErr }, { data: overview, error: overviewErr }] = await Promise.all([
-        supabase.from('pools').select('id,name,created_by,cloned_from_pool_id,is_public,visibility,double_pick_weeks,archived,season,start_week,include_playoffs,activation_status,max_members,allow_multiple_entries,max_entries_per_user,payment_status,image_url,test_mode,test_current_week').eq('id', poolId).maybeSingle<Pool>(),
+        supabase.from('pools').select('id,name,created_by,cloned_from_pool_id,is_public,visibility,double_pick_weeks,archived,season,start_week,include_playoffs,activation_status,max_members,allow_multiple_entries,max_entries_per_user,payment_status,image_url,test_mode,test_current_week,test_now_at').eq('id', poolId).maybeSingle<Pool>(),
         supabase.rpc('admin_pool_entry_week_overview', { p_pool_id: poolId, p_week: week }),
       ])
       if (pErr) throw pErr
@@ -1194,6 +1228,30 @@ export default function PoolAdminPage() {
     }
   }
 
+  const saveTestClock = async () => {
+    if (!pool || !isSuperAdmin) return
+    const week = parseInt(testWeek, 10)
+    const stage = testClockStage
+    setRunningAction('test-clock')
+    setError(null)
+    setNotice(null)
+    try {
+      const { data, error: clockErr } = await supabase.rpc('superadmin_set_test_pool_clock', {
+        p_pool_id: pool.id,
+        p_week: week,
+        p_stage: stage,
+      })
+      if (clockErr) throw clockErr
+      setNotice(String(data || 'Test clock updated.'))
+      setSelectedWeek(week)
+      await loadOverview(week)
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to set test clock.'))
+    } finally {
+      setRunningAction(null)
+    }
+  }
+
   const saveTestOutcome = async (game: TestGameOption, outcome: string) => {
     if (!pool || !isSuperAdmin) return
     const week = parseInt(testWeek, 10)
@@ -1569,10 +1627,11 @@ export default function PoolAdminPage() {
 
                 {pool.test_mode ? (
                   <>
-                    <div className="mb-4 grid gap-2 rounded-md border border-violet-200 bg-white p-3 text-sm text-slate-700 md:grid-cols-3">
+                    <div className="mb-4 grid gap-2 rounded-md border border-violet-200 bg-white p-3 text-sm text-slate-700 md:grid-cols-4">
                       <div><span className="font-semibold text-slate-950">1.</span> Choose the week the pool should act like.</div>
-                      <div><span className="font-semibold text-slate-950">2.</span> Set fake winners for that week&apos;s games.</div>
-                      <div><span className="font-semibold text-slate-950">3.</span> Score & advance so standings move forward.</div>
+                      <div><span className="font-semibold text-slate-950">2.</span> Move the test clock to check lock visibility.</div>
+                      <div><span className="font-semibold text-slate-950">3.</span> Set fake winners for that week&apos;s games.</div>
+                      <div><span className="font-semibold text-slate-950">4.</span> Score & advance so standings move forward.</div>
                     </div>
 
                     <div className="grid gap-3 lg:grid-cols-[minmax(240px,320px)_1fr]">
@@ -1608,7 +1667,39 @@ export default function PoolAdminPage() {
                         <p className="mt-2 text-xs text-slate-600">Members see the pool exactly as if this were the current active week.</p>
                       </div>
 
-                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                      <div className="rounded-md border border-violet-200 bg-white p-3">
+                        <label className="text-sm font-semibold text-slate-800">
+                          Simulated time
+                          <select
+                            value={testClockStage}
+                            onChange={(event) => setTestClockStage(event.target.value as (typeof TEST_CLOCK_STAGES)[number]['value'])}
+                            className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                          >
+                            {TEST_CLOCK_STAGES.map((stage) => (
+                              <option key={stage.value} value={stage.value}>
+                                {stage.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <p className="mt-2 text-xs text-slate-600">
+                          {TEST_CLOCK_STAGES.find((stage) => stage.value === testClockStage)?.description}
+                        </p>
+                        {pool.test_now_at && (
+                          <p className="mt-2 rounded-md bg-violet-50 px-2 py-1 text-xs font-semibold text-violet-800">
+                            Current clock: {fmt(pool.test_now_at)}
+                          </p>
+                        )}
+                        <button
+                          onClick={saveTestClock}
+                          disabled={runningAction === 'test-clock'}
+                          className="mt-3 w-full rounded-md bg-violet-700 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50"
+                        >
+                          {runningAction === 'test-clock' ? 'Setting clock...' : 'Set Test Clock'}
+                        </button>
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 lg:col-span-2">
                         <InfoTile label="Games this week" value={String(testGames.length)} />
                         <InfoTile label="Games with picks" value={String(testGamesWithPicks.length)} />
                         <InfoTile label="Winners set" value={`${testGamesWithOutcomes.length}/${testGames.length || 0}`} />

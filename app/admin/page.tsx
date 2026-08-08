@@ -29,6 +29,7 @@ type PoolOverview = {
   created_at: string | null
   test_mode: boolean
   test_current_week: number | null
+  test_now_at: string | null
 }
 
 type PoolEntry = {
@@ -976,9 +977,10 @@ export default function SuperAdminPage() {
                         Enable the fake-season tools here, then run the simulation from this pool&apos;s admin panel.
                       </p>
                       {selectedPool.test_mode && (
-                        <p className="mt-2 text-sm font-medium text-violet-800">
-                          Current simulated week: Week {selectedPool.test_current_week || selectedPool.start_week}
-                        </p>
+                        <div className="mt-2 space-y-1 text-sm font-medium text-violet-800">
+                          <p>Current simulated week: Week {selectedPool.test_current_week || selectedPool.start_week}</p>
+                          {selectedPool.test_now_at && <p>Simulated time: {fmt(selectedPool.test_now_at)}</p>}
+                        </div>
                       )}
                     </div>
                     <div className="flex flex-wrap gap-2">

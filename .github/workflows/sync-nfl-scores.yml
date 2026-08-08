@@ -5,10 +5,14 @@ on:
     - cron: '7,22,37,52 * * * *'
   workflow_dispatch:
 
+concurrency:
+  group: sync-nfl-scores
+  cancel-in-progress: false
+
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 5
     steps:
       - name: Call score sync endpoint
         env:
@@ -21,7 +25,7 @@ jobs:
 
           curl --fail --show-error --silent \
             --connect-timeout 10 \
-            --max-time 90 \
+            --max-time 120 \
             --retry 2 \
             --retry-delay 5 \
             --header "Authorization: Bearer ${CRON_SECRET}" \
