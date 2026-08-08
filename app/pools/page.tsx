@@ -96,6 +96,17 @@ type AppDialog = {
 }
 type PoolPickStatus = { week: number; made: number; needed: number; entries: number }
 type PoolMemberSummary = { total: number; alive: number; totalEntries: number; aliveEntries: number }
+type PoolWinnerStatus = {
+  is_decided: boolean
+  winner_user_id: string | null
+  winner_name: string | null
+  winner_avatar_url: string | null
+  alive_members: number
+  alive_entries: number
+  total_members: number
+  total_entries: number
+  decided_week: number | null
+}
 
 type MemberStats = {
   pool_id: string
@@ -360,9 +371,14 @@ function InfoTile({ label, value }: { label: string; value: string }) {
   )
 }
 
-function PoolStagePill({ pool, pickStatus }: { pool: Pool; pickStatus?: PoolPickStatus }) {
+const poolDecidedFromSummary = (summary?: PoolMemberSummary) => !!summary && summary.total > 1 && summary.alive === 1 && summary.aliveEntries > 0
+
+function PoolStagePill({ pool, pickStatus, isDecided }: { pool: Pool; pickStatus?: PoolPickStatus; isDecided?: boolean }) {
   if (pool.activation_status === 'cancelled') {
     return <span className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Closed</span>
+  }
+  if (isDecided) {
+    return <span className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">Winner</span>
   }
   if (pickStatus) {
     return <span className="shrink-0 rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">{shortWeekLabel(pickStatus.week)}</span>
@@ -370,7 +386,15 @@ function PoolStagePill({ pool, pickStatus }: { pool: Pool; pickStatus?: PoolPick
   return <span className="shrink-0 rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">Loading</span>
 }
 
-function PickStatusCard({ status }: { status: PoolPickStatus }) {
+function PickStatusCard({ status, isDecided }: { status: PoolPickStatus; isDecided?: boolean }) {
+  if (isDecided) {
+    return (
+      <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+        Pool complete: winner decided
+      </div>
+    )
+  }
+
   const complete = status.needed > 0 && status.made >= status.needed
   const partial = status.made > 0 && !complete
   const label = complete
@@ -389,6 +413,74 @@ function PickStatusCard({ status }: { status: PoolPickStatus }) {
     >
       {weekLabel(status.week)}: {label}
     </div>
+  )
+}
+
+function WinnerAvatar({ name, avatarUrl, isCurrentUser }: { name: string; avatarUrl?: string | null; isCurrentUser?: boolean }) {
+  return (
+    <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-slate-900 text-lg font-bold text-white shadow-md">
+      {avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+      ) : (
+        <span>{(isCurrentUser ? 'Y' : name[0] || 'W').toUpperCase()}</span>
+      )}
+    </div>
+  )
+}
+
+function PoolWinnerCelebration({
+  poolName,
+  winner,
+  isCurrentUser,
+  onStandings,
+  compact = false,
+}: {
+  poolName: string
+  winner: PoolWinnerStatus
+  isCurrentUser: boolean
+  onStandings?: () => void
+  compact?: boolean
+}) {
+  const winnerName = winner.winner_name || 'The last player standing'
+  const entryCopy =
+    winner.alive_entries > 1
+      ? `${winner.alive_entries} entries survived for ${isCurrentUser ? 'you' : winnerName}.`
+      : 'One player survived the pool.'
+  const decidedCopy = winner.decided_week ? `Decided after ${weekLabel(winner.decided_week)}.` : 'The pool is complete.'
+
+  return (
+    <section className={`relative overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-sm ${compact ? 'mb-5 p-4' : 'mb-6 p-6'}`}>
+      <div className="absolute inset-x-0 top-0 grid grid-cols-6">
+        <span className="h-1 bg-[#c5161d]" />
+        <span className="h-1 bg-amber-400" />
+        <span className="h-1 bg-emerald-500" />
+        <span className="h-1 bg-slate-900" />
+        <span className="h-1 bg-amber-400" />
+        <span className="h-1 bg-[#c5161d]" />
+      </div>
+      <div className={`flex gap-4 ${compact ? 'items-center' : 'flex-col sm:flex-row sm:items-center'}`}>
+        <WinnerAvatar name={winnerName} avatarUrl={winner.winner_avatar_url} isCurrentUser={isCurrentUser} />
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-bold uppercase tracking-wide text-amber-700">Pool Champion</p>
+          <h3 className={`${compact ? 'text-xl' : 'text-3xl'} mt-1 font-black leading-tight text-slate-950`}>
+            {isCurrentUser ? `You won ${poolName}` : `${winnerName} won ${poolName}`}
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            {entryCopy} {decidedCopy} No more picks are needed.
+          </p>
+        </div>
+        {onStandings && !compact && (
+          <button
+            type="button"
+            onClick={onStandings}
+            className="rounded-md bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-black"
+          >
+            View final standings
+          </button>
+        )}
+      </div>
+    </section>
   )
 }
 
@@ -833,6 +925,7 @@ function MyPoolsContent() {
   const [standingsGamesForWeek, setStandingsGamesForWeek] = useState<Game[]>([])
   const [standingsPickCompletion, setStandingsPickCompletion] = useState<WeekPickCompletion | null>(null)
   const [statsByUser, setStatsByUser] = useState<Record<string, MemberStats>>({})
+  const [poolWinner, setPoolWinner] = useState<PoolWinnerStatus | null>(null)
   const availableWeeks = useMemo(() => weeks.filter((week) => week >= (pool?.start_week ?? 1)), [weeks, pool?.start_week])
   const picksAllowedForWeek = useCallback((week: number) => {
     if (week < (pool?.start_week ?? 1)) return 0
@@ -850,8 +943,13 @@ function MyPoolsContent() {
   const myStats = selectedEntryId ? statsByUser[selectedEntryId] : undefined
   const myEliminatedWeek = myStats?.eliminated && myStats.eliminated_week ? myStats.eliminated_week : null
   const isEliminated = leagueHasStarted && !!myStats?.eliminated
+  const poolDecided = !!poolWinner?.is_decided
+  const currentUserWonPool = poolDecided && !!userId && poolWinner?.winner_user_id === userId
+  const visiblePickCutoffWeek = [myEliminatedWeek, poolWinner?.decided_week ?? null]
+    .filter((week): week is number => typeof week === 'number' && Number.isFinite(week))
+    .reduce<number | null>((cutoff, week) => (cutoff === null ? week : Math.min(cutoff, week)), null)
   const uniqueMemberCount = useMemo(() => new Set(members.map((member) => member.profile_id || member.id)).size || memberCount, [members, memberCount])
-  const canMakePicks = !!pool && !!selectedEntryId && !isEliminated && selectedPickWeek >= pool.start_week && !selectedWeekLockedByTestMode
+  const canMakePicks = !!pool && !!selectedEntryId && !isEliminated && !poolDecided && selectedPickWeek >= pool.start_week && !selectedWeekLockedByTestMode
   const deadlineLabel =
     pool?.deadline_mode === 'rolling'
       ? 'Rolling: each game locks at kickoff'
@@ -883,6 +981,14 @@ function MyPoolsContent() {
     if (error) throw error
   }
 
+  const loadPoolWinner = async (poolId: string) => {
+    const { data, error } = await supabase.rpc('pool_winner_status', { p_pool_id: poolId })
+    if (error) throw error
+    const winner = (((data || []) as PoolWinnerStatus[])[0] || null) as PoolWinnerStatus | null
+    setPoolWinner(winner)
+    return winner
+  }
+
   const loadMyPicks = async (poolId: string, startWeek = pool?.start_week ?? 1, entryId = selectedEntryId) => {
     if (!userId || !entryId) return
 
@@ -893,8 +999,8 @@ function MyPoolsContent() {
     if (finalErr) throw finalErr
     if (draftErr) throw draftErr
 
-    const visibleFinalPicks = ((finalPicks || []) as FinalPickRow[]).filter((pick) => !myEliminatedWeek || pick.week <= myEliminatedWeek)
-    const visibleDrafts = ((drafts || []) as DraftPickRow[]).filter((pick) => !myEliminatedWeek || pick.week <= myEliminatedWeek)
+    const visibleFinalPicks = ((finalPicks || []) as FinalPickRow[]).filter((pick) => !visiblePickCutoffWeek || pick.week <= visiblePickCutoffWeek)
+    const visibleDrafts = ((drafts || []) as DraftPickRow[]).filter((pick) => !visiblePickCutoffWeek || pick.week <= visiblePickCutoffWeek)
 
     const locked: Record<string, FinalPickRow> = {}
     for (const pick of visibleFinalPicks) {
@@ -1012,6 +1118,7 @@ function MyPoolsContent() {
       setMembersLoadedFor(null)
       setPicksThisWeek([])
       setStatsByUser({})
+      setPoolWinner(null)
       setMyDraftPicks({})
       setMyFinalPicks({})
       setError(null)
@@ -1204,10 +1311,10 @@ function MyPoolsContent() {
   }, [])
 
   useEffect(() => {
-    if (!myEliminatedWeek) return
-    setMyDraftPicks((prev) => filterPickRecordThroughWeek(prev, myEliminatedWeek))
-    setMyFinalPicks((prev) => filterPickRecordThroughWeek(prev, myEliminatedWeek))
-  }, [myEliminatedWeek])
+    if (!visiblePickCutoffWeek) return
+    setMyDraftPicks((prev) => filterPickRecordThroughWeek(prev, visiblePickCutoffWeek))
+    setMyFinalPicks((prev) => filterPickRecordThroughWeek(prev, visiblePickCutoffWeek))
+  }, [visiblePickCutoffWeek])
 
   /** ---------- Selected week games + fixed lock ---------- */
   useEffect(() => {
@@ -1257,13 +1364,17 @@ function MyPoolsContent() {
         await loadMembers(pid)
       }
 
-      const [{ data: snapshotRows, error: snapshotErr }] = await Promise.all([
+      const [snapshotResult, winnerResult] = await Promise.all([
         supabase.rpc('pool_standings_snapshot', { p_pool_id: pid, p_week: week }),
+        supabase.rpc('pool_winner_status', { p_pool_id: pid }),
         loadMyPicks(pid, poolStartWeek),
       ])
+      const { data: snapshotRows, error: snapshotErr } = snapshotResult
       if (snapshotErr) throw snapshotErr
+      if (winnerResult.error) throw winnerResult.error
 
       const snapshot = ((snapshotRows || []) as unknown as StandingsSnapshot[])[0]
+      const winner = (((winnerResult.data || []) as PoolWinnerStatus[])[0] || null) as PoolWinnerStatus | null
       const weekGames = (snapshot?.games || []) as Game[]
       const stats = (snapshot?.stats || []) as MemberStats[]
       const visibleRows = (snapshot?.visible_picks || []) as PickRow[]
@@ -1276,6 +1387,7 @@ function MyPoolsContent() {
       setPicksThisWeek(visibleRows)
       setStandingsHistoryPicks(historyRows)
       setStandingsPickCompletion(completion)
+      setPoolWinner(winner)
       setStandingsPicksVisible(visibleRows.length > 0)
       setStandingsResultsVisible(visibleRows.some((pick) => !!pick.result))
 
@@ -1316,6 +1428,7 @@ function MyPoolsContent() {
           .eq('entry_id', selectedEntryId)
           .maybeSingle<MemberStats>()
         setStatsByUser((prev) => (myStat ? { ...prev, [myStat.entry_id]: myStat } : prev))
+        await loadPoolWinner(selectedId)
       } catch (e) {
         void logAppEvent({ eventType: 'background_pick_refresh_failed', error: e, poolId: selectedId })
         console.warn('Background pick refresh failed', e)
@@ -1339,6 +1452,10 @@ function MyPoolsContent() {
     }
     if (isEliminated) {
       showMessage('Picks are closed for this entry', 'You are eliminated, so you can view matchups but cannot make more picks.', 'warning')
+      return false
+    }
+    if (poolDecided) {
+      showMessage('Pool complete', 'This pool already has a winner, so no more picks are needed.', 'info')
       return false
     }
     const key = pickKey(week, slot)
@@ -1408,6 +1525,10 @@ function MyPoolsContent() {
       showMessage('Week locked', `Week ${week} is already locked in this test pool.`, 'warning')
       return
     }
+    if (poolDecided) {
+      showMessage('Pool complete', 'This pool already has a winner, so no more picks are needed.', 'info')
+      return
+    }
     if (myFinalPicks[key]) {
       showMessage('Pick locked', `Week ${week}, Pick ${slot} is locked and can no longer be changed.`, 'warning')
       return
@@ -1467,6 +1588,10 @@ function MyPoolsContent() {
     if (!selectedId || !userId || !selectedEntryId) return
     if (isEliminated) {
       showMessage('Picks are closed for this entry', 'You are eliminated, so you can view matchups but cannot make more picks.', 'warning')
+      return
+    }
+    if (poolDecided) {
+      showMessage('Pool complete', 'This pool already has a winner, so no more picks are needed.', 'info')
       return
     }
     const editableDrafts = Object.entries(myDraftPicks)
@@ -1646,8 +1771,8 @@ function MyPoolsContent() {
   }, [leagueHasStarted, statsByUser])
   const strikesAllowed = Number(pool?.strikes_allowed ?? 0)
   const standingsTableWeeks = useMemo(
-    () => availableWeeks.filter((week) => week <= standingsWeek),
-    [availableWeeks, standingsWeek],
+    () => availableWeeks.filter((week) => week <= standingsWeek && (!poolWinner?.decided_week || week <= poolWinner.decided_week)),
+    [availableWeeks, poolWinner?.decided_week, standingsWeek],
   )
   const picksByEntryWeek = useMemo(() => {
     const map = new Map<string, PickRow[]>()
@@ -1866,6 +1991,7 @@ function MyPoolsContent() {
     setStandingsPicksVisible(false)
     setStandingsResultsVisible(false)
     setStatsByUser({})
+    setPoolWinner(null)
     backgroundRefreshRef.current = null
 
     try {
@@ -1881,7 +2007,7 @@ function MyPoolsContent() {
       setSelectedEntryId(nextEntryId)
 
       const season = poolRow.season ?? new Date().getFullYear()
-      const [{ data: weekRows }, { data: firstStartGame }, { data: myStat }, { data: canManage }] = await Promise.all([
+      const [{ data: weekRows }, { data: firstStartGame }, { data: myStat }, { data: canManage }, winnerResult] = await Promise.all([
         supabase
           .from('season_weeks')
           .select('season, week, week_sunday_date')
@@ -1900,8 +2026,12 @@ function MyPoolsContent() {
           ? supabase.from('pool_member_stats').select('pool_id, user_id, entry_id, wins, losses, pushes, strikes_used, eliminated, eliminated_week').eq('pool_id', id).eq('entry_id', nextEntryId).maybeSingle<MemberStats>()
           : Promise.resolve({ data: null }),
         supabase.rpc('admin_can_manage', { p_pool_id: id }),
+        supabase.rpc('pool_winner_status', { p_pool_id: id }),
       ])
       setCanManagePool(!!canManage)
+      if (winnerResult.error) throw winnerResult.error
+      const winner = (((winnerResult.data || []) as PoolWinnerStatus[])[0] || null) as PoolWinnerStatus | null
+      setPoolWinner(winner)
 
       const nextMaxWeek = maxWeekForPool(poolRow)
       const nextSeasonWeeks = ((weekRows || []) as SeasonWeek[]).filter((row) => row.week >= 1 && row.week <= nextMaxWeek)
@@ -1930,6 +2060,7 @@ function MyPoolsContent() {
     setInviteOpen(false)
     setPoolStartAt(null)
     setCanManagePool(false)
+    setPoolWinner(null)
     setDetailError(null)
     setLeavingPool(false)
   }
@@ -2000,6 +2131,7 @@ function MyPoolsContent() {
             {pools.map((p) => {
               const memberSummary = poolMemberSummaries[p.id]
               const pickStatus = poolPickStatuses[p.id]
+              const poolComplete = poolDecidedFromSummary(memberSummary)
               const entryAliveLabel =
                 memberSummary && memberSummary.totalEntries > 0
                   ? `${memberSummary.aliveEntries}/${memberSummary.totalEntries} active entries`
@@ -2016,7 +2148,7 @@ function MyPoolsContent() {
                   <div className="flex items-start justify-between gap-3">
                     <h2 className="text-lg font-semibold leading-tight text-slate-950">{p.name}</h2>
                     <div className="flex shrink-0 flex-col items-end gap-1">
-                      <PoolStagePill pool={p} pickStatus={pickStatus} />
+                      <PoolStagePill pool={p} pickStatus={pickStatus} isDecided={poolComplete} />
                       <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${p.is_public ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : 'bg-slate-100 text-slate-700 ring-1 ring-slate-200'}`}>
                         {p.is_public ? 'Public' : 'Private'}
                       </span>
@@ -2028,7 +2160,7 @@ function MyPoolsContent() {
                     <InfoTile label="Multiple Entries?" value={multipleEntriesLabel} />
                     <InfoTile label="Entries" value={entryAliveLabel} />
                   </div>
-                  {pickStatus && <PickStatusCard status={pickStatus} />}
+                  {pickStatus && <PickStatusCard status={pickStatus} isDecided={poolComplete} />}
                 <div className="mt-3 flex gap-2">
                   <button onClick={() => openPool(p.id)} className="rounded-md bg-[#111318] px-3 py-2 text-sm font-semibold text-white hover:bg-black">
                     Open
@@ -2105,12 +2237,22 @@ function MyPoolsContent() {
               {/* ----------- Make Picks ----------- */}
               {!detailsLoading && pool && activeTab === 'picks' && (
                 <>
-                  {isEliminated && (
+                  {poolDecided && poolWinner && (
+                    <PoolWinnerCelebration
+                      poolName={pool.name}
+                      winner={poolWinner}
+                      isCurrentUser={currentUserWonPool}
+                      onStandings={() => setActiveTab('standings')}
+                    />
+                  )}
+
+                  {!poolDecided && isEliminated && (
                     <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                       You are eliminated in this pool. You can still view matchups and standings, but you cannot make more picks.
                     </div>
                   )}
 
+                  {!poolDecided && (
                   <div className="mb-8">
                     <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3">
                       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -2374,7 +2516,9 @@ function MyPoolsContent() {
                     </details>
                   </div>
 
-                  {teamPickerTarget && (
+                  )}
+
+                  {!poolDecided && teamPickerTarget && (
                     <TeamPickerModal
                       week={teamPickerTarget.week}
                       slot={teamPickerTarget.slot}
@@ -2417,6 +2561,15 @@ function MyPoolsContent() {
                   <p className="mb-4 text-sm text-slate-600">
                     Choose a week to see the pool exactly as it stood through that week.
                   </p>
+
+                  {poolDecided && poolWinner && (
+                    <PoolWinnerCelebration
+                      poolName={pool.name}
+                      winner={poolWinner}
+                      isCurrentUser={currentUserWonPool}
+                      compact
+                    />
+                  )}
 
                   <section className="mb-6 rounded-xl border border-slate-200 bg-white p-4">
                     <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">

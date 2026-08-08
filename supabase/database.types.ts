@@ -2068,6 +2068,28 @@ export type Database = {
           total_members: number
         }[]
       }
+      pool_has_declared_winner: {
+        Args: { p_pool_id: string }
+        Returns: boolean
+      }
+      pool_winner_decided_week: {
+        Args: { p_pool_id: string }
+        Returns: number
+      }
+      pool_winner_status: {
+        Args: { p_pool_id: string }
+        Returns: {
+          alive_entries: number
+          alive_members: number
+          decided_week: number
+          is_decided: boolean
+          total_entries: number
+          total_members: number
+          winner_avatar_url: string
+          winner_name: string
+          winner_user_id: string
+        }[]
+      }
       pool_reinvite_overview: {
         Args: { p_pool_id: string }
         Returns: {
@@ -2149,6 +2171,10 @@ export type Database = {
       }
       prune_picks_after_elimination: {
         Args: { p_pool_id?: string }
+        Returns: number
+      }
+      prune_pool_picks_after_winner: {
+        Args: { p_pool_id: string }
         Returns: number
       }
       rebuild_pool_member_stats: {
