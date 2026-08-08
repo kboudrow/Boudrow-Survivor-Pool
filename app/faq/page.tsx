@@ -33,7 +33,7 @@ const faqs = [
   {
     question: 'How do pick deadlines work?',
     answer:
-      'Pools can use a Sunday 1 PM ET deadline, a before-Monday-night style deadline where unstarted games stay available longer, or rolling locks where each game locks at its own kickoff. Early games always lock once they kick off.',
+      'Pools can use a Sunday 1 PM ET deadline or rolling locks where each game locks at its own kickoff. With the Sunday deadline, early games still lock once they kick off.',
   },
   {
     question: 'What happens if someone forgets to pick?',

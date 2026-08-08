@@ -201,7 +201,6 @@ export default function JoinPoolPage() {
   const fixedDeadlineLabel = useMemo(() => {
     if (!pool) return null
     if (pool.deadline_mode !== 'fixed') return null
-    if (pool.deadline_fixed === '20:15') return 'Before Monday Night Football'
     return 'Sunday 1 PM ET'
   }, [pool])
 

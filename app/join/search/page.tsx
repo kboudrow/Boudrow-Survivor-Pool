@@ -35,7 +35,6 @@ function formatPoolMeta(pool: Pool) {
 
 function deadlineLabel(pool: Pool) {
   if (pool.deadline_mode === 'rolling') return 'Rolling: each game locks at kickoff'
-  if (pool.deadline_fixed === '20:15') return 'Before Monday Night Football'
   return 'Sunday 1 PM ET'
 }
 

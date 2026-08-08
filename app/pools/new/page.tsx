@@ -234,8 +234,7 @@ export default function CreatePoolPage() {
       const validDoubleWeeks = doubleWeeks.filter((week) => week >= start_week)
 
       let deadline_mode: 'fixed' | 'rolling' = 'fixed'
-      let deadline_fixed: string | null = '13:00'
-      if (pickDeadline === 'Before Monday Night Football') deadline_fixed = '20:15'
+      const deadline_fixed: string | null = '13:00'
       if (pickDeadline === 'Rolling: each game locks at kickoff') deadline_mode = 'rolling'
       let leagueImageUrl = defaultPoolImage(trimmedName)
       if (imageFile) {
@@ -352,10 +351,9 @@ export default function CreatePoolPage() {
             <label htmlFor="pickDeadline">Pick Deadline</label>
             <select id="pickDeadline" value={pickDeadline} onChange={(e) => setPickDeadline(e.target.value)}>
               <option>Sunday 1 PM ET</option>
-              <option>Before Monday Night Football</option>
               <option>Rolling: each game locks at kickoff</option>
             </select>
-            <p className="hint">Early games always lock at kickoff. Sunday 1 PM is the standard survivor deadline.</p>
+            <p className="hint">Choose one weekly deadline, or let each game lock at its own kickoff.</p>
           </div>
         </div>
 

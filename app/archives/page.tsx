@@ -75,7 +75,6 @@ function titleCase(value?: string | null) {
 
 function formatDeadline(pool: Pool) {
   if (pool.deadline_mode === 'rolling') return 'Rolling kickoff'
-  if (pool.deadline_fixed === '20:15') return 'Monday night kickoff'
   return 'Sunday 1 PM ET'
 }
 

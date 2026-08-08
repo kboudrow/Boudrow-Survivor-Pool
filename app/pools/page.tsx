@@ -852,9 +852,7 @@ function MyPoolsContent() {
   const deadlineLabel =
     pool?.deadline_mode === 'rolling'
       ? 'Rolling: each game locks at kickoff'
-      : normalizeTimeTo24h(pool?.deadline_fixed) === '20:15'
-        ? 'Before Monday Night Football'
-        : 'Sunday 1 PM ET'
+      : 'Sunday 1 PM ET'
   const selectedWeekCloseLabel =
     isTestMode
       ? 'Test mode: this week advances when the superadmin scores it.'
@@ -1230,14 +1228,7 @@ function MyPoolsContent() {
           .eq('week', week)
           .maybeSingle<SeasonWeek>()
 
-        if (t24 === '20:15' && games.length) {
-          const latestKickoff = games
-            .map((game) => game.kickoff_at_utc || game.game_time)
-            .filter(Boolean)
-            .sort()
-            .at(-1)
-          setFixedLockUtc(latestKickoff || null)
-        } else if (sw?.week_sunday_date) {
+        if (sw?.week_sunday_date) {
           setFixedLockUtc(etLocalToUtcISO(sw.week_sunday_date, t24))
         } else {
           setFixedLockUtc(null)
