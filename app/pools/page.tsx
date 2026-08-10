@@ -105,6 +105,18 @@ type PoolWinnerStatus = {
   decided_week: number | null
 }
 
+type PoolLifecycleStatus = {
+  pool_id: string
+  phase: string
+  label: string
+  description: string
+  current_week: number
+  join_allowed: boolean
+  pick_submission_allowed: boolean
+  archive_allowed: boolean
+  result_processing_pending: boolean
+}
+
 type MemberStats = {
   pool_id: string
   user_id: string
@@ -365,12 +377,21 @@ function InfoTile({ label, value }: { label: string; value: string }) {
 
 const poolDecidedFromSummary = (summary?: PoolMemberSummary) => !!summary && poolHasWinner(summary.totalEntries, summary.aliveEntries)
 
-function PoolStagePill({ pool, pickStatus, isDecided }: { pool: Pool; pickStatus?: PoolPickStatus; isDecided?: boolean }) {
+function PoolStagePill({ pool, pickStatus, isDecided, lifecycle }: { pool: Pool; pickStatus?: PoolPickStatus; isDecided?: boolean; lifecycle?: PoolLifecycleStatus }) {
   if (pool.activation_status === 'cancelled') {
     return <span className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Closed</span>
   }
-  if (isDecided) {
+  if (isDecided || lifecycle?.phase === 'completed_winner') {
     return <span className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">Winner</span>
+  }
+  if (lifecycle?.phase === 'completed_season') {
+    return <span className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">Season complete</span>
+  }
+  if (lifecycle?.phase === 'waiting_results') {
+    return <span className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Processing</span>
+  }
+  if (lifecycle?.phase === 'open' || lifecycle?.phase === 'draft') {
+    return <span className="shrink-0 rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">{lifecycle.label}</span>
   }
   if (pickStatus) {
     return <span className="shrink-0 rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">{shortWeekLabel(pickStatus.week)}</span>
@@ -378,11 +399,27 @@ function PoolStagePill({ pool, pickStatus, isDecided }: { pool: Pool; pickStatus
   return <span className="shrink-0 rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">Loading</span>
 }
 
-function PickStatusCard({ status, isDecided }: { status: PoolPickStatus; isDecided?: boolean }) {
-  if (isDecided) {
+function PickStatusCard({ status, isDecided, lifecycle }: { status: PoolPickStatus; isDecided?: boolean; lifecycle?: PoolLifecycleStatus }) {
+  if (isDecided || lifecycle?.phase === 'completed_winner') {
     return (
       <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
         Pool complete: winner decided
+      </div>
+    )
+  }
+
+  if (lifecycle?.phase === 'completed_season') {
+    return (
+      <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+        Season complete: {lifecycle.description}
+      </div>
+    )
+  }
+
+  if (lifecycle?.phase === 'waiting_results') {
+    return (
+      <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+        Week {lifecycle.current_week}: waiting for final result processing
       </div>
     )
   }
@@ -831,6 +868,7 @@ function MyPoolsContent() {
   const [pools, setPools] = useState<Pool[]>([])
   const [poolPickStatuses, setPoolPickStatuses] = useState<Record<string, PoolPickStatus>>({})
   const [poolMemberSummaries, setPoolMemberSummaries] = useState<Record<string, PoolMemberSummary>>({})
+  const [poolLifecycleStatuses, setPoolLifecycleStatuses] = useState<Record<string, PoolLifecycleStatus>>({})
   const [userId, setUserId] = useState<string | null>(null)
 
   // modal + selection
@@ -1078,6 +1116,7 @@ function MyPoolsContent() {
       setPools([])
       setPoolPickStatuses({})
       setPoolMemberSummaries({})
+      setPoolLifecycleStatuses({})
       setPool(null)
       setMembers([])
       setMembersLoadedFor(null)
@@ -1163,6 +1202,18 @@ function MyPoolsContent() {
             : Promise.resolve({ data: [] }),
         ])
 
+        const lifecycleResults = await Promise.all(
+          poolIds.map(async (poolId) => {
+            const { data, error: lifecycleError } = await supabase.rpc('pool_lifecycle_status', { p_pool_id: poolId })
+            if (lifecycleError) throw lifecycleError
+            return (((data || []) as PoolLifecycleStatus[])[0] || null)
+          }),
+        )
+        const lifecycleStatuses: Record<string, PoolLifecycleStatus> = {}
+        for (const status of lifecycleResults) {
+          if (status) lifecycleStatuses[status.pool_id] = status
+        }
+
         const weeksBySeason = new Map<number, SeasonWeek[]>()
         for (const row of ((seasonRows || []) as SeasonWeek[]).filter((week) => week.week >= 1 && week.week <= 18)) {
           const list = weeksBySeason.get(row.season) || []
@@ -1231,6 +1282,7 @@ function MyPoolsContent() {
         setPools(nextPools)
         setPoolPickStatuses(statuses)
         setPoolMemberSummaries(summaries)
+        setPoolLifecycleStatuses(lifecycleStatuses)
       } catch (e: unknown) {
         if (!alive) return
         void logAppEvent({ eventType: 'my_pools_load_failed', error: e })
@@ -2185,6 +2237,7 @@ function MyPoolsContent() {
             {pools.map((p) => {
               const memberSummary = poolMemberSummaries[p.id]
               const pickStatus = poolPickStatuses[p.id]
+              const lifecycleStatus = poolLifecycleStatuses[p.id]
               const poolComplete = poolDecidedFromSummary(memberSummary)
               const entryAliveLabel =
                 memberSummary && memberSummary.totalEntries > 0
@@ -2202,7 +2255,7 @@ function MyPoolsContent() {
                   <div className="flex items-start justify-between gap-3">
                     <h2 className="text-lg font-semibold leading-tight text-slate-950">{p.name}</h2>
                     <div className="flex shrink-0 flex-col items-end gap-1">
-                      <PoolStagePill pool={p} pickStatus={pickStatus} isDecided={poolComplete} />
+                      <PoolStagePill pool={p} pickStatus={pickStatus} isDecided={poolComplete} lifecycle={lifecycleStatus} />
                       <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${p.is_public ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : 'bg-slate-100 text-slate-700 ring-1 ring-slate-200'}`}>
                         {p.is_public ? 'Public' : 'Private'}
                       </span>
@@ -2214,7 +2267,7 @@ function MyPoolsContent() {
                     <InfoTile label="Multiple Entries?" value={multipleEntriesLabel} />
                     <InfoTile label="Entries" value={entryAliveLabel} />
                   </div>
-                  {pickStatus && <PickStatusCard status={pickStatus} isDecided={poolComplete} />}
+                  {pickStatus && <PickStatusCard status={pickStatus} isDecided={poolComplete} lifecycle={lifecycleStatus} />}
                 <div className="mt-3 flex gap-2">
                   <button onClick={() => openPool(p.id)} className="rounded-md bg-[#111318] px-3 py-2 text-sm font-semibold text-white hover:bg-black">
                     Open

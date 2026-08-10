@@ -147,6 +147,24 @@ type IntegrityCheckRow = {
   detail: string
 }
 
+type PoolLifecycleStatus = {
+  pool_id: string
+  phase: string
+  label: string
+  description: string
+  starts_at: string | null
+  current_week: number
+  final_week: number
+  total_entries: number
+  alive_entries: number
+  join_allowed: boolean
+  entry_creation_allowed: boolean
+  pick_submission_allowed: boolean
+  settings_editable: boolean
+  archive_allowed: boolean
+  result_processing_pending: boolean
+}
+
 const REGULAR_SEASON_MAX_WEEK = 18
 const TEST_PLAYOFF_MAX_WEEK = 22
 const PLAYOFF_WEEK_LABELS: Record<number, string> = {
@@ -279,7 +297,20 @@ const checkNameLabel = (name: string) =>
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ')
 
-function poolStage(pool: Pool, settingsLocked: boolean) {
+function poolStage(pool: Pool, settingsLocked: boolean, status?: PoolLifecycleStatus | null) {
+  if (status) {
+    const className =
+      status.phase === 'archived' || status.phase === 'cancelled'
+        ? 'border-slate-300 bg-slate-100 text-slate-700'
+        : status.phase.startsWith('completed_')
+          ? 'border-amber-300 bg-amber-50 text-amber-800'
+          : status.phase === 'review_required' || status.phase === 'waiting_results'
+            ? 'border-amber-300 bg-amber-50 text-amber-700'
+            : status.phase === 'open' || status.phase === 'draft'
+              ? 'border-blue-300 bg-blue-50 text-blue-700'
+              : 'border-emerald-300 bg-emerald-50 text-emerald-700'
+    return { label: status.label, className, description: status.description }
+  }
   if (pool.archived) {
     return {
       label: 'Archived',
@@ -353,6 +384,7 @@ export default function PoolAdminPage() {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
   const [pool, setPool] = useState<Pool | null>(null)
   const [poolStartAt, setPoolStartAt] = useState<string | null>(null)
+  const [lifecycleStatus, setLifecycleStatus] = useState<PoolLifecycleStatus | null>(null)
   const [rows, setRows] = useState<AdminRow[]>([])
   const [adminActions, setAdminActions] = useState<AdminActionRow[]>([])
   const [pickEvents, setPickEvents] = useState<PickSaveEventRow[]>([])
@@ -456,10 +488,13 @@ export default function PoolAdminPage() {
     (!!pool.test_mode && (pool.test_current_week || pool.start_week || 1) >= (pool.start_week || 1))
     || (poolStartKnown && Date.now() >= poolStartMs)
   )
-  const settingsLocked = leagueHasStarted
-  const canInvite = !!pool && isPoolJoinable && poolStartKnown && !leagueHasStarted
+  const settingsLocked = lifecycleStatus ? !lifecycleStatus.settings_editable : leagueHasStarted
+  const canInvite = lifecycleStatus
+    ? lifecycleStatus.join_allowed
+    : !!pool && isPoolJoinable && poolStartKnown && !leagueHasStarted
   const canReinvite = !!pool && isPoolJoinable && !settingsLocked
-  const lifecycle = pool ? poolStage(pool, settingsLocked) : null
+  const canArchive = lifecycleStatus ? lifecycleStatus.archive_allowed : !settingsLocked
+  const lifecycle = pool ? poolStage(pool, settingsLocked, lifecycleStatus) : null
   const visibilityChanged = !!pool && isPublicDraft !== pool.is_public
   const coreRulesChanged = !!pool && (
     startWeekDraft !== String(pool.start_week)
@@ -677,17 +712,22 @@ export default function PoolAdminPage() {
         return
       }
 
-      const [{ data: p, error: pErr }, { data: overview, error: overviewErr }] = await Promise.all([
+      const [{ data: p, error: pErr }, { data: overview, error: overviewErr }, { data: lifecycleRows, error: lifecycleErr }] = await Promise.all([
         supabase.from('pools').select('id,name,created_by,cloned_from_pool_id,is_public,visibility,double_pick_weeks,archived,season,start_week,include_playoffs,strikes_allowed,tie_rule,deadline_mode,deadline_fixed,notes,activation_status,max_members,allow_multiple_entries,max_entries_per_user,payment_status,image_url,test_mode,test_current_week,test_now_at').eq('id', poolId).maybeSingle<Pool>(),
         supabase.rpc('admin_pool_entry_week_overview', { p_pool_id: poolId, p_week: week }),
+        supabase.rpc('pool_lifecycle_status', { p_pool_id: poolId }),
       ])
       if (pErr) throw pErr
       if (overviewErr) throw overviewErr
+      if (lifecycleErr) throw lifecycleErr
       if (!p) throw new Error('Pool not found')
 
       const nextIsSuperAdmin = user?.email?.toLowerCase() === SUPERADMIN_EMAIL
+      const nextLifecycle = (((lifecycleRows || []) as PoolLifecycleStatus[])[0] || null)
 
       setPool(p)
+      setLifecycleStatus(nextLifecycle)
+      setPoolStartAt(nextLifecycle?.starts_at || null)
       setIsOwner(true)
       setIsSuperAdmin(nextIsSuperAdmin)
       setDoubleWeeksText((p.double_pick_weeks || []).filter((week) => week >= p.start_week).join(','))
@@ -726,27 +766,6 @@ export default function PoolAdminPage() {
       } else {
         setReinviteRows([])
       }
-
-      const { data: firstStartGame } = await supabase
-        .from('nfl_games')
-        .select('game_time,kickoff_at_utc')
-        .eq('season', p.season ?? new Date().getFullYear())
-        .eq('week', p.start_week)
-        .order('kickoff_at_utc', { ascending: true, nullsFirst: false })
-        .order('game_time', { ascending: true })
-        .limit(1)
-        .maybeSingle<{ game_time: string; kickoff_at_utc: string | null }>()
-      let fallbackStartAt: string | null = null
-      if (!firstStartGame?.kickoff_at_utc && !firstStartGame?.game_time) {
-        const { data: startWeek } = await supabase
-          .from('season_weeks')
-          .select('week_sunday_date')
-          .eq('season', p.season ?? new Date().getFullYear())
-          .eq('week', p.start_week)
-          .maybeSingle<{ week_sunday_date: string }>()
-        fallbackStartAt = startWeek?.week_sunday_date ? `${startWeek.week_sunday_date}T00:00:00` : null
-      }
-      setPoolStartAt(firstStartGame?.kickoff_at_utc || firstStartGame?.game_time || fallbackStartAt)
 
       const nextDrafts: Record<string, string> = {}
       const nextFinals: Record<string, string> = {}
@@ -1109,8 +1128,8 @@ export default function PoolAdminPage() {
 
   const toggleArchive = async () => {
     if (!pool) return
-    if (settingsLocked) {
-      setError('Pool settings cannot be changed after the pool has started.')
+    if (!pool.archived && !canArchive) {
+      setError('An in-progress pool cannot be archived. Wait until a winner is decided or the configured season is complete.')
       return
     }
     setArchiving(true)
@@ -2032,11 +2051,11 @@ export default function PoolAdminPage() {
                 </div>
                 <button
                   onClick={toggleArchive}
-                  disabled={archiving || settingsLocked}
-                  title={settingsLocked ? 'Started pools cannot be archived from this panel.' : undefined}
+                  disabled={archiving || (!pool.archived && !canArchive)}
+                  title={!pool.archived && !canArchive ? 'In-progress pools cannot be archived.' : undefined}
                   className="rounded-md bg-amber-600 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
                 >
-                  {archiving ? 'Updating...' : pool.archived ? 'Unarchive Pool' : 'Archive Before Start'}
+                  {archiving ? 'Updating...' : pool.archived ? 'Unarchive Pool' : settingsLocked ? 'Archive Completed Pool' : 'Archive Before Start'}
                 </button>
               </div>
               {settingsLocked && (
