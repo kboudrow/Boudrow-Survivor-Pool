@@ -226,7 +226,9 @@ function fmt(value?: string | null) {
 }
 const rowKey = (row: AdminRow) => `${row.entry_id}:${row.slot}`
 const hasFinalPick = (row: AdminRow) => !!row.final_team_abbr || !!row.locked_at
-const entryLabel = (row: AdminRow) => (row.entry_number && row.entry_number > 1 ? `${row.display_name} (${row.entry_number})` : row.display_name)
+const entryLabel = (row: AdminRow) => row.entry_name?.trim()
+  ? `${row.display_name} — ${row.entry_name.trim()}`
+  : (row.entry_number && row.entry_number > 1 ? `${row.display_name} (${row.entry_number})` : row.display_name)
 const memberLabel = (row: AdminRow) => row.display_name || row.user_id.slice(0, 8)
 const shortId = (value?: string | null) => (value ? value.slice(0, 8) : '-')
 const fmtShort = (value?: string | null) =>
@@ -1113,6 +1115,27 @@ export default function PoolAdminPage() {
       const { error } = await supabase.rpc('admin_remove_pool_member', {
         p_pool_id: pool.id,
         p_profile_id: row.user_id,
+      })
+      if (error) throw error
+      return `${label} removed.`
+    })
+
+  const removeEntry = (row: AdminRow) =>
+    runAction('Remove entry', async () => {
+      if (!pool) return
+      if (settingsLocked) throw new Error('Entries cannot be removed after the pool has started.')
+      const label = entryLabel(row)
+      const confirmed = await requestConfirm({
+        title: 'Remove entry?',
+        message: `Remove ${label} from ${pool.name}? This deletes only Entry #${row.entry_number || 1} and its picks. The member's other entries stay in the pool.`,
+        tone: 'danger',
+        confirmLabel: 'Remove entry',
+      })
+      if (!confirmed) return 'Remove entry canceled.'
+
+      const { error } = await supabase.rpc('admin_remove_pool_entry', {
+        p_pool_id: pool.id,
+        p_entry_id: row.entry_id,
       })
       if (error) throw error
       return `${label} removed.`
@@ -2339,7 +2362,7 @@ export default function PoolAdminPage() {
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-3 py-2">
                   <div>
                     <h3 className="text-sm font-semibold text-slate-950">Member Removal</h3>
-                    <p className="text-xs text-slate-600">Remove a member and all of their entries before the pool starts. Pick edits stay in the weekly table below.</p>
+                    <p className="text-xs text-slate-600">Remove one entry or an entire member before the pool starts. Pick edits stay in the weekly table below.</p>
                   </div>
                   <span className="rounded-full bg-white px-2 py-1 text-xs text-slate-600">
                     {visibleMemberRows.length} {visibleMemberRows.length === 1 ? 'member' : 'members'}
@@ -2366,8 +2389,19 @@ export default function PoolAdminPage() {
                           </td>
                           <td className="px-3 py-2 text-slate-700">
                             {entries.length}
-                            <div className="text-xs text-slate-500">
-                              {entries.map((entry) => `#${entry.entry_number ?? 1}`).join(', ')}
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {entries.map((entry) => (
+                                <button
+                                  key={entry.entry_id}
+                                  type="button"
+                                  onClick={() => removeEntry(entry)}
+                                  disabled={!!runningAction || settingsLocked || entry.user_id === pool.created_by}
+                                  title={entry.user_id === pool.created_by ? 'The pool creator’s entries cannot be removed here.' : `Remove Entry #${entry.entry_number ?? 1}`}
+                                  className="rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-xs font-medium text-red-700 hover:bg-red-100 disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400"
+                                >
+                                  #{entry.entry_number ?? 1} remove
+                                </button>
+                              ))}
                             </div>
                           </td>
                           <td className="px-3 py-2 capitalize text-slate-700">{row.role}</td>

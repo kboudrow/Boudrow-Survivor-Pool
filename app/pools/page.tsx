@@ -230,8 +230,11 @@ const displayNameForMember = (m: Profile) =>
 
 const entryLabelForMember = (m: Profile) => {
   const name = displayNameForMember(m)
+  if (m.entry_name?.trim()) return `${name} — ${m.entry_name.trim()}`
   return m.entry_number && m.entry_number > 1 ? `${name} (${m.entry_number})` : name
 }
+
+const selectedEntryStorageKey = (poolId: string) => `survive-sunday:selected-entry:${poolId}`
 
 function normalizeTimeTo24h(s?: string | null): string | null {
   if (!s) return null
@@ -1623,6 +1626,7 @@ function MyPoolsContent() {
   const selectEntry = async (entryId: string) => {
     if (!selectedId || !pool || entryId === selectedEntryId) return
     setSelectedEntryId(entryId)
+    window.localStorage.setItem(selectedEntryStorageKey(selectedId), entryId)
     setMyDraftPicks({})
     setMyFinalPicks({})
     setDraftSavedAt(null)
@@ -1642,7 +1646,7 @@ function MyPoolsContent() {
 
   const addEntry = async () => {
     if (!selectedId || !pool) return
-    const nextEntryNumber = myEntries.length + 1
+    const nextEntryNumber = Math.max(0, ...myEntries.map((entry) => entry.entry_number ?? 1)) + 1
     const entryLimit = pool.max_entries_per_user ?? 1
     confirmAction({
       title: 'Add another entry?',
@@ -1661,6 +1665,46 @@ function MyPoolsContent() {
         } catch (e: unknown) {
           void logAppEvent({ eventType: 'pool_add_entry_failed', error: e, poolId: pool.id })
           showMessage('Entry not added', getErrorMessage(e, 'Failed to add entry.'), 'danger')
+        } finally {
+          setAddingEntry(false)
+        }
+      },
+    })
+  }
+
+  const removeSelectedEntry = async () => {
+    if (!selectedId || !pool || !selectedEntryId || myEntries.length <= 1) return
+    const selectedEntry = myEntries.find((entry) => entry.id === selectedEntryId)
+    const label = selectedEntry ? entryLabelForMember(selectedEntry) : 'this entry'
+    confirmAction({
+      title: 'Remove this entry?',
+      message: `Remove ${label} from ${pool.name}? This deletes only this entry and its picks. Your other entries stay in the pool.`,
+      tone: 'danger',
+      confirmLabel: 'Remove entry',
+      onConfirm: async () => {
+        setAddingEntry(true)
+        try {
+          const { error } = await supabase.rpc('remove_pool_entry', { p_pool_id: selectedId, p_entry_id: selectedEntryId })
+          if (error) throw error
+          const roster = await loadMembers(selectedId)
+          const remaining = roster.filter((member) => member.profile_id === userId)
+          const nextEntryId = remaining[0]?.id ?? null
+          setSelectedEntryId(nextEntryId)
+          if (nextEntryId) {
+            window.localStorage.setItem(selectedEntryStorageKey(selectedId), nextEntryId)
+            await loadMyPicks(selectedId, pool.start_week, nextEntryId)
+            const { data: nextStat } = await supabase
+              .from('pool_member_stats')
+              .select('pool_id, user_id, entry_id, wins, losses, pushes, strikes_used, eliminated, eliminated_week')
+              .eq('pool_id', selectedId)
+              .eq('entry_id', nextEntryId)
+              .maybeSingle<MemberStats>()
+            setStatsByUser(nextStat ? { [nextStat.entry_id]: nextStat } : {})
+          }
+          await refreshPoolPickStatus(pool, remaining)
+        } catch (e: unknown) {
+          void logAppEvent({ eventType: 'pool_remove_entry_failed', error: e, poolId: pool.id, metadata: { entry_id: selectedEntryId } })
+          showMessage('Entry not removed', getErrorMessage(e, 'Failed to remove entry.'), 'danger')
         } finally {
           setAddingEntry(false)
         }
@@ -1974,8 +2018,10 @@ function MyPoolsContent() {
       setStandingsWeek(poolRow.start_week)
       const roster = await loadMembers(id)
       const entries = roster.filter((m) => m.profile_id === userId)
-      const nextEntryId = entries[0]?.id ?? null
+      const storedEntryId = window.localStorage.getItem(selectedEntryStorageKey(id))
+      const nextEntryId = entries.find((entry) => entry.id === storedEntryId)?.id ?? entries[0]?.id ?? null
       setSelectedEntryId(nextEntryId)
+      if (nextEntryId) window.localStorage.setItem(selectedEntryStorageKey(id), nextEntryId)
 
       const season = poolRow.season ?? new Date().getFullYear()
       const [{ data: weekRows }, { data: firstStartGame }, { data: myStat }, { data: canManage }, winnerResult] = await Promise.all([
@@ -2259,6 +2305,16 @@ function MyPoolsContent() {
                               className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                             >
                               {addingEntry ? 'Adding...' : 'Add entry'}
+                            </button>
+                          )}
+                          {!leagueHasStarted && myEntries.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={removeSelectedEntry}
+                              disabled={addingEntry}
+                              className="rounded-md border border-red-200 bg-white px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                            >
+                              Remove this entry
                             </button>
                           )}
                           {draftSavedAt && <div className="text-xs text-gray-500">Last saved {fmtDateTime(draftSavedAt)}</div>}

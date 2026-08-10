@@ -882,6 +882,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "pool_member_stats_entry_owner_fkey"
+            columns: ["pool_id", "entry_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "pool_members"
+            referencedColumns: ["pool_id", "id", "profile_id"]
+          },
+          {
             foreignKeyName: "pool_member_stats_pool_id_fkey"
             columns: ["pool_id"]
             isOneToOne: false
@@ -1040,6 +1047,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "pool_pick_drafts_entry_owner_fkey"
+            columns: ["pool_id", "entry_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "pool_members"
+            referencedColumns: ["pool_id", "id", "profile_id"]
+          },
+          {
             foreignKeyName: "pool_pick_drafts_pool_id_fkey"
             columns: ["pool_id"]
             isOneToOne: false
@@ -1113,6 +1127,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "pool_members"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pool_picks_entry_owner_fkey"
+            columns: ["pool_id", "entry_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "pool_members"
+            referencedColumns: ["pool_id", "id", "profile_id"]
           },
           {
             foreignKeyName: "pool_picks_pool_id_fkey"
@@ -1998,6 +2019,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      count_pool_entries: { Args: { p_pool_id: string }; Returns: number }
       count_pool_members: { Args: { p_pool_id: string }; Returns: number }
       create_pool_with_owner: {
         Args: {
@@ -2103,6 +2125,7 @@ export type Database = {
           created_by: string
           deadline_fixed: string
           deadline_mode: string
+          entry_count: number
           id: string
           include_playoffs: boolean
           is_public: boolean
@@ -2305,6 +2328,10 @@ export type Database = {
         Args: { p_pool_id: string }
         Returns: number
       }
+      remove_pool_entry: {
+        Args: { p_entry_id: string; p_pool_id: string }
+        Returns: undefined
+      }
       restore_unlocked_picks_for_pool: {
         Args: { p_pool_id: string }
         Returns: number
@@ -2338,6 +2365,7 @@ export type Database = {
           created_at: string
           deadline_fixed: string
           deadline_mode: string
+          entry_count: number
           id: string
           include_playoffs: boolean
           is_public: boolean
