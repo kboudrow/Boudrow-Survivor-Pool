@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createHmac } from 'node:crypto'
 import { getErrorMessage } from '@/lib/errorMessage'
+import { cleanEnvValue } from '@/lib/env'
 import { sanitizeLogMetadata } from '@/lib/security'
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
 import type { Json } from '@/supabase/database.types'
@@ -12,7 +14,6 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
 const MAX_BODY_BYTES = 8192
 const RATE_LIMIT_WINDOW_MS = 60_000
 const RATE_LIMIT_MAX_EVENTS = 30
-const rateBuckets = new Map<string, { count: number; resetAt: number }>()
 
 function cleanText(value: unknown, maxLength: number) {
   if (typeof value !== 'string') return null
@@ -31,23 +32,25 @@ function cleanEventType(value: unknown) {
   return cleaned.replace(/[^a-zA-Z0-9_.:-]/g, '_').slice(0, 100) || 'unknown_event'
 }
 
-function requestKey(request: NextRequest) {
+function requestFingerprint(request: NextRequest) {
+  const vercelForwardedFor = request.headers.get('x-vercel-forwarded-for')?.split(',')[0]?.trim()
   const forwardedFor = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
   const realIp = request.headers.get('x-real-ip')?.trim()
   const userAgent = request.headers.get('user-agent')?.slice(0, 120) || 'unknown-agent'
-  return `${forwardedFor || realIp || 'unknown-ip'}:${userAgent}`
+  const salt = cleanEnvValue(process.env.MONITORING_RATE_LIMIT_SALT) || cleanEnvValue(process.env.CRON_SECRET)
+  if (!salt) throw new Error('Monitoring rate-limit salt is not configured.')
+  return createHmac('sha256', salt).update(`${vercelForwardedFor || realIp || forwardedFor || 'unknown-ip'}:${userAgent}`).digest('hex')
 }
 
-function isRateLimited(request: NextRequest) {
-  const key = requestKey(request)
-  const now = Date.now()
-  const current = rateBuckets.get(key)
-  if (!current || current.resetAt <= now) {
-    rateBuckets.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS })
-    return false
-  }
-  current.count += 1
-  return current.count > RATE_LIMIT_MAX_EVENTS
+async function isRateLimited(request: NextRequest) {
+  const supabaseAdmin = getSupabaseAdmin()
+  const { data, error } = await supabaseAdmin.rpc('consume_monitoring_rate_limit', {
+    p_fingerprint: requestFingerprint(request),
+    p_limit: RATE_LIMIT_MAX_EVENTS,
+    p_window_seconds: RATE_LIMIT_WINDOW_MS / 1000,
+  })
+  if (error) throw error
+  return data !== true
 }
 
 export async function POST(request: NextRequest) {
@@ -57,8 +60,11 @@ export async function POST(request: NextRequest) {
   if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) {
     return NextResponse.json({ ok: false }, { status: 413 })
   }
-  if (isRateLimited(request)) {
-    return NextResponse.json({ ok: false }, { status: 429 })
+  try {
+    if (await isRateLimited(request)) return NextResponse.json({ ok: false }, { status: 429 })
+  } catch (e: unknown) {
+    console.error('Monitoring rate-limit check failed:', getErrorMessage(e, 'Unknown rate-limit failure.'))
+    return NextResponse.json({ ok: false }, { status: 503 })
   }
 
   try {
