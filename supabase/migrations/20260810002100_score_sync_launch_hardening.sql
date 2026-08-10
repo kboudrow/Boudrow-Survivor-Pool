@@ -1,7 +1,10 @@
--- Guard the NFL schedule table against stale rows and impossible weekly schedules.
--- This is especially important for the 2026 audited schedule: old ESPN pulls
--- must not be able to insert 2025 final games under season 2026.
+begin;
 
+-- An INSERT ... ON CONFLICT upsert fires BEFORE INSERT triggers before the
+-- conflict is resolved. The prior guard therefore saw the existing copy of
+-- the exact same matchup and rejected routine score/kickoff updates. Preserve
+-- the duplicate-team protection while allowing an identical matchup to reach
+-- the unique index and update in place.
 create or replace function public.enforce_nfl_games_integrity()
 returns trigger
 language plpgsql
@@ -37,9 +40,6 @@ begin
   where g.season = new.season
     and g.week = new.week
     and g.id is distinct from new.id
-    -- INSERT ... ON CONFLICT runs BEFORE INSERT triggers before PostgreSQL
-    -- resolves the matching row. Let an identical matchup reach the unique
-    -- index so the score sync can update that existing game.
     and not (
       new.away_team = g.away_team
       and new.home_team = g.home_team
@@ -69,3 +69,5 @@ create trigger trg_enforce_nfl_games_integrity
 before insert or update on public.nfl_games
 for each row
 execute function public.enforce_nfl_games_integrity();
+
+commit;

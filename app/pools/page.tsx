@@ -850,6 +850,7 @@ function MyPoolsContent() {
   const [detailError, setDetailError] = useState<string | null>(null)
   const openedPoolParamRef = useRef<string | null>(null)
   const backgroundRefreshRef = useRef<string | null>(null)
+  const myPicksRequestRef = useRef(0)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [poolStartAt, setPoolStartAt] = useState<string | null>(null)
   const [canManagePool, setCanManagePool] = useState(false)
@@ -880,6 +881,7 @@ function MyPoolsContent() {
   const [teamSearch, setTeamSearch] = useState('')
   const [weekGames, setWeekGames] = useState<Game[]>([])
   const [gamesLoading, setGamesLoading] = useState(false)
+  const [weekGamesError, setWeekGamesError] = useState<string | null>(null)
   const [fixedLockUtc, setFixedLockUtc] = useState<string | null>(null)
   const [nowTick, setNowTick] = useState<number>(Date.now())
   const tickRef = useRef<number | null>(null)
@@ -960,11 +962,13 @@ function MyPoolsContent() {
 
   const loadMyPicks = async (poolId: string, startWeek = pool?.start_week ?? 1, entryId = selectedEntryId) => {
     if (!userId || !entryId) return
+    const requestId = ++myPicksRequestRef.current
 
     const [{ data: finalPicks, error: finalErr }, { data: drafts, error: draftErr }] = await Promise.all([
       supabase.from('pool_picks').select('entry_id, week, slot, team_abbr, locked_at, result').eq('pool_id', poolId).eq('entry_id', entryId).gte('week', startWeek),
       supabase.from('pool_pick_drafts').select('entry_id, week, slot, team_abbr, updated_at').eq('pool_id', poolId).eq('entry_id', entryId).gte('week', startWeek),
     ])
+    if (requestId !== myPicksRequestRef.current) return
     if (finalErr) throw finalErr
     if (draftErr) throw draftErr
 
@@ -1287,16 +1291,28 @@ function MyPoolsContent() {
 
   /** ---------- Selected week games + fixed lock ---------- */
   useEffect(() => {
+    let cancelled = false
     const loadWeekGames = async (week: number) => {
       if (!pool?.id) return
       setGamesLoading(true)
+      setWeekGamesError(null)
       const { data, error } = await supabase.rpc('pool_week_games', {
         p_pool_id: pool.id,
         p_week: week,
       })
+      if (cancelled) return
+      if (error) {
+        const message = getErrorMessage(error, `Could not load ${weekLabel(week)} matchups.`)
+        setWeekGames([])
+        setFixedLockUtc(null)
+        setWeekGamesError(`${message} Refresh the page and try again before making a pick.`)
+        setGamesLoading(false)
+        void logAppEvent({ eventType: 'pool_week_games_load_failed', error, poolId: pool.id, metadata: { week } })
+        return
+      }
       let games = (data || []) as Game[]
 
-      if (!pool.test_mode && !error) {
+      if (!pool.test_mode) {
         const season = pool.season ?? games[0]?.season ?? new Date().getFullYear()
         const { data: confirmations, error: confirmationError } = await supabase
           .from('nfl_games')
@@ -1309,7 +1325,8 @@ function MyPoolsContent() {
         }
       }
 
-      if (!error) setWeekGames(games)
+      if (cancelled) return
+      setWeekGames(games)
       setGamesLoading(false)
 
       if (pool?.deadline_mode === 'fixed') {
@@ -1322,6 +1339,7 @@ function MyPoolsContent() {
           .eq('week', week)
           .maybeSingle<SeasonWeek>()
 
+        if (cancelled) return
         if (sw?.week_sunday_date) {
           setFixedLockUtc(etLocalToUtcISO(sw.week_sunday_date, t24))
         } else {
@@ -1334,6 +1352,9 @@ function MyPoolsContent() {
 
     const targetWeek = teamPickerTarget?.week ?? (activeTab === 'picks' ? selectedPickWeek : null)
     if (pool && targetWeek) loadWeekGames(targetWeek)
+    return () => {
+      cancelled = true
+    }
   }, [teamPickerTarget, activeTab, selectedPickWeek, pool])
 
   /** ---------- Standings loader ---------- */
@@ -1998,6 +2019,7 @@ function MyPoolsContent() {
   const openPool = async (id: string) => {
     if (!userId) return
     setSelectedId(id)
+    myPicksRequestRef.current += 1
     setIsOpen(true)
     setActiveTab('picks')
     setDetailsLoading(true)
@@ -2016,6 +2038,7 @@ function MyPoolsContent() {
     setTeamPickerTarget(null)
     setTeamSearch('')
     setWeekGames([])
+    setWeekGamesError(null)
     setPoolStartAt(null)
     setCanManagePool(false)
     setSelectedPickWeek(1)
@@ -2293,6 +2316,11 @@ function MyPoolsContent() {
 
                   {!poolDecided && (
                   <div className="mb-8">
+                    {weekGamesError && (
+                      <p role="alert" className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                        {weekGamesError}
+                      </p>
+                    )}
                     <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">

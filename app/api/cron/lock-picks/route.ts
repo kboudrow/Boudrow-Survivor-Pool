@@ -129,5 +129,8 @@ export async function GET(request: NextRequest) {
     picksFinalized: finalized,
     resultsAdjudicated: adjudicated,
     errors,
-  })
+  }, errors.length ? {
+    status: 503,
+    headers: { 'Retry-After': '30' },
+  } : undefined)
 }

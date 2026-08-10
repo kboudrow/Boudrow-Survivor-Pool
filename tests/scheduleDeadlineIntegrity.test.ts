@@ -16,9 +16,12 @@ test('unconfirmed NFL flex windows are unavailable in both database pick paths',
 test('score sync updates a matchup instead of duplicating imported event ids', async () => {
   const route = await read('app/api/cron/sync-scores/route.ts')
   const migration = await read('supabase/migrations/20260810001800_schedule_kickoff_integrity.sql')
+  const launchHardening = await read('supabase/migrations/20260810002100_score_sync_launch_hardening.sql')
   assert.match(migration, /unique index[\s\S]*\(season, week, home_team, away_team\)/i)
   assert.match(route, /onConflict: 'season,week,home_team,away_team'/)
   assert.doesNotMatch(route, /onConflict: 'espn_event_id'/)
+  assert.match(launchHardening, /and not \([\s\S]*new\.away_team = g\.away_team[\s\S]*new\.home_team = g\.home_team[\s\S]*\)/i)
+  assert.match(launchHardening, /new\.away_team in \(g\.away_team, g\.home_team\)/i)
 })
 
 test('score sync keeps TBD weeks under observation and detects ESPN TBD labels', async () => {
@@ -26,6 +29,16 @@ test('score sync keeps TBD weeks under observation and detects ESPN TBD labels',
   assert.match(route, /!label\.includes\('tbd'\)/)
   assert.match(route, /\|\| !game\.kickoff_confirmed/)
   assert.match(route, /35 \* 24 \* 60 \* 60 \* 1000/)
+})
+
+test('cron failures are retryable and postseason uses the prior calendar year', async () => {
+  const scoreRoute = await read('app/api/cron/sync-scores/route.ts')
+  const lockRoute = await read('app/api/cron/lock-picks/route.ts')
+  assert.match(scoreRoute, /status: 503/)
+  assert.match(scoreRoute, /'Retry-After': '30'/)
+  assert.match(lockRoute, /status: 503/)
+  assert.match(lockRoute, /'Retry-After': '30'/)
+  assert.match(scoreRoute, /now\.getUTCMonth\(\) < 2 \? year - 1 : year/)
 })
 
 test('fixed weekly deadlines use Eastern civil time and the database clock', async () => {
