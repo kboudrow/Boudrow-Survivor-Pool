@@ -813,10 +813,19 @@ export default function PoolAdminPage() {
       setNotice(message || `${label} complete.`)
       await loadOverview(selectedWeek)
     } catch (e: unknown) {
-      setError(getErrorMessage(e, `${label} failed.`))
+      await loadOverview(selectedWeek)
+      setError(`${getErrorMessage(e, `${label} failed.`)} The current database state has been refreshed; check the page before retrying.`)
     } finally {
       setRunningAction(null)
     }
+  }
+
+  const confirmPoolSettings = async (matches: (row: Pool) => boolean) => {
+    if (!poolId) return false
+    const { data, error: verifyError } = await supabase.from('pools')
+      .select('id,name,created_by,is_public,visibility,double_pick_weeks,archived,season,start_week,include_playoffs,strikes_allowed,tie_rule,deadline_mode,deadline_fixed,notes,activation_status,max_members,allow_multiple_entries,max_entries_per_user,payment_status,image_url,test_mode,test_current_week,test_now_at')
+      .eq('id', poolId).maybeSingle<Pool>()
+    return !verifyError && !!data && matches(data)
   }
 
   const saveCoreRules = async () => {
@@ -858,7 +867,16 @@ export default function PoolAdminPage() {
       setNotice('Core pool rules saved. The updated rules now apply to every entry.')
       await loadOverview(Math.max(selectedWeek, nextStartWeek))
     } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Failed to save core pool rules.'))
+      const confirmed = await confirmPoolSettings((row) =>
+        row.start_week === nextStartWeek
+        && !!row.include_playoffs === includePlayoffsDraft
+        && Number(row.strikes_allowed) === nextMulligans
+        && row.tie_rule === tieRuleDraft
+        && row.deadline_mode === deadlineModeDraft
+        && (row.notes || '') === notesDraft.trim())
+      await loadOverview(Math.max(selectedWeek, nextStartWeek))
+      if (confirmed) setNotice('Core pool rules saved and confirmed after the delayed response.')
+      else setError(`${getErrorMessage(e, 'Failed to save core pool rules.')} Current database settings were refreshed; review them before retrying.`)
     } finally {
       setSavingCoreRules(false)
     }
@@ -887,7 +905,11 @@ export default function PoolAdminPage() {
       setNotice('Double-pick weeks saved.')
       setPool({ ...pool, double_pick_weeks: weeks })
     } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Failed to save double-pick weeks.'))
+      const expected = [...new Set(doubleWeeksText.split(',').map((value) => Number.parseInt(value.trim(), 10)).filter((week) => Number.isFinite(week) && week >= (pool.start_week ?? 1) && week <= 18))].sort((a, b) => a - b)
+      const confirmed = await confirmPoolSettings((row) => JSON.stringify([...(row.double_pick_weeks || [])].sort((a, b) => a - b)) === JSON.stringify(expected))
+      await loadOverview(selectedWeek)
+      if (confirmed) setNotice('Double-pick weeks saved and confirmed after the delayed response.')
+      else setError(`${getErrorMessage(e, 'Failed to save double-pick weeks.')} Current database settings were refreshed; review them before retrying.`)
     } finally {
       setSavingDouble(false)
     }
@@ -932,7 +954,10 @@ export default function PoolAdminPage() {
       setPool({ ...pool, max_members: nextLimit })
       setNotice('Pool capacity saved.')
     } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Failed to save pool capacity.'))
+      const confirmed = await confirmPoolSettings((row) => nextLimit === null ? isUnlimitedPoolCapacity(row.max_members) : row.max_members === nextLimit)
+      await loadOverview(selectedWeek)
+      if (confirmed) setNotice('Pool capacity saved and confirmed after the delayed response.')
+      else setError(`${getErrorMessage(e, 'Failed to save pool capacity.')} Current database settings were refreshed; review them before retrying.`)
     } finally {
       setSavingLimit(false)
     }
@@ -963,7 +988,10 @@ export default function PoolAdminPage() {
       setPool({ ...pool, allow_multiple_entries: allowMultipleEntriesDraft, max_entries_per_user: nextEntries })
       setNotice('Entry settings saved.')
     } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Failed to save entry settings.'))
+      const confirmed = await confirmPoolSettings((row) => !!row.allow_multiple_entries === allowMultipleEntriesDraft && row.max_entries_per_user === nextEntries)
+      await loadOverview(selectedWeek)
+      if (confirmed) setNotice('Entry settings saved and confirmed after the delayed response.')
+      else setError(`${getErrorMessage(e, 'Failed to save entry settings.')} Current database settings were refreshed; review them before retrying.`)
     } finally {
       setSavingEntries(false)
     }
@@ -995,7 +1023,14 @@ export default function PoolAdminPage() {
       setVisibilityPassword('')
       setNotice(isPublicDraft ? 'Pool is now public.' : 'Pool is now private.')
     } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Failed to save pool visibility.'))
+      const confirmed = await confirmPoolSettings((row) => row.is_public === isPublicDraft)
+      await loadOverview(selectedWeek)
+      if (confirmed) {
+        setVisibilityPassword('')
+        setNotice(`Pool visibility saved as ${isPublicDraft ? 'public' : 'private'} and confirmed after the delayed response.`)
+      } else {
+        setError(`${getErrorMessage(e, 'Failed to save pool visibility.')} Current database settings were refreshed; review them before retrying.`)
+      }
     } finally {
       setSavingVisibility(false)
     }
@@ -1180,9 +1215,13 @@ export default function PoolAdminPage() {
           p_slot: row.slot,
           p_reason: correctionReason,
         })
-        if (error) throw error
+        if (error) {
+          const verified = await supabase.from('pool_picks').select('team_abbr').eq('pool_id', pool.id)
+            .eq('entry_id', row.entry_id).eq('week', selectedWeek).eq('slot', row.slot).maybeSingle<{ team_abbr: string }>()
+          if (verified.error || verified.data?.team_abbr !== team) throw error
+        }
         setPickCorrectionReason('')
-        return `Pick saved as ${team}.`
+        return `Pick saved as ${team} and confirmed in the database.`
       }
       const key = rowKey(row)
       const team = (draftTeams[key] || finalTeams[key] || '').trim().toUpperCase()
@@ -1194,8 +1233,14 @@ export default function PoolAdminPage() {
           p_slot: row.slot,
           p_reason: pickCorrectionReason.trim() || 'Commissioner cleared an unlocked draft',
         })
-        if (error) throw error
-        return 'Pick cleared.'
+        if (error) {
+          const [draft, final] = await Promise.all([
+            supabase.from('pool_pick_drafts').select('entry_id').eq('pool_id', pool.id).eq('entry_id', row.entry_id).eq('week', selectedWeek).eq('slot', row.slot).maybeSingle(),
+            supabase.from('pool_picks').select('entry_id').eq('pool_id', pool.id).eq('entry_id', row.entry_id).eq('week', selectedWeek).eq('slot', row.slot).maybeSingle(),
+          ])
+          if (draft.error || final.error || draft.data || final.data) throw error
+        }
+        return 'Pick cleared and confirmed in the database.'
       }
 
       const { error } = await supabase.rpc('admin_upsert_entry_draft', {
@@ -1206,9 +1251,15 @@ export default function PoolAdminPage() {
         p_slot: row.slot,
         p_reason: pickCorrectionReason.trim() || 'Commissioner updated an unlocked draft',
       })
-      if (error) throw error
+      if (error) {
+        const [draft, final] = await Promise.all([
+          supabase.from('pool_pick_drafts').select('team_abbr').eq('pool_id', pool.id).eq('entry_id', row.entry_id).eq('week', selectedWeek).eq('slot', row.slot).maybeSingle<{ team_abbr: string }>(),
+          supabase.from('pool_picks').select('team_abbr').eq('pool_id', pool.id).eq('entry_id', row.entry_id).eq('week', selectedWeek).eq('slot', row.slot).maybeSingle<{ team_abbr: string }>(),
+        ])
+        if (draft.error || final.error || (draft.data?.team_abbr !== team && final.data?.team_abbr !== team)) throw error
+      }
       setPickCorrectionReason('')
-      return `Pick saved as ${team}.`
+      return `Pick saved as ${team} and confirmed in the database.`
     })
 
   const removeMember = (row: AdminRow, entryCount = 1) =>
@@ -1230,8 +1281,11 @@ export default function PoolAdminPage() {
         p_pool_id: pool.id,
         p_profile_id: row.user_id,
       })
-      if (error) throw error
-      return `${label} removed.`
+      if (error) {
+        const verified = await supabase.from('pool_members').select('id').eq('pool_id', pool.id).eq('profile_id', row.user_id).limit(1)
+        if (verified.error || (verified.data || []).length > 0) throw error
+      }
+      return `${label} removed and confirmed in the database.`
     })
 
   const removeEntry = (row: AdminRow) =>
@@ -1251,8 +1305,11 @@ export default function PoolAdminPage() {
         p_pool_id: pool.id,
         p_entry_id: row.entry_id,
       })
-      if (error) throw error
-      return `${label} removed.`
+      if (error) {
+        const verified = await supabase.from('pool_members').select('id').eq('pool_id', pool.id).eq('id', row.entry_id).maybeSingle()
+        if (verified.error || verified.data) throw error
+      }
+      return `${label} removed and confirmed in the database.`
     })
 
   const copyText = async (text: string, successMessage: string) => {

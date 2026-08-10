@@ -1600,6 +1600,30 @@ export type Database = {
           },
         ]
       }
+      user_operation_results: {
+        Row: {
+          created_at: string
+          operation_id: string
+          operation_type: string
+          result_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          operation_id: string
+          operation_type: string
+          result_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          operation_id?: string
+          operation_type?: string
+          result_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       team_week_kickoff: {
@@ -1673,12 +1697,32 @@ export type Database = {
       }
     }
     Functions: {
+      acquire_all_pool_entry_pick_locks: {
+        Args: { p_pool_id: string }
+        Returns: undefined
+      }
+      acquire_pool_entry_pick_lock: {
+        Args: { p_entry_id: string; p_pool_id: string }
+        Returns: undefined
+      }
+      acquire_pool_workflow_lock: {
+        Args: { p_pool_id: string }
+        Returns: undefined
+      }
       add_pool_entry: { Args: { p_pool_id: string }; Returns: string }
+      add_pool_entry_idempotent: {
+        Args: { p_operation_id: string; p_pool_id: string }
+        Returns: string
+      }
       adjudicate_completed_weeks: {
         Args: { p_season: number }
         Returns: number
       }
       adjudicate_results: {
+        Args: { p_season: number; p_week: number }
+        Returns: number
+      }
+      adjudicate_results_concurrency_internal: {
         Args: { p_season: number; p_week: number }
         Returns: number
       }
@@ -1698,6 +1742,17 @@ export type Database = {
         Returns: undefined
       }
       admin_override_entry_final_pick: {
+        Args: {
+          p_entry_id: string
+          p_pool_id: string
+          p_reason?: string
+          p_slot?: number
+          p_team_abbr: string
+          p_week: number
+        }
+        Returns: undefined
+      }
+      admin_override_entry_final_pick_concurrency_internal: {
         Args: {
           p_entry_id: string
           p_pool_id: string
@@ -2002,6 +2057,28 @@ export type Database = {
         }
         Returns: string
       }
+      create_pool_with_owner_idempotent: {
+        Args: {
+          p_allow_multiple_entries?: boolean
+          p_deadline_fixed?: string
+          p_deadline_mode?: string
+          p_double_pick_weeks?: number[]
+          p_image_url?: string
+          p_include_playoffs?: boolean
+          p_is_public?: boolean
+          p_max_entries_per_user?: number
+          p_max_members?: number
+          p_name: string
+          p_notes?: string
+          p_operation_id: string
+          p_password?: string
+          p_season?: number
+          p_start_week?: number
+          p_strikes_allowed?: string
+          p_tie_rule?: string
+        }
+        Returns: string
+      }
       create_pool_with_owner_validated_internal: {
         Args: {
           p_allow_multiple_entries?: boolean
@@ -2029,11 +2106,23 @@ export type Database = {
         Args: { p_pool_id: string; p_week: number }
         Returns: number
       }
+      finalize_locked_picks_concurrency_internal: {
+        Args: { p_pool_id: string; p_week: number }
+        Returns: number
+      }
       finalize_locked_picks_for_pool: {
         Args: { p_pool_id: string }
         Returns: number
       }
+      finalize_locked_picks_for_pool_concurrency_internal: {
+        Args: { p_pool_id: string }
+        Returns: number
+      }
       finalize_no_pick_losses: {
+        Args: { p_pool_id: string; p_week: number }
+        Returns: number
+      }
+      finalize_no_pick_losses_concurrency_internal: {
         Args: { p_pool_id: string; p_week: number }
         Returns: number
       }
@@ -2133,10 +2222,18 @@ export type Database = {
         }
         Returns: undefined
       }
+      my_operation_result: {
+        Args: { p_operation_id: string; p_operation_type: string }
+        Returns: string
+      }
       normalize_username: { Args: { p_username: string }; Returns: string }
       picks_allowed: {
         Args: { p_pool_id: string; p_week: number }
         Returns: number
+      }
+      pool_competition_is_complete: {
+        Args: { p_pool_id: string }
+        Returns: boolean
       }
       pool_effective_now: { Args: { p_pool_id: string }; Returns: string }
       pool_entry_roster: {
@@ -2159,6 +2256,27 @@ export type Database = {
       pool_has_declared_winner: {
         Args: { p_pool_id: string }
         Returns: boolean
+      }
+      pool_has_started: { Args: { p_pool_id: string }; Returns: boolean }
+      pool_lifecycle_status: {
+        Args: { p_pool_id: string }
+        Returns: {
+          alive_entries: number
+          archive_allowed: boolean
+          current_week: number
+          description: string
+          entry_creation_allowed: boolean
+          final_week: number
+          join_allowed: boolean
+          label: string
+          phase: string
+          pick_submission_allowed: boolean
+          pool_id: string
+          result_processing_pending: boolean
+          settings_editable: boolean
+          starts_at: string
+          total_entries: number
+        }[]
       }
       pool_max_pick_week: { Args: { p_pool_id: string }; Returns: number }
       pool_member_roster: {
@@ -2211,6 +2329,7 @@ export type Database = {
           visible_picks: Json
         }[]
       }
+      pool_start_at: { Args: { p_pool_id: string }; Returns: string }
       pool_test_clock_at: {
         Args: { p_pool_id: string; p_stage: string; p_week: number }
         Returns: string
@@ -2285,6 +2404,10 @@ export type Database = {
         Returns: number
       }
       rebuild_pool_member_stats: {
+        Args: { p_pool_id: string }
+        Returns: number
+      }
+      rebuild_pool_member_stats_concurrency_internal: {
         Args: { p_pool_id: string }
         Returns: number
       }
@@ -2511,6 +2634,10 @@ export type Database = {
         }[]
       }
       superadmin_score_test_pool_week: {
+        Args: { p_pool_id: string; p_week: number }
+        Returns: string
+      }
+      superadmin_score_test_pool_week_concurrency_internal: {
         Args: { p_pool_id: string; p_week: number }
         Returns: string
       }

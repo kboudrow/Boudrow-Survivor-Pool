@@ -1774,17 +1774,46 @@ function MyPoolsContent() {
       confirmLabel: 'Add entry',
       onConfirm: async () => {
         setAddingEntry(true)
+        const operationStorageKey = `survivor:add-entry-operation:${selectedId}`
+        const operationId = window.sessionStorage.getItem(operationStorageKey) || crypto.randomUUID()
+        window.sessionStorage.setItem(operationStorageKey, operationId)
         try {
-          const { data, error } = await supabase.rpc('add_pool_entry', { p_pool_id: selectedId })
-          if (error) throw error
+          let { data, error } = await supabase.rpc('add_pool_entry_idempotent', {
+            p_pool_id: selectedId,
+            p_operation_id: operationId,
+          })
+          if (error) {
+            const recovered = await supabase.rpc('my_operation_result', {
+              p_operation_type: 'add_pool_entry',
+              p_operation_id: operationId,
+            })
+            if (recovered.data) {
+              data = recovered.data
+              error = null
+            } else {
+              throw error
+            }
+          }
+          if (typeof data !== 'string') {
+            const recovered = await supabase.rpc('my_operation_result', {
+              p_operation_type: 'add_pool_entry',
+              p_operation_id: operationId,
+            })
+            if (typeof recovered.data === 'string') data = recovered.data
+            else throw new Error('The server returned an unexpected response while adding the entry.')
+          }
           const roster = await loadMembers(selectedId)
-          const newEntryId = typeof data === 'string' ? data : roster.filter((m) => m.profile_id === userId).at(-1)?.id
+          const newEntryId = data
+          if (!newEntryId || !roster.some((entry) => entry.id === newEntryId)) {
+            throw new Error('The server did not return the new entry. Refresh and check your entry list before trying again.')
+          }
+          window.sessionStorage.removeItem(operationStorageKey)
           if (newEntryId) await selectEntry(newEntryId)
           setMemberCount(roster.length)
           await refreshPoolPickStatus(pool, roster.filter((member) => member.profile_id === userId))
         } catch (e: unknown) {
           void logAppEvent({ eventType: 'pool_add_entry_failed', error: e, poolId: pool.id })
-          showMessage('Entry not added', getErrorMessage(e, 'Failed to add entry.'), 'danger')
+          showMessage('Entry not confirmed', `${getErrorMessage(e, 'Failed to add entry.')} Refresh to check your entries, or retry—retries cannot create this entry twice.`, 'danger')
         } finally {
           setAddingEntry(false)
         }
@@ -1823,8 +1852,26 @@ function MyPoolsContent() {
           }
           await refreshPoolPickStatus(pool, remaining)
         } catch (e: unknown) {
+          try {
+            const verified = await supabase.from('pool_members').select('id').eq('pool_id', selectedId).eq('id', selectedEntryId).maybeSingle()
+            if (!verified.error && !verified.data) {
+              const roster = await loadMembers(selectedId)
+              const remaining = roster.filter((member) => member.profile_id === userId)
+              const nextEntryId = remaining[0]?.id ?? null
+              setSelectedEntryId(nextEntryId)
+              if (nextEntryId) {
+                window.localStorage.setItem(selectedEntryStorageKey(selectedId), nextEntryId)
+                await loadMyPicks(selectedId, pool.start_week, nextEntryId)
+              }
+              await refreshPoolPickStatus(pool, remaining)
+              showMessage('Entry removed', `${label} was removed and confirmed in the database after the delayed response.`, 'info')
+              return
+            }
+          } catch {
+            // Keep the original error when authoritative verification is offline.
+          }
           void logAppEvent({ eventType: 'pool_remove_entry_failed', error: e, poolId: pool.id, metadata: { entry_id: selectedEntryId } })
-          showMessage('Entry not removed', getErrorMessage(e, 'Failed to remove entry.'), 'danger')
+          showMessage('Entry removal not confirmed', `${getErrorMessage(e, 'Failed to remove entry.')} Reconnect and refresh your entry list before trying again.`, 'danger')
         } finally {
           setAddingEntry(false)
         }
@@ -1855,8 +1902,18 @@ function MyPoolsContent() {
           setPools((prev) => prev.filter((p) => p.id !== pool.id))
           closeModal()
         } catch (e: unknown) {
+          try {
+            const verified = await supabase.from('pool_members').select('id').eq('pool_id', pool.id).eq('profile_id', userId).limit(1)
+            if (!verified.error && (verified.data || []).length === 0) {
+              setPools((prev) => prev.filter((candidate) => candidate.id !== pool.id))
+              closeModal()
+              return
+            }
+          } catch {
+            // Keep the original error when authoritative verification is offline.
+          }
           void logAppEvent({ eventType: 'pool_leave_failed', error: e, poolId: pool.id })
-          showMessage('Could not leave pool', getErrorMessage(e, 'Failed to leave pool.'), 'danger')
+          showMessage('Leave not confirmed', `${getErrorMessage(e, 'Failed to leave pool.')} Reconnect and refresh My Pools before trying again.`, 'danger')
         } finally {
           setLeavingPool(false)
         }

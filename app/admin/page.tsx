@@ -500,8 +500,11 @@ export default function SuperAdminPage() {
         p_pool_id: selectedPool.pool_id,
         p_profile_id: entry.profile_id,
       })
-      if (removeErr) throw removeErr
-      setNotice(`${label} removed.`)
+      if (removeErr) {
+        const verified = await supabase.from('pool_members').select('id').eq('pool_id', selectedPool.pool_id).eq('profile_id', entry.profile_id).limit(1)
+        if (verified.error || (verified.data || []).length > 0) throw removeErr
+      }
+      setNotice(`${label} removed and confirmed in the database.`)
       await loadPools()
       await loadEntries(selectedPool.pool_id)
     } catch (e: unknown) {

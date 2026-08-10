@@ -9,6 +9,7 @@ import { getErrorMessage } from '@/lib/errorMessage'
 import { logAppEvent, trackConversion } from '@/lib/monitoring'
 import { isUnlimitedPoolCapacity, poolCapacityLabel, poolEntryCountLabel } from '@/lib/poolCapacity'
 import { supabase } from '@/lib/supabaseClient'
+import { currentUserHasPoolMembership } from '@/lib/writeReconciliation'
 
 type Pool = {
   id: string
@@ -340,13 +341,22 @@ export default function JoinSearchPage() {
       void trackConversion('conversion.pool_join_completed', { is_public: selected.is_public }, selected.id)
       router.push(`/pools?pool=${selected.id}`)
     } catch (e: unknown) {
+      try {
+        if (await currentUserHasPoolMembership(selected.id)) {
+          setJoinedPoolIds((prev) => new Set(prev).add(selected.id))
+          router.push(`/pools?pool=${selected.id}`)
+          return
+        }
+      } catch {
+        // Keep the original error when verification is also offline.
+      }
       void logAppEvent({
         eventType: 'pool_search_join_failed',
         error: e,
         poolId: selected.id,
         metadata: { is_public: selected.is_public },
       })
-      setModalError(getErrorMessage(e, 'Join failed.'))
+      setModalError(`${getErrorMessage(e, 'Join failed.')} We could not confirm membership. Reconnect and refresh before trying again.`)
     } finally {
       setJoining(false)
     }

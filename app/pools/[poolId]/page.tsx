@@ -10,6 +10,7 @@ import { getErrorMessage } from '@/lib/errorMessage'
 import { logAppEvent } from '@/lib/monitoring'
 import { isUnlimitedPoolCapacity, poolEntryCountLabel } from '@/lib/poolCapacity'
 import { supabase } from '@/lib/supabaseClient'
+import { currentUserHasPoolMembership } from '@/lib/writeReconciliation'
 
 type Pool = {
   id: string
@@ -185,15 +186,19 @@ export default function PoolDetailPage() {
         p_pool_id: pool.id,
         p_password: pool.is_public ? null : password || null,
       })
-      if (error) {
-        void logAppEvent({ eventType: 'pool_join_failed', error, poolId: pool.id, metadata: { is_public: pool.is_public } })
-        setError(getErrorMessage(error, 'Could not join this pool.'))
-        return
-      }
+      if (error) throw error
       router.push(`/pools?pool=${pool.id}`)
     } catch (e: unknown) {
+      try {
+        if (await currentUserHasPoolMembership(pool.id)) {
+          router.push(`/pools?pool=${pool.id}`)
+          return
+        }
+      } catch {
+        // The verification request can fail for the same temporary outage.
+      }
       void logAppEvent({ eventType: 'pool_join_exception', error: e, poolId: pool.id, metadata: { is_public: pool.is_public } })
-      setError(getErrorMessage(e, 'Failed to join.'))
+      setError(`${getErrorMessage(e, 'Failed to join.')} We could not confirm membership. Reconnect and refresh before trying again.`)
     } finally {
       setJoining(false)
     }

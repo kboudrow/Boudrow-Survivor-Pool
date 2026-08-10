@@ -10,6 +10,7 @@
     "test": "node --no-warnings --test tests/*.test.ts",
     "test:season-sim": "node --env-file=.env.local scripts/test-multi-pool-season-simulation.mjs",
     "test:concurrency": "node --env-file=.env.local scripts/test-concurrency-audit.mjs",
+    "test:partial-failure": "node --env-file=.env.local scripts/test-partial-failure-recovery.mjs",
     "quality:rpc": "node scripts/check-rpc-sql-coverage.mjs",
     "load:test": "node scripts/load-test.mjs",
     "backup:db": "node scripts/db-backup.mjs",
