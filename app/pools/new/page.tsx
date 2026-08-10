@@ -217,10 +217,13 @@ export default function CreatePoolPage() {
       const trimmedName = poolName.trim()
       if (!trimmedName) throw new Error('Please enter a pool name.')
       if (trimmedName.length < 3) throw new Error('Pool name is too short. Please use at least 3 characters.')
+      if (trimmedName.length > 100) throw new Error('Pool name cannot be longer than 100 characters.')
+      if (notes.length > 2000) throw new Error('Additional rules cannot be longer than 2,000 characters.')
 
       if (!isPublic) {
         if (!password.trim()) throw new Error('Please enter a password for private pools.')
         if (password !== password2) throw new Error('Passwords do not match.')
+        if (new TextEncoder().encode(password).length > 72) throw new Error('Private pool passwords cannot be longer than 72 bytes. Try a shorter password.')
       }
       if (max_members !== null && (!Number.isFinite(max_members) || max_members < 2 || max_members > 500)) {
         throw new Error('Pool capacity must be Unlimited or between 2 and 500 entries.')
@@ -302,7 +305,7 @@ export default function CreatePoolPage() {
     <div ref={topRef} className="wrap">
       <div className="intro">
         <h1>Create a New Pool</h1>
-        <span>Set the rules now. Once the pool starts, the important settings lock for fairness.</span>
+        <span>Create it now, invite your players, and review the rules from the admin page. The pool starts automatically at the first kickoff of its start week; competitive settings lock then for fairness.</span>
       </div>
 
       {generalError && (
@@ -349,6 +352,7 @@ export default function CreatePoolPage() {
                 <option key={w} value={w}>{w}</option>
               ))}
             </select>
+            <p className="hint">Weeks before this do not count. The pool starts automatically when the first game of this week kicks off.</p>
           </div>
 
           <div className="field">
@@ -357,18 +361,19 @@ export default function CreatePoolPage() {
               <option>Sunday 1 PM ET</option>
               <option>Rolling: each game locks at kickoff</option>
             </select>
-            <p className="hint">Choose one weekly deadline, or let each game lock at its own kickoff.</p>
+            <p className="hint">Sunday 1 PM locks all remaining teams at 1:00 PM Eastern, while any earlier game still locks at its own kickoff. Rolling lets later-game teams remain available until those games begin.</p>
           </div>
         </div>
 
         <div className="grid2">
           <div className="field">
-            <label htmlFor="mulligans">Strikes allowed</label>
+            <label htmlFor="mulligans">Mulligans (losses allowed)</label>
             <select id="mulligans" value={mulligans} onChange={(e) => setMulligans(Number(e.target.value))}>
               <option value={0}>0</option>
               <option value={1}>1</option>
               <option value={2}>2</option>
             </select>
+            <p className="hint">0 means the first loss eliminates an entry. 1 means it survives one loss and is eliminated by the second. Mulligans belong to each entry, not the person.</p>
           </div>
 
           <div className="field">
@@ -377,6 +382,7 @@ export default function CreatePoolPage() {
               <option value="Win">Win</option>
               <option value="Loss">Loss</option>
             </select>
+            <p className="hint">Controls how an official NFL tie grades a pick: as a win or as a loss. It is not a season-end tiebreaker.</p>
           </div>
         </div>
 
@@ -387,6 +393,7 @@ export default function CreatePoolPage() {
               <option value="Regular Season">Regular Season</option>
               <option value="Regular Season & Playoffs">Regular Season & Playoffs</option>
             </select>
+            <p className="hint">Playoff pools may reuse a team only after the regular season reaches the playoffs; regular-season team reuse is never allowed.</p>
           </div>
 
           <div className="field">
@@ -405,7 +412,7 @@ export default function CreatePoolPage() {
               <span className={`pill ${!isPublic ? 'active' : ''}`}>Private</span>
             </div>
             <p className="hint">
-              Public pools can be discovered in search. Private pools require a password to join.
+              Public pools can be found in search. Private pools require the invite link and password. Joining is immediate in either case—there is no approval queue—so remove mistaken entries before the pool starts.
             </p>
             {!isPublic && (
               <div className="privatePasswordFields">
@@ -451,7 +458,7 @@ export default function CreatePoolPage() {
               placeholder="Enter 2 to 500"
             />
           )}
-          <p className="hint">Optional cap across all entries. Entries per person are configured separately below.</p>
+          <p className="hint">Optional cap across all entries, not people. For example, 20 people with 2 entries each use 40 spots. Unlimited has no product cap; entries per person are configured separately below.</p>
         </div>
 
         <div className="field">
@@ -497,7 +504,7 @@ export default function CreatePoolPage() {
               </button>
             ))}
           </div>
-          <p className="hint">Active entries must submit two picks during the selected weeks.</p>
+          <p className="hint">Every active entry must submit two different teams during selected weeks. Either losing pick counts as a loss; a missing pick also counts as a loss after lock.</p>
         </div>
 
         <div className="field">
@@ -507,8 +514,10 @@ export default function CreatePoolPage() {
             rows={4}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Any additional rules or notes"
+            maxLength={2000}
+            placeholder="Example: prize split, how disputes are handled, or commissioner contact details"
           />
+          <p className="hint">These notes are shown with the pool rules. They explain your league but do not create new automated scoring behavior. {notes.length}/2,000</p>
         </div>
 
         <div className="field" ref={imageFieldRef}>
@@ -546,6 +555,11 @@ export default function CreatePoolPage() {
           </div>
         </div>
 
+        <div className="reviewBox">
+          <strong>What happens next</strong>
+          <span>You will go to Pool Admin, where you can review these settings, invite players, and remove mistaken entries. Nothing needs to be manually activated.</span>
+        </div>
+
         <button className="primary" type="submit" disabled={loading}>
           {loading ? 'Creating...' : 'Create Pool'}
         </button>
@@ -581,6 +595,7 @@ export default function CreatePoolPage() {
         form { display: flex; flex-direction: column; gap: 16px; }
         .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
         .field { display: flex; flex-direction: column; gap: 6px; }
+        .reviewBox { display: flex; flex-direction: column; gap: 4px; border: 1px solid #bfdbfe; border-radius: 10px; background: #eff6ff; color: #1e3a5f; padding: 12px 14px; font-size: 14px; line-height: 1.5; }
         .privatePasswordFields {
           display: grid;
           grid-template-columns: 1fr;
