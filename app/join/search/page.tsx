@@ -7,6 +7,7 @@ import { AdSlot } from '@/components/AdSlot'
 import { authCallbackUrl } from '@/lib/authRedirect'
 import { getErrorMessage } from '@/lib/errorMessage'
 import { logAppEvent, trackConversion } from '@/lib/monitoring'
+import { isUnlimitedPoolCapacity, poolCapacityLabel, poolEntryCountLabel } from '@/lib/poolCapacity'
 import { supabase } from '@/lib/supabaseClient'
 
 type Pool = {
@@ -402,7 +403,7 @@ export default function JoinSearchPage() {
   const showEmptyRecent = !recentLoading && !query.trim() && recent.length === 0
   const selectedAlreadyJoined = selected ? joinedPoolIds.has(selected.id) : false
   const selectedOwnedByMe = selected ? Boolean(selected.owned_by_me) : false
-  const selectedIsFull = !!(selected && entryCount !== null && selected.max_members && entryCount >= selected.max_members)
+  const selectedIsFull = !!(selected && entryCount !== null && !isUnlimitedPoolCapacity(selected.max_members) && entryCount >= (selected.max_members ?? 0))
 
   return (
     <main className="min-h-[70vh] px-4 py-6 sm:px-6 sm:py-8">
@@ -461,7 +462,7 @@ export default function JoinSearchPage() {
                     <span className="rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-xs text-blue-700">Joined</span>
                   )}
                   <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-600">
-                    Members {poolMemberCounts[pool.id] ?? '-'} · Entries {poolEntryCounts[pool.id] ?? '-'}/{pool.max_members ?? '-'}
+                    Members {poolMemberCounts[pool.id] ?? '-'} · Entries {poolEntryCounts[pool.id] ?? '-'} / {poolCapacityLabel(pool.max_members)}
                   </span>
                   <span
                     className={`rounded-full border px-2 py-0.5 text-xs ${
@@ -528,7 +529,7 @@ export default function JoinSearchPage() {
               <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <Info label="Visibility" value={selected.is_public ? 'Public' : 'Private'} />
                 <Info label="Members" value={memberCountLoading ? 'Loading...' : memberCount !== null ? String(memberCount) : '-'} />
-                <Info label="Entries" value={memberCountLoading ? 'Loading...' : entryCount !== null ? `${entryCount}/${selected.max_members ?? '-'}` : '-'} />
+                <Info label="Entries" value={memberCountLoading ? 'Loading...' : entryCount !== null ? poolEntryCountLabel(entryCount, selected.max_members) : '-'} />
                 <Info label="Strikes Allowed" value={String(selected.strikes_allowed ?? '-')} />
                 <Info label="Tie Counts As" value={selected.tie_rule === 'win' ? 'Win' : selected.tie_rule === 'loss' ? 'Loss' : '-'} />
                 <Info label="Start Week" value={`Week ${selected.start_week}`} />

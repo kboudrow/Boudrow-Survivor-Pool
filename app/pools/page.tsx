@@ -8,6 +8,7 @@ import { AppDialogModal, type AppDialog } from '@/components/AppDialogModal'
 import { InviteModal } from '@/components/InviteModal'
 import { getErrorMessage } from '@/lib/errorMessage'
 import { logAppEvent, trackConversion } from '@/lib/monitoring'
+import { poolEntryCountLabel } from '@/lib/poolCapacity'
 import { poolImageUrl } from '@/lib/poolImages'
 import { supabase } from '@/lib/supabaseClient'
 import { entryProgress, poolHasWinner, requiredPickSlots } from '@/lib/survivorRules'
@@ -2532,7 +2533,7 @@ function MyPoolsContent() {
                       <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         <InfoTile label="Visibility" value={pool.is_public ? 'Public' : 'Private'} />
                         <InfoTile label="Status" value={pool.activation_status === 'cancelled' ? 'Closed' : 'Open'} />
-                        <InfoTile label="Member Limit" value={pool.max_members ? `${memberCount}/${pool.max_members}` : String(memberCount)} />
+                        <InfoTile label="Total Entries" value={poolEntryCountLabel(memberCount, pool.max_members)} />
                         <InfoTile label="Entries" value={pool.allow_multiple_entries ? `Up to ${pool.max_entries_per_user ?? 1} per user` : 'Single entry'} />
                         <InfoTile label="Start Week" value={`Week ${pool.start_week}`} />
                         <InfoTile label="Season" value={pool.include_playoffs ? 'Regular + Playoffs' : 'Regular only'} />

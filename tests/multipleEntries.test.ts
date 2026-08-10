@@ -28,8 +28,8 @@ test('join screens use entry count for entry-based capacity and display both cou
     read('app/join/[poolId]/page.tsx'),
     read('app/join/search/page.tsx'),
   ])
-  assert.match(invite, /entryCount >= pool\.max_members/)
-  assert.match(search, /entryCount >= selected\.max_members/)
+  assert.match(invite, /!isUnlimitedPoolCapacity\(pool\.max_members\)/)
+  assert.match(search, /!isUnlimitedPoolCapacity\(selected\.max_members\)/)
   assert.match(invite, /label="Members"/)
   assert.match(invite, /label="Entries"/)
   assert.match(search, /count_pool_entries/)

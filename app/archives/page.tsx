@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getErrorMessage } from '@/lib/errorMessage'
+import { poolCapacityLabel } from '@/lib/poolCapacity'
 import { supabase } from '@/lib/supabaseClient'
 
 type Pool = {
@@ -294,7 +295,7 @@ export default function ArchivesPage() {
                     <ArchiveFact label="Deadline" value={formatDeadline(p)} />
                     <ArchiveFact label="Strikes" value={String(strikesLabel)} />
                     <ArchiveFact label="Tie" value={tieLabel} />
-                    <ArchiveFact label="Members" value={`Up to ${p.max_members || 25}`} />
+                    <ArchiveFact label="Total entries" value={poolCapacityLabel(p.max_members)} />
                     <ArchiveFact label="Multiple entries" value={formatEntries(p)} />
                     <ArchiveFact label="Double-pick weeks" value={formatDoubleWeeks(p)} />
                   </dl>
@@ -368,4 +369,3 @@ function ArchiveFact({ label, value }: { label: string; value: string }) {
     </div>
   )
 }
-

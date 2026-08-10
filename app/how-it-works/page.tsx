@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 const steps = [
   {
     title: 'Create or join a pool',
-    text: 'Commissioners create a pool, choose the start week, strike limit, tie rule, deadline style, visibility, member limit, and whether multiple entries are allowed. Players can find public pools in search or join private pools with an invite link and password.',
+    text: 'Commissioners create a pool, choose the start week, strike limit, tie rule, deadline style, visibility, optional total-entry cap, and whether multiple entries are allowed. Players can find public pools in search or join private pools with an invite link and password.',
   },
   {
     title: 'Make weekly picks',
@@ -60,4 +60,3 @@ export default function HowItWorksPage() {
     </main>
   )
 }
-

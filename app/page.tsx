@@ -393,9 +393,9 @@ export default function Home() {
         <section className="bg-white px-4 pb-12 sm:px-6">
           <div className="mx-auto grid max-w-5xl gap-4 md:grid-cols-3">
             <PublicLink
-              title="Read strategy and NFL notes"
-              text="Browse survivor pool ideas, commissioner notes, and football articles before setting up your pool."
-              href="/blog"
+              title="See how it works"
+              text="Review the player and commissioner flow, from creating a pool through weekly picks and standings."
+              href="/how-it-works"
             />
             <PublicLink
               title="Check survivor pool rules"

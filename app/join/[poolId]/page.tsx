@@ -7,6 +7,7 @@ import NextImage from 'next/image'
 import { authCallbackUrl } from '@/lib/authRedirect'
 import { getErrorMessage } from '@/lib/errorMessage'
 import { logAppEvent } from '@/lib/monitoring'
+import { isUnlimitedPoolCapacity, poolEntryCountLabel } from '@/lib/poolCapacity'
 import { supabase } from '@/lib/supabaseClient'
 
 type Pool = {
@@ -57,7 +58,7 @@ export default function JoinPoolPage() {
   const [poolStartAt, setPoolStartAt] = useState<string | null>(null)
 
   const isJoinable = pool?.activation_status !== 'cancelled'
-  const isFull = !!(pool?.max_members && entryCount >= pool.max_members)
+  const isFull = !!(pool && !isUnlimitedPoolCapacity(pool.max_members) && entryCount >= (pool.max_members ?? 0))
   const poolStartMs = poolStartAt ? Date.parse(poolStartAt) : null
   const poolStartKnown = poolStartMs !== null && Number.isFinite(poolStartMs)
   const poolStarted = !!pool && (
@@ -247,7 +248,7 @@ export default function JoinPoolPage() {
 
             <div className="grid sm:grid-cols-4 gap-3 mb-6">
               <Info label="Members" value={String(memberCount)} />
-              <Info label="Entries" value={pool.max_members ? `${entryCount}/${pool.max_members}` : String(entryCount)} />
+              <Info label="Entries" value={poolEntryCountLabel(entryCount, pool.max_members)} />
               <Info label="Visibility" value={pool.is_public ? 'Public' : 'Private'} />
               <Info label="Status" value={poolStarted ? 'Started' : isJoinable ? 'Open' : 'Closed'} />
             </div>

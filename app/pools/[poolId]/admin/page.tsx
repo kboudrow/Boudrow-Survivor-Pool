@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { InviteModal } from '@/components/InviteModal'
 import { ConfirmDialogModal, type ConfirmDialog } from '@/components/ConfirmDialogModal'
 import { getErrorMessage } from '@/lib/errorMessage'
+import { isUnlimitedPoolCapacity, poolEntryCountLabel } from '@/lib/poolCapacity'
 import { poolImageUrl } from '@/lib/poolImages'
 import { makeStorageObjectPath, validatePublicImageUpload } from '@/lib/security'
 import { supabase } from '@/lib/supabaseClient'
@@ -659,9 +660,9 @@ export default function PoolAdminPage() {
       setIsOwner(true)
       setIsSuperAdmin(nextIsSuperAdmin)
       setDoubleWeeksText((p.double_pick_weeks || []).filter((week) => week >= p.start_week).join(','))
-      const limitText = String(p.max_members ?? 25)
+      const limitText = isUnlimitedPoolCapacity(p.max_members) ? 'unlimited' : String(p.max_members)
       setMaxMembersText(limitText)
-      setMaxMembersPreset(MEMBER_LIMIT_OPTIONS.includes(Number(limitText)) ? limitText : 'custom')
+      setMaxMembersPreset(limitText === 'unlimited' || MEMBER_LIMIT_OPTIONS.includes(Number(limitText)) ? limitText : 'custom')
       setAllowMultipleEntriesDraft(!!p.allow_multiple_entries)
       setMaxEntriesPerUserDraft(String(p.max_entries_per_user ?? 1))
       setIsPublicDraft(!!p.is_public)
@@ -808,12 +809,12 @@ export default function PoolAdminPage() {
       setError('Pool settings cannot be changed after the pool has started.')
       return
     }
-    const nextLimit = parseInt(maxMembersText.trim(), 10)
-    if (!Number.isFinite(nextLimit) || nextLimit < 2 || nextLimit > 500) {
-      setError('Pool capacity must be between 2 and 500 entries.')
+    const nextLimit = maxMembersPreset === 'unlimited' ? null : parseInt(maxMembersText.trim(), 10)
+    if (nextLimit !== null && (!Number.isFinite(nextLimit) || nextLimit < 2 || nextLimit > 500)) {
+      setError('Pool capacity must be Unlimited or between 2 and 500 entries.')
       return
     }
-    if (nextLimit < entryCount) {
+    if (nextLimit !== null && nextLimit < entryCount) {
       setError(`Pool capacity cannot be lower than the current entry count (${entryCount}).`)
       return
     }
@@ -824,7 +825,7 @@ export default function PoolAdminPage() {
     try {
       const { error } = await supabase.rpc('admin_update_pool_member_limit', {
         p_pool_id: pool.id,
-        p_max_members: nextLimit,
+        p_max_members: nextLimit ?? undefined,
       })
       if (error) throw error
       setPool({ ...pool, max_members: nextLimit })
@@ -1463,7 +1464,7 @@ export default function PoolAdminPage() {
             <section className="grid gap-3 md:grid-cols-4">
               <div className="rounded-lg border bg-white p-4">
                 <div className="text-xs uppercase text-gray-500">Entries</div>
-                <div className="text-2xl font-bold">{pool.max_members ? `${entryCount}/${pool.max_members}` : entryCount}</div>
+                <div className="text-2xl font-bold">{poolEntryCountLabel(entryCount, pool.max_members)}</div>
                 <div className="text-xs text-gray-500">{uniqueMemberCount} unique members</div>
               </div>
               <div className="rounded-lg border bg-white p-4">
@@ -2006,6 +2007,7 @@ export default function PoolAdminPage() {
                       disabled={settingsLocked}
                       className="w-full rounded-md border px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-500"
                     >
+                      <option value="unlimited">Unlimited</option>
                       {MEMBER_LIMIT_OPTIONS.map((limit) => (
                         <option key={limit} value={String(limit)}>{limit} entries</option>
                       ))}
@@ -2026,7 +2028,7 @@ export default function PoolAdminPage() {
                     </button>
                   </div>
                   <p className="mt-2 text-xs text-gray-600">
-                    Current entries: {entryCount}. Unique members: {uniqueMemberCount}. Capacity must be 2-500 and cannot be below current entries.
+                    Current entries: {entryCount}. Unique members: {uniqueMemberCount}. Choose Unlimited or a cap from 2-500 that is not below current entries.
                   </p>
                 </div>
 

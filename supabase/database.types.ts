@@ -1850,6 +1850,10 @@ export type Database = {
         Returns: undefined
       }
       admin_update_pool_member_limit: {
+        Args: { p_max_members?: number; p_pool_id: string }
+        Returns: undefined
+      }
+      admin_update_pool_member_limit_finite_internal: {
         Args: { p_max_members: number; p_pool_id: string }
         Returns: undefined
       }

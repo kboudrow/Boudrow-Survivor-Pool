@@ -153,9 +153,6 @@ export function AuthNav() {
         <Link href="/about" className="rounded-md px-2 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white sm:px-3">
           About
         </Link>
-        <Link href="/blog" className="rounded-md px-2 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white sm:px-3">
-          Blog
-        </Link>
         <Link
           href="/?auth=signin"
           onClick={(event) => {
@@ -175,9 +172,6 @@ export function AuthNav() {
   return (
     <div className="flex shrink-0 items-center gap-1">
       <div className="hidden items-center gap-0.5 lg:flex">
-      <Link href="/blog" className="rounded-md px-2 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white sm:px-3">
-        Blog
-      </Link>
       <Link href="/pools" className="rounded-md px-2 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white sm:px-3">
         My Pools
       </Link>
@@ -237,7 +231,6 @@ export function AuthNav() {
           <div className="grid grid-cols-2 gap-1">
             <MobileNavLink href="/join/search" label="Join Pool" onClick={() => setMenuOpen(false)} />
             <MobileNavLink href="/pools/new" label="Create Pool" onClick={() => setMenuOpen(false)} />
-            <MobileNavLink href="/blog" label="Blog" onClick={() => setMenuOpen(false)} />
             <MobileNavLink href="/profile" label="Profile" onClick={() => setMenuOpen(false)} />
             {hasBlogAccess && <MobileNavLink href="/admin/blog" label="Blog Admin" onClick={() => setMenuOpen(false)} />}
             {isSuperAdmin && <MobileNavLink href="/admin" label="Admin" onClick={() => setMenuOpen(false)} />}
