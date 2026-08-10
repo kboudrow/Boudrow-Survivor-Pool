@@ -75,6 +75,7 @@ export default function CreatePoolPage() {
   const nameInputRef = useRef<HTMLInputElement | null>(null)
   const imageInputRef = useRef<HTMLInputElement | null>(null)
   const imageFieldRef = useRef<HTMLDivElement | null>(null)
+  const creatingPoolRef = useRef(false)
 
   // Pool fields
   const [poolName, setPoolName] = useState('')
@@ -203,6 +204,8 @@ export default function CreatePoolPage() {
   }
 
   const handleCreate = async () => {
+    if (creatingPoolRef.current) return
+    creatingPoolRef.current = true
     void trackConversion('conversion.pool_creation_started')
     setLoading(true)
     setError(null)
@@ -283,6 +286,7 @@ export default function CreatePoolPage() {
       setError(msg)
       scrollToTopAndFocusIfNeeded(msg)
     } finally {
+      creatingPoolRef.current = false
       setLoading(false)
     }
   }

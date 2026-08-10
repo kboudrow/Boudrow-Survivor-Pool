@@ -231,6 +231,11 @@ function targetWeeksFromGames(games: ExistingGame[]) {
   return Array.from(weeks).filter((week) => week >= 1 && week <= 22).sort((a, b) => a - b)
 }
 
+function currentNflSeason(now = new Date()) {
+  const year = now.getUTCFullYear()
+  return now.getUTCMonth() < 2 ? year - 1 : year
+}
+
 export async function GET(request: NextRequest) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -268,7 +273,7 @@ export async function GET(request: NextRequest) {
     if (poolsError) throw poolsError
 
     const overrideSeason = Number(cleanEnvValue(process.env.NFL_SCORE_SYNC_SEASON) || '')
-    const fallbackSeason = Number.isFinite(overrideSeason) && overrideSeason > 2000 ? overrideSeason : new Date().getFullYear()
+    const fallbackSeason = Number.isFinite(overrideSeason) && overrideSeason > 2000 ? overrideSeason : currentNflSeason()
     const seasons = Array.from(new Set(((pools || []) as ActivePool[]).map((pool) => pool.season || fallbackSeason).concat(fallbackSeason))).sort()
     const syncedBySeasonWeek: Record<string, number[]> = {}
     const syncErrors: string[] = []
@@ -400,10 +405,16 @@ export async function GET(request: NextRequest) {
       picksFinalized: finalized,
       resultsAdjudicated: adjudicated,
       errors: syncErrors,
-    })
+    }, syncErrors.length ? {
+      status: 503,
+      headers: { 'Retry-After': '30' },
+    } : undefined)
   } catch (e: unknown) {
     const message = getErrorMessage(e, 'Score sync failed.')
     await logCronEvent('cron_score_sync_failed', 'error', message, { duration_ms: Date.now() - startedAt })
-    return NextResponse.json({ ok: false, error: message }, { status: 500 })
+    return NextResponse.json({ ok: false, error: message }, {
+      status: 503,
+      headers: { 'Retry-After': '30' },
+    })
   }
 }
