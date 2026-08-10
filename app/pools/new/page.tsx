@@ -504,7 +504,7 @@ export default function CreatePoolPage() {
               </button>
             ))}
           </div>
-          <p className="hint">Every active entry must submit two different teams during selected weeks. Either losing pick counts as a loss; a missing pick also counts as a loss after lock.</p>
+          <p className="hint">Every alive entry must submit two different teams during selected weeks. Each losing or missing pick counts as a loss.</p>
         </div>
 
         <div className="field">

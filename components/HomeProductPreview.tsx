@@ -5,10 +5,10 @@ import { useState } from 'react'
 type PreviewTab = 'picks' | 'standings' | 'members'
 
 const entries = [
-  { name: 'Sunday Crew', status: 'Alive', strikes: '1 left', picks: ['BUF W', 'DAL W', 'BAL'] },
-  { name: 'Fourth & Long', status: 'Alive', strikes: '1 left', picks: ['KC W', 'SF W', 'BUF'] },
-  { name: 'Upset Special', status: 'Alive', strikes: '0 left', picks: ['DET L', 'PHI W', 'KC'] },
-  { name: 'Office Rookie', status: 'Out W2', strikes: '—', picks: ['MIA L', 'DET L', '—'] },
+  { name: 'Sunday Crew', status: 'Alive', mulligans: '1 left', picks: ['BUF W', 'DAL W', 'BAL'] },
+  { name: 'Fourth & Long', status: 'Alive', mulligans: '1 left', picks: ['KC W', 'SF W', 'BUF'] },
+  { name: 'Upset Special', status: 'Alive', mulligans: '0 left', picks: ['DET L', 'PHI W', 'KC'] },
+  { name: 'Office Rookie', status: 'Eliminated W2', mulligans: '—', picks: ['MIA L', 'DET L', '—'] },
 ]
 
 const matchups = [
@@ -29,7 +29,7 @@ export function HomeProductPreview() {
             Everyone sees the same truth.
           </h2>
           <p className="mt-3 leading-7 text-slate-600">
-            Picks lock on time, used teams stay unavailable, and every entry’s path is easy to follow.
+            Each entry is one independent chance to survive. Picks lock on time, and a team already used by that entry stays unavailable.
           </p>
         </div>
 
@@ -81,7 +81,7 @@ function StandingsPreview() {
     <div id="preview-standings" role="tabpanel" aria-labelledby="preview-tab-standings" tabIndex={0}>
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Metric label="Alive" value="3" tone="green" />
-        <Metric label="Out" value="1" tone="red" />
+        <Metric label="Eliminated" value="1" tone="red" />
         <div className="col-span-2 sm:col-span-1"><Metric label="Week 3 picks" value="3 / 3" /></div>
       </div>
       <div className="space-y-2">
@@ -89,7 +89,7 @@ function StandingsPreview() {
           <div key={entry.name} className="grid grid-cols-[1fr_auto] gap-3 rounded-xl border border-slate-200 p-3 sm:grid-cols-[1.4fr_.7fr_.7fr_1.4fr] sm:items-center">
             <div className="min-w-0 font-semibold text-slate-950">{entry.name}</div>
             <span className={`justify-self-end rounded-full px-2 py-0.5 text-xs font-bold sm:justify-self-start ${entry.status === 'Alive' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>{entry.status}</span>
-            <div className="text-xs text-slate-500 sm:text-sm">{entry.strikes}</div>
+            <div className="text-xs text-slate-500 sm:text-sm">{entry.mulligans}</div>
             <div className="flex justify-end gap-1 text-xs font-semibold sm:justify-start">
               {entry.picks.map((pick, index) => <span key={`${entry.name}-${index}`} className="rounded bg-slate-100 px-2 py-1 text-slate-700">{pick}</span>)}
             </div>
@@ -104,7 +104,7 @@ function PicksPreview() {
   return (
     <div id="preview-picks" role="tabpanel" aria-labelledby="preview-tab-picks" tabIndex={0}>
       <div className="mb-4 flex items-center justify-between gap-3">
-        <div><div className="font-bold text-slate-950">Choose one team</div><div className="text-sm text-slate-500">Your pick stays private until it locks.</div></div>
+        <div><div className="font-bold text-slate-950">Choose one team to win</div><div className="text-sm text-slate-500">The choice saves immediately, stays editable until lock, and remains private until then.</div></div>
         <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800">Locks at kickoff</span>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">

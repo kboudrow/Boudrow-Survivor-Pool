@@ -461,7 +461,7 @@ export default function SuperAdminPage() {
     if (!selectedPool) return
     const confirmed = await requestConfirm({
       title: 'Repair this pool?',
-      message: `Repair future results for the selected pool "${selectedPool.name}"?\n\nThis clears only this pool's stale future stat rows and moves future final picks back to editable drafts. It does not change other pools.`,
+      message: `Repair future results for the selected pool "${selectedPool.name}"?\n\nThis clears only this pool's stale future stat rows and moves future locked picks back to saved, editable picks. It does not change other pools.`,
       confirmLabel: 'Repair this pool',
     })
     if (!confirmed) return
@@ -964,8 +964,8 @@ export default function SuperAdminPage() {
                   <Info label="Visibility" value={selectedPool.is_public ? 'Public' : 'Private'} />
                   <Info label="Entries" value={poolEntryCountLabel(selectedPool.entries_count, selectedPool.max_members)} />
                   <Info label="Multi Entry" value={selectedPool.allow_multiple_entries ? `Up to ${selectedPool.max_entries_per_user}` : 'Single entry'} />
-                  <Info label="Draft Picks" value={String(selectedPool.draft_picks_count)} />
-                  <Info label="Final Picks" value={String(selectedPool.final_picks_count)} />
+                  <Info label="Saved, Editable Picks" value={String(selectedPool.draft_picks_count)} />
+                  <Info label="Locked, Official Picks" value={String(selectedPool.final_picks_count)} />
                   <Info label="Stats Rows" value={String(selectedPool.stats_rows_count)} />
                   <Info label="Created" value={fmt(selectedPool.created_at)} />
                 </div>

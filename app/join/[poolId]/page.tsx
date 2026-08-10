@@ -237,8 +237,8 @@ export default function JoinPoolPage() {
             <div className="mb-4">
               <h2 className="text-xl font-semibold">{pool.name}</h2>
               <p className="text-sm text-gray-600">
-                {pool.is_public ? 'Public' : 'Private'} - Starts week {pool.start_week} -
-                {' '}Strikes {pool.strikes_allowed} - Tie = {pool.tie_rule === 'win' ? 'Win' : 'Loss'}
+                {pool.is_public ? 'Public' : 'Private'} · Starts Week {pool.start_week} ·
+                {' '}Mulligans {pool.strikes_allowed} · NFL tie = {pool.tie_rule === 'win' ? 'Win' : 'Loss'}
               </p>
               <p className="text-sm text-gray-600">
                 Pick deadline: {pool.deadline_mode === 'rolling' ? 'Rolling, each game locks at kickoff' : (fixedDeadlineLabel || 'Sunday 1 PM ET; earlier games lock at kickoff')}
@@ -252,6 +252,12 @@ export default function JoinPoolPage() {
               <Info label="Visibility" value={pool.is_public ? 'Public' : 'Private'} />
               <Info label="Status" value={poolStarted ? 'Started' : isJoinable ? 'Open' : 'Closed'} />
             </div>
+
+            {!alreadyMember && !poolStarted && (
+              <p className="mb-4 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                Joining creates your first entry—one independent chance to make weekly picks. Valid joiners are added immediately; there is no commissioner approval queue.
+              </p>
+            )}
 
             {poolStarted && !alreadyMember && (
               <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">

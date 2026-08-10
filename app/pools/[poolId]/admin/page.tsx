@@ -1483,7 +1483,7 @@ export default function PoolAdminPage() {
     if (!pool) return
     const confirmed = await requestConfirm({
       title: 'Repair scoring state?',
-      message: `Rebuild scoring for ${pool.name} from the pick ledger?\n\nThis recalculates wins, losses, strikes, alive/out status, and clears picks after an entry has been eliminated. It only affects this pool.`,
+      message: `Rebuild scoring for ${pool.name} from the pick ledger?\n\nThis recalculates wins, counted losses, mulligans remaining, alive/eliminated status, and clears picks after an entry has been eliminated. It only affects this pool.`,
       confirmLabel: 'Repair scoring',
       tone: 'warning',
     })
@@ -2322,7 +2322,7 @@ export default function PoolAdminPage() {
               <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
                 <div>
                   <h2 className="font-semibold">Entry Audit</h2>
-                  <p className="text-sm text-gray-600">Week-by-week pick state, result, strikes, and alive/out status for one entry.</p>
+                  <p className="text-sm text-gray-600">Week-by-week saved or locked pick, result, counted losses, mulligans remaining, and alive or eliminated status for one entry.</p>
                 </div>
                 <div className="flex flex-wrap items-end gap-2">
                   <label className="text-sm font-medium text-slate-700">
@@ -2355,12 +2355,12 @@ export default function PoolAdminPage() {
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                     <div className="text-xs uppercase tracking-wide text-slate-500">Current Audit Status</div>
                     <div className="mt-1 text-lg font-bold capitalize text-slate-950">{selectedAuditSummary.latest.status_after_week}</div>
-                    {selectedAuditSummary.latest.eliminated_week && <div className="text-xs text-slate-500">Out in {weekLabel(selectedAuditSummary.latest.eliminated_week)}</div>}
+                    {selectedAuditSummary.latest.eliminated_week && <div className="text-xs text-slate-500">Eliminated in {weekLabel(selectedAuditSummary.latest.eliminated_week)}</div>}
                   </div>
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <div className="text-xs uppercase tracking-wide text-slate-500">Strikes After Latest Week</div>
+                    <div className="text-xs uppercase tracking-wide text-slate-500">Counted Losses After Latest Week</div>
                     <div className="mt-1 text-lg font-bold text-slate-950">{selectedAuditSummary.latest.strikes_after_week}</div>
-                    <div className="text-xs text-slate-500">{selectedAuditSummary.latest.strikes_left_after_week} strikes remaining</div>
+                    <div className="text-xs text-slate-500">{selectedAuditSummary.latest.strikes_left_after_week} mulligans remaining</div>
                   </div>
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                     <div className="text-xs uppercase tracking-wide text-slate-500">Official Picks</div>
@@ -2383,7 +2383,7 @@ export default function PoolAdminPage() {
                       <th className="px-3 py-2 text-left">Pick</th>
                       <th className="px-3 py-2 text-left">State</th>
                       <th className="px-3 py-2 text-left">Result</th>
-                      <th className="px-3 py-2 text-left">Strikes After</th>
+                      <th className="px-3 py-2 text-left">Losses / Mulligans Left</th>
                       <th className="px-3 py-2 text-left">Status After</th>
                       <th className="px-3 py-2 text-left">Note</th>
                     </tr>
@@ -2410,11 +2410,11 @@ export default function PoolAdminPage() {
                           </td>
                           <td className="px-3 py-2 text-slate-700">
                             {row.strikes_after_week}
-                            <div className="text-xs text-slate-500">{row.strikes_left_after_week} left</div>
+                            <div className="text-xs text-slate-500">{row.strikes_left_after_week} mulligans left</div>
                           </td>
                           <td className="px-3 py-2">
                             <span className={`rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${row.status_after_week === 'out' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                              {row.status_after_week}
+                              {row.status_after_week === 'out' ? 'Eliminated' : 'Alive'}
                             </span>
                           </td>
                           <td className="px-3 py-2 text-slate-600">{row.issue || '-'}</td>
@@ -2686,7 +2686,7 @@ export default function PoolAdminPage() {
                         <td className="border p-2">
                           {row.wins}-{row.losses}
                           {row.pushes ? `-${row.pushes}` : ''}
-                          <div className="text-xs text-gray-500">{row.strikes_used} strike(s)</div>
+                          <div className="text-xs text-gray-500">{row.strikes_used} counted {row.strikes_used === 1 ? 'loss' : 'losses'}</div>
                         </td>
                         <td className="border p-2">
                           {row.eliminated ? (

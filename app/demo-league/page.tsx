@@ -172,7 +172,7 @@ export default function DemoPoolPage() {
                   <tr>
                     <th className="sticky left-0 z-10 border-b border-slate-200 bg-white p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Entry</th>
                     <th className="border-b border-slate-200 p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Progress</th>
-                    <th className="border-b border-slate-200 p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Strikes remaining</th>
+                    <th className="border-b border-slate-200 p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Mulligans remaining</th>
                     {[1, 2, 3].map((w) => (
                       <th key={w} className="border-b border-slate-200 p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                         <span className="block">W{w}</span>
@@ -201,7 +201,7 @@ export default function DemoPoolPage() {
                         {entry.alive ? (
                           <span className="inline-flex rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-semibold text-white">Alive</span>
                         ) : (
-                          <span className="inline-flex rounded-full bg-red-600 px-2 py-0.5 text-xs font-semibold text-white">Out W{entry.eliminatedWeek}</span>
+                          <span className="inline-flex rounded-full bg-red-600 px-2 py-0.5 text-xs font-semibold text-white">Eliminated W{entry.eliminatedWeek}</span>
                         )}
                       </td>
                       <td className="border-b border-slate-100 p-2">
@@ -209,7 +209,7 @@ export default function DemoPoolPage() {
                           <div>
                             <span className="font-semibold text-slate-950">{entry.strikesLeft}</span>
                             <span className="ml-1 text-xs text-slate-500">left</span>
-                            <div className="text-xs text-slate-500">{entry.strikesUsed} used</div>
+                            <div className="text-xs text-slate-500">{entry.strikesUsed} {entry.strikesUsed === 1 ? 'loss' : 'losses'}</div>
                           </div>
                         ) : (
                           <span className="text-slate-400">-</span>
@@ -355,7 +355,7 @@ function SurvivalChart({ alive, total, week }: { alive: number; total: number; w
         <div className="mt-1 flex items-center justify-between gap-3">
           <span className="inline-flex items-center gap-2 text-slate-700">
             <span className="h-3 w-3 rounded-sm bg-red-600" />
-            Out
+            Eliminated
           </span>
           <span className="font-semibold text-slate-950">{eliminated} ({100 - alivePct}%)</span>
         </div>

@@ -9,19 +9,19 @@ export const metadata: Metadata = {
 const steps = [
   {
     title: 'Create or join a pool',
-    text: 'Commissioners create a pool, choose the start week, strike limit, tie rule, deadline style, visibility, optional total-entry cap, and whether multiple entries are allowed. Players can find public pools in search or join private pools with an invite link and password.',
+    text: 'A pool is the group competition. The commissioner chooses its start week, mulligans, tie rule, deadline style, and access. Public pools can be found in search; private pools need an invite link and password. Valid joiners are added immediately—there is no approval queue.',
   },
   {
     title: 'Make weekly picks',
-    text: 'Each active entry picks a team for the week. Used teams are tracked automatically, so an entry cannot reuse the same team later in the season. If the commissioner adds double-pick weeks, active entries submit two picks for those weeks.',
+    text: 'Each entry—one independent chance to play—chooses an NFL team to win that week. A win keeps the entry alive. The same team cannot normally be used again, so every choice affects later weeks. A double-pick week requires two different teams instead of one.',
   },
   {
     title: 'Picks lock automatically',
-    text: 'Pools can use rolling kickoff locks or a fixed weekly deadline. Early games lock when they start, and locked picks become official final picks so nobody has to argue about late changes.',
+    text: 'A saved pick can be changed until it locks. With a Sunday 1 PM ET deadline, all remaining choices lock then; any earlier game still locks at kickoff. With rolling locks, each team stays available until its own game starts. A locked pick is official.',
   },
   {
     title: 'Standings update from results',
-    text: 'Wins, losses, pushes, strikes, eliminations, used teams, and entry status are tracked in one place. Commissioners can see what happened each week, while players can follow who is still alive.',
+    text: 'A loss uses one mulligan if the pool allows any; otherwise it eliminates the entry. Standings show which entries are alive or eliminated, mulligans remaining, weekly results, and the teams each entry has already used.',
   },
 ]
 
@@ -32,7 +32,7 @@ export default function HowItWorksPage() {
         <p className="text-sm font-semibold uppercase tracking-wide text-[#c5161d]">How it works</p>
         <h1 className="mt-2 text-4xl font-extrabold tracking-normal text-slate-950">Run an NFL survivor pool without spreadsheets</h1>
         <p className="mt-3 max-w-2xl text-slate-600">
-          Survive Sunday keeps the core flow simple: create a pool, invite players, make picks, lock them, and track standings without chasing texts or maintaining a spreadsheet.
+          Pick one NFL winner each week and stay alive as long as your entry can. Survive Sunday keeps that flow simple without chasing texts or maintaining a spreadsheet.
         </p>
 
         <div className="mt-8 grid gap-4">

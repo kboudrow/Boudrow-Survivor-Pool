@@ -3,13 +3,18 @@ import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
   title: 'FAQ | Survive Sunday',
-  description: 'Answers about Survive Sunday pool setup, pick deadlines, strikes, double-pick weeks, private pools, admin tools, and AdSense-safe use.',
+  description: 'Answers about NFL survivor pools, weekly picks, mulligans, deadlines, double-pick weeks, private pools, and admin tools.',
   alternates: {
     canonical: '/faq',
   },
 }
 
 const faqs = [
+  {
+    question: 'What is an NFL survivor pool?',
+    answer:
+      'It is a weekly contest where each entry chooses one NFL team to win. A win keeps the entry alive. A loss uses a mulligan if one is available or eliminates the entry if none remain. The same team cannot normally be used twice.',
+  },
   {
     question: 'What does Survive Sunday do?',
     answer:
@@ -23,7 +28,7 @@ const faqs = [
   {
     question: 'Can I make a private pool?',
     answer:
-      'Yes. Commissioners can create private pools with a password and share an invite link. Public pools can appear in search, while private pools stay gated.',
+      'Yes. Public pools can appear in search and do not need a password. Private pools require the invite link and password from the commissioner. A valid join is immediate in either case; Survive Sunday does not use a member-approval queue.',
   },
   {
     question: 'Can I set a custom start week?',
@@ -38,27 +43,27 @@ const faqs = [
   {
     question: 'What happens if someone forgets to pick?',
     answer:
-      'Once the pool deadline has passed, a missing pick can count as a no-pick loss. That keeps standings fair and avoids the commissioner having to chase everyone manually.',
+      'Once the deadline passes, a missing pick counts as a loss. It uses one mulligan if the entry has one remaining; otherwise the entry is eliminated.',
   },
   {
     question: 'Can players reuse the same team?',
     answer:
-      'No. Survive Sunday tracks used teams inside each pool and prevents repeat team picks for that player.',
+      'Not during the same phase of the season. Each entry has its own used-team history, so using Buffalo now removes Buffalo from that entry’s later regular-season choices. The history resets when the playoffs begin.',
   },
   {
-    question: 'What are strikes?',
+    question: 'What is a mulligan?',
     answer:
-      'A strike is a loss. Commissioners can allow zero, one, or two misses before a player is eliminated. If a player still has strikes left, they stay alive.',
+      'A mulligan is one allowed loss. With zero mulligans, the first loss eliminates the entry. With one mulligan, the entry survives its first loss and is eliminated by its second.',
   },
   {
     question: 'What are double-pick weeks?',
     answer:
-      'A double-pick week requires two picks instead of one. Commissioners choose those weeks before the pool starts, and both picks are tracked separately.',
+      'A double-pick week requires each alive entry to choose two different teams instead of one. Both picks save and lock separately, and each result is graded separately.',
   },
   {
     question: 'Can I have multiple entries?',
     answer:
-      'Yes. Commissioners can allow multiple entries per member. Each entry plays independently with its own picks, used teams, standings row, and survival status.',
+      'Yes, when the commissioner allows it. An entry is one independent chance to play. Each of your entries has its own picks, used teams, mulligans, standings row, and alive or eliminated status. Always check which entry you are editing before choosing a team.',
   },
   {
     question: 'Can I restart the same pool next season?',
@@ -78,7 +83,7 @@ const faqs = [
   {
     question: 'What happens if my team ties?',
     answer:
-      'That depends on the pool settings. Commissioners can decide whether ties count as a win, a loss, or a push before the pool starts.',
+      'The pool settings say whether an official NFL tie counts as a win or a loss. The same choice applies to every entry in that pool.',
   },
   {
     question: 'Can admins change pool settings later?',
@@ -89,6 +94,11 @@ const faqs = [
     question: 'Can eliminated players still see the pool?',
     answer:
       'Yes. Eliminated players can still view matchups and standings, but they should not be able to make new picks.',
+  },
+  {
+    question: 'What should I do each week?',
+    answer:
+      'Open the pool, make sure the correct entry and week are selected, and choose the required team or teams before the displayed lock time. Look for “Saved — editable until lock.” Once a pick says “Locked — official,” it cannot be changed by the player.',
   },
   {
     question: 'Is this a betting or payout site?',

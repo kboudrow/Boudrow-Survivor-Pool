@@ -293,7 +293,7 @@ export default function ArchivesPage() {
                     <ArchiveFact label="Season" value={String(seasonLabel)} />
                     <ArchiveFact label="Start week" value={`Week ${p.start_week}`} />
                     <ArchiveFact label="Deadline" value={formatDeadline(p)} />
-                    <ArchiveFact label="Strikes" value={String(strikesLabel)} />
+                    <ArchiveFact label="Mulligans allowed" value={String(strikesLabel)} />
                     <ArchiveFact label="Tie" value={tieLabel} />
                     <ArchiveFact label="Total entries" value={poolCapacityLabel(p.max_members)} />
                     <ArchiveFact label="Multiple entries" value={formatEntries(p)} />
@@ -325,7 +325,7 @@ export default function ArchivesPage() {
             <div className="border rounded-lg p-3 mb-4 bg-gray-50">
               <div className="text-sm font-semibold">{activePool.name}</div>
               <div className="text-xs text-gray-600 mt-1">
-                Start Week {activePool.start_week} | Strikes {activePool.strikes_allowed ?? EMPTY_LABEL} | Tie {titleCase(activePool.tie_rule)} |{' '}
+                Start Week {activePool.start_week} | Mulligans {activePool.strikes_allowed ?? EMPTY_LABEL} | NFL tie {titleCase(activePool.tie_rule)} |{' '}
                 {activePool.include_playoffs ? 'Regular + Playoffs' : 'Regular only'}
               </div>
               <div className="mt-1 text-xs text-gray-600">
