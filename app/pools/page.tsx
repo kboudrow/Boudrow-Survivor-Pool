@@ -376,7 +376,7 @@ function InfoTile({ label, value }: { label: string; value: string }) {
   )
 }
 
-const poolDecidedFromSummary = (summary?: PoolMemberSummary) => !!summary && poolHasWinner(summary.total, summary.alive, summary.aliveEntries)
+const poolDecidedFromSummary = (summary?: PoolMemberSummary) => !!summary && poolHasWinner(summary.totalEntries, summary.aliveEntries)
 
 function PoolStagePill({ pool, pickStatus, isDecided }: { pool: Pool; pickStatus?: PoolPickStatus; isDecided?: boolean }) {
   if (pool.activation_status === 'cancelled') {
@@ -1513,8 +1513,10 @@ function MyPoolsContent() {
       }
     }
     const alreadyUsedElsewhere =
-      Object.entries(myDraftPicks).some(([k, t]) => k !== key && t?.abbr === team.abbr) ||
-      Object.entries(myFinalPicks).some(([k, pick]) => k !== key && pick.team_abbr === team.abbr)
+      Object.entries(myDraftPicks).some(([k, t]) =>
+        k !== key && t?.abbr === team.abbr && (Number(k.split(':')[0]) <= 18) === (week <= 18)) ||
+      Object.entries(myFinalPicks).some(([k, pick]) =>
+        k !== key && pick.team_abbr === team.abbr && (Number(k.split(':')[0]) <= 18) === (week <= 18))
     if (alreadyUsedElsewhere) {
       showMessage('Team already used', `${team.name} was already used in another week.`, 'warning')
       return

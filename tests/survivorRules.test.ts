@@ -29,6 +29,16 @@ test('duplicate teams are rejected across slots in the same double-pick week', (
   assert.equal(teamAlreadyUsed(picks, 'PHI', { week: 7, slot: 2 }), true)
 })
 
+test('team history resets at the playoffs but remains unique within each phase', () => {
+  const picks = [
+    { week: 7, slot: 1, teamAbbr: 'BUF' },
+    { week: 19, slot: 1, teamAbbr: 'KC' },
+  ]
+  assert.equal(teamAlreadyUsed(picks, 'BUF', { week: 19, slot: 1 }), false)
+  assert.equal(teamAlreadyUsed(picks, 'BUF', { week: 20, slot: 1 }), false)
+  assert.equal(teamAlreadyUsed(picks, 'KC', { week: 20, slot: 1 }), true)
+})
+
 test('double-pick weeks require exactly two slots', () => {
   assert.equal(requiredPickSlots([3, 7], 3), 2)
   assert.equal(requiredPickSlots([3, 7], 4), 1)
@@ -65,8 +75,8 @@ test('deadline equality is locked, while one millisecond before remains editable
   assert.equal(isPickLocked(5_000, 5_000), true)
 })
 
-test('winner requires a real multi-player pool and one surviving player', () => {
-  assert.equal(poolHasWinner(4, 1, 2), true)
-  assert.equal(poolHasWinner(1, 1, 1), false)
-  assert.equal(poolHasWinner(4, 0, 0), false)
+test('winner is entry-based when users can own multiple entries', () => {
+  assert.equal(poolHasWinner(4, 1), true)
+  assert.equal(poolHasWinner(1, 1), false)
+  assert.equal(poolHasWinner(4, 2), false)
 })
