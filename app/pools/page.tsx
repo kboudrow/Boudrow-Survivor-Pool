@@ -190,6 +190,7 @@ const FULL_PLAYOFF_WEEK_LABELS: Record<number, string> = {
 }
 
 const POOL_CARD_SELECT = 'id,name,season,is_public,start_week,include_playoffs,strikes_allowed,tie_rule,image_url,max_members,allow_multiple_entries,max_entries_per_user,activation_status,double_pick_weeks,test_mode,test_current_week,test_now_at'
+const POOL_DETAIL_SELECT = 'id,name,season,is_public,visibility,allow_discovery,start_week,include_playoffs,strikes_allowed,mulligans,tie_rule,ties,deadline,deadline_mode,deadline_fixed,notes,image_url,created_by,created_at,activation_status,activated_at,activated_by,archived,archived_at,max_members,allow_multiple_entries,max_entries_per_user,double_pick_weeks,plan,pick_privacy,payment_status,pinned_rank,sponsored_until,cloned_from_pool_id,test_mode,test_current_week,test_now_at,winner_user_id,name_normalized'
 const teamByAbbr = (abbr?: string | null) => NFL_TEAMS.find((t) => t.abbr === abbr) || null
 const isNoPick = (abbr?: string | null) => !!abbr?.startsWith('NO_PICK')
 const toAbbr = (input: string): string => {
@@ -1965,7 +1966,7 @@ function MyPoolsContent() {
     backgroundRefreshRef.current = null
 
     try {
-      const { data: poolRow, error: poolErr } = await supabase.from('pools').select('*').eq('id', id).maybeSingle<Pool>()
+      const { data: poolRow, error: poolErr } = await supabase.from('pools').select(POOL_DETAIL_SELECT).eq('id', id).maybeSingle<Pool>()
       if (poolErr) throw poolErr
       if (!poolRow) throw new Error('Pool not found')
 

@@ -1815,6 +1815,10 @@ export type Database = {
         Args: { p_is_public: boolean; p_password?: string; p_pool_id: string }
         Returns: undefined
       }
+      admin_update_pool_visibility_validated_internal: {
+        Args: { p_is_public: boolean; p_password?: string; p_pool_id: string }
+        Returns: undefined
+      }
       admin_upsert_entry_draft: {
         Args: {
           p_entry_id: string
@@ -1987,6 +1991,27 @@ export type Database = {
         }
         Returns: string
       }
+      create_pool_with_owner_validated_internal: {
+        Args: {
+          p_allow_multiple_entries?: boolean
+          p_deadline_fixed?: string
+          p_deadline_mode?: string
+          p_double_pick_weeks?: number[]
+          p_image_url?: string
+          p_include_playoffs?: boolean
+          p_is_public?: boolean
+          p_max_entries_per_user?: number
+          p_max_members?: number
+          p_name: string
+          p_notes?: string
+          p_password?: string
+          p_season?: number
+          p_start_week?: number
+          p_strikes_allowed?: string
+          p_tie_rule?: string
+        }
+        Returns: string
+      }
       current_blog_role: { Args: never; Returns: string }
       current_user_email_confirmed: { Args: never; Returns: boolean }
       finalize_locked_picks: {
@@ -2072,6 +2097,10 @@ export type Database = {
       is_pool_member: { Args: { p: string }; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
       join_pool: {
+        Args: { p_password?: string; p_pool_id: string; p_token?: string }
+        Returns: undefined
+      }
+      join_pool_validated_internal: {
         Args: { p_password?: string; p_pool_id: string; p_token?: string }
         Returns: undefined
       }
