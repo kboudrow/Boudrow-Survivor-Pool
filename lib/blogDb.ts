@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { unstable_cache } from 'next/cache'
 import { cleanEnvValue } from '@/lib/env'
 import { blogPosts, getBlogPost, getRelatedBlogPosts, sortBlogPosts, type BlogPost } from '@/lib/blogPosts'
 
@@ -42,23 +43,6 @@ const publicBlogClient = supabaseUrl && supabaseAnonKey
       },
     })
   : null
-
-const BLOG_CACHE_TTL_MS = 5 * 60 * 1000
-let publicPostsCache: { expiresAt: number; value: PublicBlogPost[] } | null = null
-let publicCategoriesCache: { expiresAt: number; value: string[] } | null = null
-
-async function getTtlCached<T>(
-  cache: { expiresAt: number; value: T } | null,
-  load: () => Promise<T>,
-  setCache: (next: { expiresAt: number; value: T }) => void,
-) {
-  const now = Date.now()
-  if (cache && cache.expiresAt > now) return cache.value
-
-  const value = await load()
-  setCache({ expiresAt: now + BLOG_CACHE_TTL_MS, value })
-  return value
-}
 
 async function withTimeout<T>(promise: PromiseLike<T>, ms = 4500): Promise<T> {
   let timeout: ReturnType<typeof setTimeout> | null = null
@@ -135,25 +119,13 @@ export async function getDatabaseBlogPosts(status = 'published') {
   }
 }
 
-async function getDatabaseBlogSlugs() {
-  if (!publicBlogClient) return new Set<string>()
-
-  try {
-    const { data, error } = await withTimeout(publicBlogClient.from('blog_posts').select('slug'))
-    if (error) throw error
-    return new Set((data || []).map((row) => row.slug).filter((slug): slug is string => typeof slug === 'string'))
-  } catch {
-    return new Set<string>()
-  }
-}
-
 async function loadPublicBlogPosts() {
-  const [dbPosts, dbSlugs] = await Promise.all([getDatabaseBlogPosts('published'), getDatabaseBlogSlugs()])
+  const dbPosts = await getDatabaseBlogPosts('published')
   const merged = new Map<string, PublicBlogPost>()
 
   for (const post of dbPosts) merged.set(post.slug, post)
   for (const post of blogPosts) {
-    if (!merged.has(post.slug) && !dbSlugs.has(post.slug)) merged.set(post.slug, { ...post, source: 'seed', authorName: 'Survive Sunday' })
+    if (!merged.has(post.slug)) merged.set(post.slug, { ...post, source: 'seed', authorName: 'Survive Sunday' })
   }
 
   const posts = sortBlogPosts(Array.from(merged.values()))
@@ -166,10 +138,13 @@ async function loadPublicBlogPosts() {
   }))
 }
 
+const getCachedPublicBlogPosts = unstable_cache(loadPublicBlogPosts, ['public-blog-posts-v2'], {
+  revalidate: 300,
+  tags: ['public-blog'],
+})
+
 export async function getPublicBlogPosts() {
-  return getTtlCached(publicPostsCache, loadPublicBlogPosts, (next) => {
-    publicPostsCache = next
-  })
+  return getCachedPublicBlogPosts()
 }
 
 async function loadPublicBlogCategories() {
@@ -193,13 +168,16 @@ async function loadPublicBlogCategories() {
   }
 }
 
+const getCachedPublicBlogCategories = unstable_cache(loadPublicBlogCategories, ['public-blog-categories-v2'], {
+  revalidate: 300,
+  tags: ['public-blog'],
+})
+
 export async function getPublicBlogCategories() {
-  return getTtlCached(publicCategoriesCache, loadPublicBlogCategories, (next) => {
-    publicCategoriesCache = next
-  })
+  return getCachedPublicBlogCategories()
 }
 
-export async function getPublicBlogPost(slug: string) {
+async function loadPublicBlogPost(slug: string) {
   if (publicBlogClient) {
     try {
       const { data, error } = await withTimeout(publicBlogClient
@@ -224,6 +202,15 @@ export async function getPublicBlogPost(slug: string) {
 
   const seed = getBlogPost(slug)
   return seed ? ({ ...seed, source: 'seed', authorName: 'Survive Sunday' } satisfies PublicBlogPost) : null
+}
+
+const getCachedPublicBlogPost = unstable_cache(loadPublicBlogPost, ['public-blog-post-v2'], {
+  revalidate: 300,
+  tags: ['public-blog'],
+})
+
+export async function getPublicBlogPost(slug: string) {
+  return getCachedPublicBlogPost(slug)
 }
 
 export async function getRelatedPublicBlogPosts(post: PublicBlogPost, limit = 3) {
