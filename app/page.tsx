@@ -301,7 +301,7 @@ export default function Home() {
             </h1>
 
             <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-200 sm:text-lg">
-              Everything you need to run an NFL survivor pool without chasing group texts, fixing spreadsheets, or arguing about late picks.
+              An NFL survivor pool is a weekly pick&apos;em: choose one team to win, stay alive when it wins, and normally never use that team again. Survive Sunday handles the picks, deadlines, and standings for you.
             </p>
 
             {/* HERO CTA: Create/Join + (only when authed) My Pools */}
@@ -380,7 +380,7 @@ export default function Home() {
             <div className="mt-2 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
               <div className="max-w-2xl">
                 <h2 className="text-3xl font-extrabold tracking-tight">Stop running your pool in a spreadsheet.</h2>
-                <p className="mt-3 leading-7 text-slate-300">Create a free pool, invite your group, and let Survive Sunday handle locks, repeat teams, strikes, and standings.</p>
+                <p className="mt-3 leading-7 text-slate-300">Create a free pool, invite your group, and let Survive Sunday handle deadlines, no-repeat teams, mulligans, and standings.</p>
               </div>
               <div className="flex shrink-0 flex-wrap gap-3">
                 <button type="button" onClick={() => requireAuthThen('/pools/new')} className="rounded-md bg-[#c5161d] px-5 py-3 font-semibold text-white hover:bg-[#a91218]">Create Pool</button>

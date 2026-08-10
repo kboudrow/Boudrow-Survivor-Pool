@@ -56,7 +56,7 @@ export default function AboutPage() {
               'Automatic pick locks and weekly deadlines',
               'No-repeat team enforcement',
               'Multiple entries per member when allowed',
-              'Standings, strikes, eliminations, and history',
+              'Standings, mulligans, eliminations, and history',
               'Commissioner controls for pool management',
               'Run-it-back setup for future seasons',
             ].map((item) => (
@@ -82,5 +82,4 @@ export default function AboutPage() {
     </main>
   )
 }
-
 

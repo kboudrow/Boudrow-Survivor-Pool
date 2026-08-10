@@ -11,36 +11,36 @@ export const metadata: Metadata = {
 
 const sections = [
   {
-    title: 'The basic survivor pool format',
-    body: 'Each entry picks one NFL team for the week. If the team wins, that entry survives. If the team loses, ties, or misses a pick, the result depends on the rules the commissioner selected before the season.',
+    title: 'The basic format',
+    body: 'An entry is one independent chance to play. It picks an NFL team to win each week. A win keeps the entry alive; a loss uses a mulligan if one is available or eliminates the entry if none remain.',
   },
   {
     title: 'No-repeat teams',
-    body: 'Most survivor pools do not allow an entry to use the same team twice. That makes long-term planning part of the game: using a heavy favorite now may leave you with fewer options later.',
+    body: 'Each entry can use an NFL team only once during the regular season. That makes long-term planning part of the game: using a heavy favorite now removes it from that entry’s later choices. Team history resets for the playoffs.',
   },
   {
     title: 'Pick deadlines',
-    body: 'Commissioners can use a fixed weekly deadline or rolling kickoff locks. With rolling locks, each game locks when it kicks off. With a fixed deadline, all available picks lock at the configured pool deadline.',
+    body: 'A saved pick remains editable until it locks. With rolling locks, each team locks at its game’s kickoff. With the fixed deadline, all remaining choices lock Sunday at 1:00 PM Eastern.',
   },
   {
     title: 'Thursday and early games',
-    body: 'Early games should lock before kickoff even if the main weekly deadline is later. This prevents someone from waiting to see part of a game before submitting or changing a pick.',
+    body: 'Thursday, Saturday, international, and other early games always lock at kickoff—even when the pool uses the Sunday deadline. No one can choose or change to a team after its game begins.',
   },
   {
-    title: 'Ties and strikes',
-    body: 'Some pools count ties as wins, some as losses, and some as pushes. Allowed strikes let an entry survive one or more bad weeks before being eliminated.',
+    title: 'NFL ties and mulligans',
+    body: 'The commissioner chooses whether an official NFL tie counts as a win or a loss. A mulligan is one allowed loss: the entry stays alive but has one fewer mulligan remaining.',
   },
   {
     title: 'Multiple entries',
-    body: 'A pool can allow members to enter more than once. Each entry should have its own picks, used teams, standings row, and elimination status so the competition stays clean.',
+    body: 'A commissioner can let one person own several entries. Each entry is a separate chance with its own picks, used-team history, mulligans, standings row, and elimination status.',
   },
   {
     title: 'Double-pick weeks',
-    body: 'Double-pick weeks require every active entry to submit two teams. They add strategy and make larger pools more likely to finish on schedule.',
+    body: 'A double-pick week requires every alive entry to submit two different teams. Each pick is graded separately, and every losing or missing pick uses a mulligan or moves the entry closer to elimination.',
   },
   {
-    title: 'Forgotten picks',
-    body: 'The fairest approach is to define missed-pick rules before the season starts. Many pools treat a forgotten pick as a loss or strike once the deadline passes.',
+    title: 'Missed picks',
+    body: 'If an entry has no pick when its deadline passes, the missing pick counts as a loss. It uses a mulligan when one remains; otherwise the entry is eliminated.',
   },
 ]
 
@@ -51,7 +51,7 @@ export default function SurvivorPoolRulesPage() {
         <p className="text-sm font-bold uppercase tracking-wide text-[#c5161d]">Commissioner resource</p>
         <h1 className="mt-2 max-w-3xl text-4xl font-extrabold tracking-normal text-slate-950">NFL survivor pool rules that prevent arguments later</h1>
         <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600">
-          A good survivor pool is mostly about clarity. Set the rules before Week 1, make the deadlines obvious, and make sure every player understands how picks, ties, strikes, and eliminations work.
+          New to survivor pools? The goal is simple: pick a winning NFL team each week and keep your entry alive. These are the rules Survive Sunday enforces.
         </p>
 
         <div className="mt-8 grid gap-4 md:grid-cols-2">
@@ -70,10 +70,10 @@ export default function SurvivorPoolRulesPage() {
               'Start week',
               'Pick deadline',
               'Tie rule',
-              'Strike limit',
+              'Mulligans allowed',
               'Double-pick weeks',
               'Multiple-entry limit',
-              'Forgotten-pick rule',
+              'Missed picks count as losses',
               'Winner determination',
             ].map((item) => (
               <li key={item} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 font-semibold">{item}</li>

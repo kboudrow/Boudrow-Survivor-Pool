@@ -398,7 +398,7 @@ function PickStatusCard({ status, isDecided }: { status: PoolPickStatus; isDecid
   const complete = status.needed > 0 && status.made >= status.needed
   const partial = status.made > 0 && !complete
   const label = complete
-    ? `${status.made}/${status.needed} picks made`
+    ? `${status.made}/${status.needed} saved — no action needed`
     : partial
       ? `${status.made}/${status.needed} picks made - finish making picks`
       : status.needed > 1
@@ -494,14 +494,14 @@ function ResultPill({ status }: { status: 'win' | 'loss' | 'push' | 'Pending' | 
     '-': 'bg-gray-100 text-gray-700 border border-gray-300',
   }
   const cls = map[up] || map.PENDING
-  const label = up === 'WIN' ? 'Win' : up === 'LOSS' ? 'Loss' : up === 'PUSH' ? 'Push' : status || 'Pending'
+  const label = up === 'WIN' ? 'Win' : up === 'LOSS' ? 'Loss' : up === 'PUSH' ? 'NFL tie' : status || 'Pending'
   return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs ${cls}`}>{label}</span>
 }
 
 function compactResultLabel(result?: PickRow['result']) {
   if (result === 'win') return 'W'
   if (result === 'loss') return 'L'
-  if (result === 'push') return 'P'
+  if (result === 'push') return 'T'
   return ''
 }
 
@@ -588,7 +588,7 @@ function SurvivalChart({ alive, total, week }: { alive: number; total: number; w
         <div className="mt-1 flex items-center justify-between gap-3">
           <span className="inline-flex items-center gap-2 text-slate-700">
             <span className="h-3 w-3 rounded-sm bg-red-600" />
-            Out
+            Eliminated
           </span>
           <span className="font-semibold text-slate-950">{eliminated} ({eliminatedPct}%)</span>
         </div>
@@ -700,7 +700,7 @@ function TeamPickerModal(props: {
       <div role="dialog" aria-modal="true" aria-labelledby="team-picker-title" className="absolute left-1/2 top-1/2 max-h-[85vh] w-[min(1100px,92vw)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl bg-white p-4 shadow-xl">
         <div className="flex items-center justify-between mb-3">
           <h4 id="team-picker-title" className="text-lg font-semibold">
-            Pick a team - {weekLabel(week)}, Pick {slot}
+            Choose a team to win — {weekLabel(week)}, Pick {slot}
           </h4>
           <div className="flex items-center gap-2">
             <input
@@ -715,6 +715,8 @@ function TeamPickerModal(props: {
             </button>
           </div>
         </div>
+
+        <p className="mb-3 text-sm text-slate-600">Selecting a team saves it immediately. Dimmed teams are locked, have an unconfirmed kickoff, or were already used by this entry.</p>
 
         {teamSearch.trim() ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
@@ -907,6 +909,7 @@ function MyPoolsContent() {
   const canInvite = !!pool && !isTestMode && pool.activation_status !== 'cancelled' && poolStartKnown && !leagueHasStarted
   const selectedWeekLockedByTestMode = isTestMode && selectedPickWeek < simulatedWeek
   const myStats = selectedEntryId ? statsByUser[selectedEntryId] : undefined
+  const selectedEntry = myEntries.find((entry) => entry.id === selectedEntryId) || null
   const myEliminatedWeek = myStats?.eliminated && myStats.eliminated_week ? myStats.eliminated_week : null
   const isEliminated = leagueHasStarted && !!myStats?.eliminated
   const poolDecided = !!poolWinner?.is_decided
@@ -1593,7 +1596,7 @@ function MyPoolsContent() {
       })
 
     if (editableDrafts.length === 0) {
-      showMessage('No editable picks to clear', 'Locked picks stay in place, and there are no editable draft picks to clear.', 'info')
+      showMessage('No editable picks to clear', 'Locked picks stay in place, and there are no saved, editable picks to clear.', 'info')
       return
     }
 
@@ -1768,7 +1771,7 @@ function MyPoolsContent() {
         const draftPick = myDraftPicks[key]
         const finalTeam = finalPick ? teamByAbbr(finalPick.team_abbr) || { abbr: finalPick.team_abbr, name: finalPick.team_abbr } : null
         const team = finalTeam || draftPick
-        rows.push([String(w), String(slot), team?.name ?? '', team?.abbr ?? '', finalPick ? 'Locked after deadline' : draftPick ? 'Pick made' : ''])
+        rows.push([String(w), String(slot), team?.name ?? '', team?.abbr ?? '', finalPick ? 'Locked — official' : draftPick ? 'Saved — editable' : ''])
       }
     })
     const csv = rows.map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(',')).join('\n')
@@ -2160,7 +2163,7 @@ function MyPoolsContent() {
             <div className="mt-3 grid gap-3 md:grid-cols-3">
               <div><span className="font-semibold text-slate-950">Pick status:</span> red means you still owe picks for the current week, green means your required picks are in.</div>
               <div><span className="font-semibold text-slate-950">Multiple entries:</span> shows whether a pool lets one person play more than one entry.</div>
-              <div><span className="font-semibold text-slate-950">Entries:</span> shows active entries, which can be higher than members when a pool allows multiple entries.</div>
+              <div><span className="font-semibold text-slate-950">Entries:</span> each entry is one independent chance to play, so the entry count can be higher than the number of people.</div>
             </div>
           </details>
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -2170,7 +2173,7 @@ function MyPoolsContent() {
               const poolComplete = poolDecidedFromSummary(memberSummary)
               const entryAliveLabel =
                 memberSummary && memberSummary.totalEntries > 0
-                  ? `${memberSummary.aliveEntries}/${memberSummary.totalEntries} active entries`
+                  ? `${memberSummary.aliveEntries}/${memberSummary.totalEntries} alive entries`
                   : String(poolPickStatuses[p.id]?.entries ?? 0)
               const multipleEntriesLabel = p.allow_multiple_entries ? `Up to ${p.max_entries_per_user ?? 1}` : 'No'
 
@@ -2192,7 +2195,7 @@ function MyPoolsContent() {
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                     <InfoTile label="Starts" value={`Week ${p.start_week}`} />
-                    <InfoTile label="Strikes" value={String(p.strikes_allowed)} />
+                    <InfoTile label="Mulligans" value={String(p.strikes_allowed)} />
                     <InfoTile label="Multiple Entries?" value={multipleEntriesLabel} />
                     <InfoTile label="Entries" value={entryAliveLabel} />
                   </div>
@@ -2323,7 +2326,7 @@ function MyPoolsContent() {
                               disabled={addingEntry}
                               className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                             >
-                              {addingEntry ? 'Adding...' : 'Add entry'}
+                              {addingEntry ? 'Adding...' : 'Add another entry'}
                             </button>
                           )}
                           {!leagueHasStarted && myEntries.length > 1 && (
@@ -2336,13 +2339,13 @@ function MyPoolsContent() {
                               Remove this entry
                             </button>
                           )}
-                          {draftSavedAt && <div className="text-xs text-gray-500">Last saved {fmtDateTime(draftSavedAt)}</div>}
+                          {draftSavedAt && <div className="text-xs font-medium text-emerald-700">Saved {fmtDateTime(draftSavedAt)}</div>}
                         </div>
                       </div>
                       <details className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2">
-                        <summary className="cursor-pointer text-xs font-semibold text-slate-800">Used teams ({usedTeamAbbrs.length})</summary>
+                        <summary className="cursor-pointer text-xs font-semibold text-slate-800">Teams this entry already used ({usedTeamAbbrs.length})</summary>
                         {usedTeamAbbrs.length === 0 ? (
-                          <p className="mt-2 text-sm text-gray-600">None yet - pick any team.</p>
+                          <p className="mt-2 text-sm text-gray-600">None yet—this entry can choose any unlocked team.</p>
                         ) : (
                           <div className="mt-2 flex flex-wrap gap-2">
                             {usedTeamAbbrs.map((abbr) => {
@@ -2356,6 +2359,7 @@ function MyPoolsContent() {
                             })}
                           </div>
                         )}
+                        <p className="mt-2 text-xs text-slate-500">A team used by this entry cannot be chosen again during the regular season. Other entries keep their own separate history.</p>
                       </details>
                     </div>
 
@@ -2411,6 +2415,9 @@ function MyPoolsContent() {
                               </span>
                             )}
                           </div>
+                          <p className="mt-2 text-sm text-slate-600">
+                            Your job: choose {picksAllowedForWeek(selectedPickWeek) === 1 ? 'one NFL team to win' : 'two different NFL teams to win'} for {selectedEntry ? entryLabelForMember(selectedEntry) : 'this entry'}. Your choice saves immediately and can be changed until it locks.
+                          </p>
                         </div>
                         <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600">
                           {selectedWeekCloseLabel}
@@ -2439,7 +2446,7 @@ function MyPoolsContent() {
                               <div key={key} className="rounded-md border border-slate-300 bg-slate-50 p-3">
                                 <div className="mb-2 flex items-center justify-between gap-2">
                                   <ResultPill status={finalPick.result || 'Pending'} />
-                                  <span className="rounded-full bg-slate-900 px-2 py-0.5 text-xs font-medium text-white">Final pick</span>
+                                  <span className="rounded-full bg-slate-900 px-2 py-0.5 text-xs font-medium text-white">Locked — official</span>
                                 </div>
                                 <div className="flex items-center gap-3">
                                   <TeamLogo team={finalTeam} size={42} />
@@ -2464,7 +2471,7 @@ function MyPoolsContent() {
                                     draftPick ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
                                   }`}
                                 >
-                                  {savingPick ? 'Saving' : draftPick ? 'Pick made' : 'No pick'}
+                                  {savingPick ? 'Saving...' : draftPick ? 'Saved — editable until lock' : 'Pick needed'}
                                 </span>
                               </div>
 
@@ -2555,8 +2562,8 @@ function MyPoolsContent() {
                         <InfoTile label="Entries" value={pool.allow_multiple_entries ? `Up to ${pool.max_entries_per_user ?? 1} per user` : 'Single entry'} />
                         <InfoTile label="Start Week" value={`Week ${pool.start_week}`} />
                         <InfoTile label="Season" value={pool.include_playoffs ? 'Regular + Playoffs' : 'Regular only'} />
-                        <InfoTile label="Strikes Allowed" value={String(pool.strikes_allowed)} />
-                        <InfoTile label="Tie Counts As" value={pool.tie_rule === 'win' ? 'Win' : 'Loss'} />
+                        <InfoTile label="Mulligans Allowed" value={String(pool.strikes_allowed)} />
+                        <InfoTile label="NFL Tie Counts As" value={pool.tie_rule === 'win' ? 'Win' : 'Loss'} />
                         <InfoTile label="Pick Deadline" value={deadlineLabel} />
                       </div>
                     </details>
@@ -2605,7 +2612,7 @@ function MyPoolsContent() {
                     </button>
                   </div>
                   <p className="mb-4 text-sm text-slate-600">
-                    Choose a week to see the pool exactly as it stood through that week.
+                    Choose a week to see the pool exactly as it stood then. Alive entries can keep picking; eliminated entries cannot. W means win, L means loss, and NP means no pick.
                   </p>
 
                   {poolDecided && poolWinner && (
@@ -2644,7 +2651,7 @@ function MyPoolsContent() {
                           <tr>
                             <th scope="col" className="sticky left-0 z-30 w-[180px] min-w-[180px] border-b border-r border-slate-200 bg-white p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 shadow-[6px_0_10px_-10px_rgba(15,23,42,0.75)] sm:w-[240px] sm:min-w-[240px]">Entry</th>
                             <th className="border-b border-slate-200 p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Progress</th>
-                            <th className="border-b border-slate-200 p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Strikes remaining</th>
+                            <th className="border-b border-slate-200 p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Mulligans remaining</th>
                             {standingsTableWeeks.map((week) => (
                               <th key={week} className="border-b border-slate-200 p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                                 <span className="block">{shortWeekLabel(week)}</span>
@@ -2674,7 +2681,7 @@ function MyPoolsContent() {
                                     <span className="inline-flex rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-semibold text-white">Alive</span>
                                   ) : (
                                     <span className="inline-flex rounded-full bg-red-600 px-2 py-0.5 text-xs font-semibold text-white">
-                                      Out{eliminatedWeek ? ` W${eliminatedWeek}` : ''}
+                                      Eliminated{eliminatedWeek ? ` W${eliminatedWeek}` : ''}
                                     </span>
                                   )}
                                 </td>
@@ -2683,7 +2690,7 @@ function MyPoolsContent() {
                                     <div>
                                       <span className="font-semibold text-slate-950">{strikesLeft}</span>
                                       <span className="ml-1 text-xs text-slate-500">left</span>
-                                      <div className="text-xs text-slate-500">{strikesUsed} used</div>
+                                      <div className="text-xs text-slate-500">{strikesUsed} {strikesUsed === 1 ? 'loss' : 'losses'}</div>
                                     </div>
                                   ) : (
                                     <span className="text-slate-400">-</span>
@@ -2759,10 +2766,10 @@ function MyPoolsContent() {
 
                   <details className="mb-6 rounded-xl border border-slate-200 bg-white p-4">
                     <summary className="cursor-pointer text-sm font-semibold text-slate-900">Teams Still Available</summary>
-                    <div className="mt-2 text-sm text-slate-600">How many alive entries can still use each team based on visible locked pick history.</div>
-                    <div className="mt-1 text-xs text-slate-500">{activeEntryCount} active {activeEntryCount === 1 ? 'entry' : 'entries'} counted</div>
+                    <div className="mt-2 text-sm text-slate-600">How many alive entries have not used each team yet, based on visible locked-pick history.</div>
+                    <div className="mt-1 text-xs text-slate-500">{activeEntryCount} alive {activeEntryCount === 1 ? 'entry' : 'entries'} counted</div>
                     {activeEntryCount === 0 ? (
-                      <div className="mt-3 rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">No active entries to analyze.</div>
+                      <div className="mt-3 rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">No alive entries to analyze.</div>
                     ) : (
                       <div className="mt-3 grid gap-2 md:grid-cols-2">
                         {leagueAvailableTeams.map(({ team, available, percentage }) => (

@@ -10,17 +10,17 @@ export const metadata: Metadata = {
 }
 
 const clauses = [
-  ['1. Pool Format', 'Each entry must select one eligible NFL team each required pick slot. If the selected team wins, the entry survives. If the selected team loses, ties, or does not play, the result follows the pool settings below.'],
-  ['2. Eligibility', 'Only invited or approved members may participate. Commissioners may remove entries before the pool starts if a member joined by mistake or violates pool rules.'],
-  ['3. Entry Rules', 'If multiple entries are allowed, each entry is independent. Used teams, picks, strikes, standings, and elimination status are tracked separately for every entry.'],
-  ['4. Pick Deadlines', 'Picks must be submitted before the pool deadline or before the selected game locks. Games that have already started are not eligible picks.'],
-  ['5. No Repeat Teams', 'An entry may not select the same NFL team more than once during the season unless the commissioner explicitly announces a different rule before the pool starts.'],
-  ['6. Missed Picks', 'A missed pick after the deadline counts as a loss or strike unless the commissioner defines a different rule before the season.'],
-  ['7. Tie Rules', 'The commissioner must state before the season whether a tied NFL game counts as a win, loss, or push for survivor purposes.'],
-  ['8. Double-Pick Weeks', 'If double-pick weeks are used, every active entry must submit two valid picks for that week. Both picks must survive for the entry to avoid a strike unless the commissioner defines otherwise.'],
-  ['9. Eliminations', 'An entry is eliminated after it reaches the strike limit set by the commissioner. Eliminated entries may continue to view pool standings but cannot submit future picks.'],
-  ['10. Winner Determination', 'The winner is the last remaining active entry. If multiple entries remain after the final configured week, the commissioner should use the announced tiebreaker or split-title rule.'],
-  ['11. Commissioner Authority', 'The commissioner may correct obvious administrative errors, but rule changes after the pool starts should be avoided unless every affected member agrees.'],
+  ['1. Pool Format', 'Each entry is one independent chance to play and must choose one eligible NFL team for every required pick. A win keeps the entry alive. A loss uses a mulligan if one remains or eliminates the entry if none remain.'],
+  ['2. Joining', 'Public pools can be joined without a password. Private pools require the invite link and password. Valid joiners are added immediately; there is no approval queue. Commissioners may remove mistaken entries before the pool starts.'],
+  ['3. Multiple Entries', 'When multiple entries are allowed, each entry has its own picks, used teams, mulligans, standings row, and alive or eliminated status.'],
+  ['4. Pick Deadlines', 'A saved pick may be changed until it locks. Under rolling locks, a team locks at its game’s kickoff. Under the fixed deadline, all remaining teams lock Sunday at 1:00 PM Eastern; earlier games still lock at kickoff.'],
+  ['5. No Repeat Teams', 'An entry may not select the same NFL team more than once during the regular season. If playoffs are included, used-team history resets when the playoffs begin.'],
+  ['6. Missed Picks', 'A missing pick at the deadline counts as a loss. It uses a mulligan when one remains; otherwise the entry is eliminated.'],
+  ['7. NFL Ties', 'Before the pool starts, the commissioner chooses whether an official NFL tie counts as a win or a loss. That rule applies to every entry.'],
+  ['8. Double-Pick Weeks', 'Every alive entry must submit two different teams during a double-pick week. Each pick is saved, locked, and graded separately.'],
+  ['9. Eliminations', 'An entry is eliminated when its total losses exceed its allowed mulligans. Eliminated entries may view the pool and standings but cannot submit future picks.'],
+  ['10. Winner and Wipeout Rule', 'The winner is the last remaining alive entry. If every remaining entry would be eliminated in the same week, those entries stay alive for the next week; their losing teams still count as used.'],
+  ['11. Commissioner Corrections', 'Competitive rules lock after the first kickoff. A commissioner may correct a disputed pick with a recorded reason; the correction is logged and the affected standings are recalculated.'],
 ]
 
 export default function SurvivorPoolConstitutionPage() {
@@ -47,7 +47,7 @@ export default function SurvivorPoolConstitutionPage() {
         <section className="mt-8 rounded-lg border border-[#d2ad5b]/40 bg-white p-5 text-sm leading-6 text-slate-700">
           <h2 className="text-xl font-bold text-slate-950">Before you send it</h2>
           <p className="mt-2">
-            Fill in your pool name, start week, deadline type, strike limit, tie rule, double-pick weeks, multiple-entry limit, and any prize or bragging-rights language your group uses.
+            Fill in your pool name, start week, deadline type, mulligans allowed, NFL tie rule, double-pick weeks, multiple-entry limit, and any prize or bragging-rights language your group uses.
           </p>
         </section>
 
@@ -59,4 +59,3 @@ export default function SurvivorPoolConstitutionPage() {
     </main>
   )
 }
-

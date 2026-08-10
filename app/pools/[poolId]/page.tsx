@@ -293,6 +293,12 @@ export default function PoolDetailPage() {
               </div>
             </div>
 
+            {!alreadyMember && !isOwner && (
+              <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+                Joining creates your first entry—one independent chance to play. Each week, choose the required NFL team or teams before the deadline. A valid join is added immediately; there is no approval queue.
+              </div>
+            )}
+
             {leagueHasStarted && !alreadyMember && !isOwner && (
               <div className="mb-4 p-3 border border-amber-200 rounded-md bg-amber-50 text-sm text-amber-800">
                 This pool has already started, so it is closed to new members.
@@ -334,7 +340,7 @@ export default function PoolDetailPage() {
 
             {authed && alreadyMember && (
               <div className="mt-4 flex items-center gap-2">
-                <span className="text-sm text-emerald-700">You&apos;re already a member of this pool.</span>
+                <span className="text-sm text-emerald-700">You already have an entry in this pool.</span>
                 <Link href={`/pools?pool=${pool.id}`} className="px-3 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 text-sm">
                   Open Pool
                 </Link>

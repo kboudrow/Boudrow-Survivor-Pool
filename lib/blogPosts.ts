@@ -27,7 +27,7 @@ export const blogPosts: BlogPost[] = [
   {
     slug: 'how-nfl-survivor-pools-work',
     title: 'How NFL Survivor Pools Work',
-    description: 'A simple guide to survivor pool rules, weekly picks, eliminations, strikes, and no-repeat team strategy.',
+    description: 'A simple guide to survivor pool rules, weekly picks, eliminations, mulligans, and no-repeat team strategy.',
     category: 'Survivor Pools',
     publishedAt: 'June 6, 2026',
     updatedAt: '2026-06-06',
@@ -36,15 +36,15 @@ export const blogPosts: BlogPost[] = [
       {
         heading: 'The basic idea',
         body: [
-          'In an NFL survivor pool, each player picks one team each week. If that team wins, the player survives to the next week. If that team loses, the player takes a strike or is eliminated depending on the pool rules.',
+          'In an NFL survivor pool, each entry picks one team each week. If that team wins, the entry survives to the next week. If that team loses, it uses a mulligan when one is available or is eliminated when none remain.',
           'The twist is that most survivor pools do not allow repeat teams. Once you use a team, it is off your board for the rest of the season.',
         ],
       },
       {
         heading: 'Common rules',
         body: [
-          'Most pools use one pick per week, but some add double-pick weeks to increase difficulty. Pools can also decide whether ties count as wins, losses, or pushes.',
-          'Commissioners should make rules clear before Week 1: start week, pick deadline, strike limit, tie rule, and whether playoffs are included.',
+          'Most pools use one pick per week, but some add double-pick weeks to increase difficulty. On Survive Sunday, commissioners choose whether an official NFL tie counts as a win or a loss.',
+          'Commissioners should make rules clear before Week 1: start week, pick deadline, mulligans allowed, tie rule, and whether playoffs are included.',
         ],
       },
       {
@@ -101,7 +101,7 @@ export const blogPosts: BlogPost[] = [
       {
         heading: 'Set rules before invites go out',
         body: [
-          'Commissioners should decide the rules before players join. The biggest settings are start week, pick deadline, strike limit, tie rule, double-pick weeks, and whether the pool is public or private.',
+          'Commissioners should decide the rules before players join. The biggest settings are start week, pick deadline, mulligans allowed, tie rule, double-pick weeks, and whether the pool is public or private.',
           'Changing pool settings after the season starts can cause trust problems, so lock those rules once the pool begins.',
         ],
       },
@@ -115,7 +115,7 @@ export const blogPosts: BlogPost[] = [
       {
         heading: 'Keep standings transparent',
         body: [
-          'Standings should show who is alive, who is eliminated, each player record, and strikes used. The less mystery there is, the less commissioner drama there is.',
+          'Standings should show which entries are alive or eliminated, each record, and mulligans remaining. The less mystery there is, the less commissioner drama there is.',
           'A good pool is fun because everyone trusts the rules and the standings.',
         ],
       },
@@ -205,7 +205,7 @@ export const blogPosts: BlogPost[] = [
         heading: 'Basic rules',
         body: [
           'Each participant selects one NFL team to win its game each week. If the selected team wins, that entry advances to the next week.',
-          'If the selected team loses, that entry receives a strike or is eliminated, depending on pool settings. Teams may only be used once during the season. The last remaining entry wins the pool.',
+          'If the selected team loses, that entry uses a mulligan when one remains or is eliminated when none remain. Teams may only be used once during the regular season. The last remaining alive entry wins the pool.',
         ],
       },
       {
@@ -218,7 +218,7 @@ export const blogPosts: BlogPost[] = [
       {
         heading: 'Tie games',
         body: [
-          'Commissioners should decide before the season whether a tie counts as a win, a loss, or a push. Whatever you choose should apply to all participants for the full season.',
+          'Commissioners choose before the season whether an official NFL tie counts as a win or a loss. That choice applies to every entry for the full season.',
           'Tie rules seem minor until one actually happens. Put the rule in writing before Week 1 so there is no argument later.',
         ],
       },
@@ -226,14 +226,14 @@ export const blogPosts: BlogPost[] = [
         heading: 'Multiple entries and double-pick weeks',
         body: [
           'If your pool allows multiple entries, each participant may have up to the number of entries set by the commissioner. Each entry should be treated independently with its own picks, standings position, and elimination status.',
-          'During designated double-pick weeks, each active entry must submit two different teams. Unless the commissioner states otherwise, both picks must win for the entry to survive the week.',
+          'During designated double-pick weeks, each alive entry must submit two different teams. Each pick is graded separately, so each loss uses a mulligan or moves the entry toward elimination.',
         ],
       },
       {
         heading: 'Missed picks and winner rules',
         body: [
-          'If a participant fails to submit a pick before the deadline, choose one rule: automatic elimination, automatic strike, or a commissioner-assigned pick such as the highest remaining favorite. Pick one rule and apply it consistently.',
-          'The last remaining active entry is declared the winner. If multiple entries remain after the final week, the commissioner can declare co-winners or use a predetermined tiebreaker.',
+          'If an entry has no pick at the deadline, Survive Sunday grades it as a loss. That loss uses a mulligan when one remains or eliminates the entry when none remain.',
+          'The last remaining alive entry is declared the winner. If every remaining entry loses in the same week, they all stay alive for the following week and their losing teams still count as used.',
         ],
       },
       {
@@ -321,30 +321,30 @@ export const blogPosts: BlogPost[] = [
         ],
       },
       {
-        heading: 'Option 1: automatic elimination',
+        heading: 'How Survive Sunday handles a missed pick',
         body: [
-          'Automatic elimination is the most common rule in traditional survivor pools. If a participant fails to submit a pick before the deadline, they are immediately eliminated.',
-          'This rule is simple, easy to enforce, requires no commissioner judgment, and encourages participants to submit picks on time. It can feel harsh early in the season, but it works best in classic one-loss-and-you-are-out pools.',
+          'A missing pick counts as a loss when the deadline passes. If that entry has a mulligan remaining, the loss uses it and the entry stays alive. If no mulligans remain, the entry is eliminated.',
+          'The same rule is applied automatically to every entry, so the commissioner does not need to assign a team or decide who deserves an exception.',
         ],
       },
       {
-        heading: 'Option 2: use a mulligan or strike',
+        heading: 'What a mulligan changes',
         body: [
-          'If your pool allows multiple lives, a missed pick can count as a strike instead of an immediate elimination. For example, if the pool allows two strikes and a participant forgets to submit a pick, one strike is added to their entry and they remain active until they reach the strike limit.',
-          'This is more forgiving and keeps participants engaged. It only makes sense if your pool is already using strikes or mulligans, and it still needs to be written into the rules before the season begins.',
+          'A mulligan is one allowed loss. For example, an entry with one mulligan survives its first loss or missed pick and is eliminated by its second.',
+          'Mulligans belong to each entry. If one person owns two entries, a loss by Entry A does not change Entry B.',
         ],
       },
       {
-        heading: 'Option 3: assign an automatic pick',
+        heading: 'Handling a genuine dispute',
         body: [
-          'Some commissioners automatically assign a team when a participant forgets. Common approaches include the highest remaining betting favorite, the home favorite with the largest spread, or the best available team not already used.',
-          'This can prevent accidental eliminations and keep casual players involved, but it requires commissioner involvement and can create arguments about which team should have been assigned. If you use this rule, define the process before Week 1.',
+          'A forgotten pick is not the same as a technical or administrative error. If a player can show a real problem, the commissioner can correct the pick and record the reason.',
+          'Locked-pick corrections are logged and the affected standings are recalculated. That audit trail keeps a correction from becoming an invisible special favor.',
         ],
       },
       {
         heading: 'Avoid special exceptions',
         body: [
-          'Regardless of which rule you choose, consistency matters. If the rule is elimination, it should apply to everyone. If the rule is a strike, it should apply to everyone. If the rule is an automatic pick, it should apply to everyone.',
+          'Consistency matters. A missing pick should count as a loss for everyone, and commissioner corrections should be limited to documented errors.',
           'The commissioner should never have to make a judgment call based on who forgot. Good survivor pools run on clear rules, not commissioner discretion.',
         ],
       },
@@ -352,7 +352,7 @@ export const blogPosts: BlogPost[] = [
         heading: 'The best approach',
         body: [
           'The easiest way to avoid disputes is to establish the rule before the season starts and enforce it automatically.',
-          'Whether your pool uses traditional eliminations, mulligans, or automatic picks, participants should know exactly what happens when they miss a deadline. That is why many commissioners choose platforms like Survive Sunday, where deadlines, locks, standings, and elimination tracking are handled automatically throughout the season.',
+          'Participants should know exactly what happens when they miss a deadline. Survive Sunday shows the deadline, saves choices immediately, locks them automatically, and applies the missed-pick loss consistently.',
         ],
       },
     ],
@@ -386,4 +386,3 @@ export function getRelatedBlogPosts(post: BlogPost, limit = 3) {
     })
     .slice(0, limit)
 }
-

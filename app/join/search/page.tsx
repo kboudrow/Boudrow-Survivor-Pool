@@ -33,7 +33,7 @@ type Pool = {
 
 function formatPoolMeta(pool: Pool) {
   const tieLabel = pool.tie_rule === 'win' ? 'Win' : pool.tie_rule === 'loss' ? 'Loss' : '-'
-  return `Starts week ${pool.start_week} - Strikes ${pool.strikes_allowed ?? '-'} - Tie = ${tieLabel}`
+  return `Starts Week ${pool.start_week} · Mulligans ${pool.strikes_allowed ?? '-'} · NFL tie = ${tieLabel}`
 }
 
 function deadlineLabel(pool: Pool) {
@@ -425,7 +425,7 @@ export default function JoinSearchPage() {
           className="mb-3 w-full rounded-md border border-slate-300 px-3 py-3 text-base shadow-sm focus:border-[#c5161d] focus:outline-none focus:ring-2 focus:ring-red-100"
         />
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs leading-5 text-gray-500">Public pools can be joined directly. Private pools require the password from the commissioner.</p>
+          <p className="text-xs leading-5 text-gray-500">Public pools need no password. Private pools require the commissioner&apos;s password. A valid join adds you immediately—there is no approval queue.</p>
           {query.trim() && (
             <button onClick={() => setQuery('')} className="rounded-md bg-gray-100 px-3 py-1 text-xs hover:bg-gray-200">
               Clear search
@@ -530,13 +530,19 @@ export default function JoinSearchPage() {
                 <Info label="Visibility" value={selected.is_public ? 'Public' : 'Private'} />
                 <Info label="Members" value={memberCountLoading ? 'Loading...' : memberCount !== null ? String(memberCount) : '-'} />
                 <Info label="Entries" value={memberCountLoading ? 'Loading...' : entryCount !== null ? poolEntryCountLabel(entryCount, selected.max_members) : '-'} />
-                <Info label="Strikes Allowed" value={String(selected.strikes_allowed ?? '-')} />
-                <Info label="Tie Counts As" value={selected.tie_rule === 'win' ? 'Win' : selected.tie_rule === 'loss' ? 'Loss' : '-'} />
+                <Info label="Mulligans Allowed" value={String(selected.strikes_allowed ?? '-')} />
+                <Info label="NFL Tie Counts As" value={selected.tie_rule === 'win' ? 'Win' : selected.tie_rule === 'loss' ? 'Loss' : '-'} />
                 <Info label="Start Week" value={`Week ${selected.start_week}`} />
                 <Info label="Deadline" value={deadlineLabel(selected)} />
               </div>
 
               {selected.notes && <p className="mb-4 rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-700">{selected.notes}</p>}
+
+              {!selectedAlreadyJoined && !selectedOwnedByMe && !selectedIsFull && (
+                <p className="mb-4 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                  Joining creates your first entry—one independent chance to make weekly picks—and adds you to the pool immediately.
+                </p>
+              )}
 
               {selectedAlreadyJoined || selectedOwnedByMe ? (
                 <div className="flex flex-wrap items-center gap-3 rounded-md border border-emerald-200 bg-emerald-50 p-3">

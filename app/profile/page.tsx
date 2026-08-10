@@ -576,7 +576,7 @@ export default function ProfilePage() {
                 <StatTile label="Pools eliminated" value={String(stats.poolsEliminated)} />
                 <StatTile label="Best finish" value={stats.bestFinish} />
                 <StatTile label="Career record" value={stats.recordLabel} />
-                <StatTile label="Total strikes" value={String(stats.totalStrikes)} />
+                <StatTile label="Counted losses" value={String(stats.totalStrikes)} />
                 <StatTile label="Last season played" value={stats.lastSeasonPlayed !== null ? String(stats.lastSeasonPlayed) : '-'} />
               </div>
             </section>
@@ -767,7 +767,7 @@ export default function ProfilePage() {
                         <th className="text-left p-2 border">Season</th>
                         <th className="text-left p-2 border">Result</th>
                         <th className="text-left p-2 border">Record</th>
-                        <th className="text-left p-2 border">Strikes</th>
+                        <th className="text-left p-2 border">Counted losses</th>
                       </tr>
                     </thead>
                     <tbody>
