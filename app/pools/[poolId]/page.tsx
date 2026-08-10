@@ -269,7 +269,7 @@ export default function PoolDetailPage() {
             <div className="mb-4">
               <h2 className="text-xl font-semibold">{pool.name}</h2>
               <p className="text-sm text-gray-600">
-                {pool.is_public ? 'Public' : 'Private'} Â· Starts week {pool.start_week} Â· Strikes {pool.strikes_allowed} Â· Tie = {pool.tie_rule === 'win' ? 'Win' : 'Loss'}
+                {pool.is_public ? 'Public' : 'Private'} · Starts Week {pool.start_week} · Mulligans {pool.strikes_allowed} · NFL tie = {pool.tie_rule === 'win' ? 'Win' : 'Loss'}
               </p>
               <p className="text-sm text-gray-600">
                 Pick Deadline: {pool.deadline_mode === 'rolling' ? 'Rolling: each game locks at kickoff' : (fixedDeadlineLabel || 'Sunday 1 PM ET; earlier games lock at kickoff')}

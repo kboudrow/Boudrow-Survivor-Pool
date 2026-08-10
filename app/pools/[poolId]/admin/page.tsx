@@ -26,6 +26,11 @@ type Pool = {
   season: number | null
   start_week: number
   include_playoffs?: boolean | null
+  strikes_allowed?: number | string | null
+  tie_rule?: 'win' | 'loss' | string | null
+  deadline_mode?: 'fixed' | 'rolling' | string | null
+  deadline_fixed?: string | null
+  notes?: string | null
   activation_status?: 'draft' | 'active' | 'cancelled' | string | null
   max_members?: number | null
   allow_multiple_entries?: boolean | null
@@ -364,6 +369,13 @@ export default function PoolAdminPage() {
   const [maxMembersPreset, setMaxMembersPreset] = useState('25')
   const [allowMultipleEntriesDraft, setAllowMultipleEntriesDraft] = useState(false)
   const [maxEntriesPerUserDraft, setMaxEntriesPerUserDraft] = useState('1')
+  const [startWeekDraft, setStartWeekDraft] = useState('1')
+  const [includePlayoffsDraft, setIncludePlayoffsDraft] = useState(false)
+  const [mulligansDraft, setMulligansDraft] = useState('0')
+  const [tieRuleDraft, setTieRuleDraft] = useState<'win' | 'loss'>('loss')
+  const [deadlineModeDraft, setDeadlineModeDraft] = useState<'fixed' | 'rolling'>('fixed')
+  const [notesDraft, setNotesDraft] = useState('')
+  const [savingCoreRules, setSavingCoreRules] = useState(false)
   const [archiving, setArchiving] = useState(false)
   const [savingDouble, setSavingDouble] = useState(false)
   const [savingLimit, setSavingLimit] = useState(false)
@@ -381,6 +393,7 @@ export default function PoolAdminPage() {
   const [runningAction, setRunningAction] = useState<string | null>(null)
   const [draftTeams, setDraftTeams] = useState<Record<string, string>>({})
   const [finalTeams, setFinalTeams] = useState<Record<string, string>>({})
+  const [pickCorrectionReason, setPickCorrectionReason] = useState('')
   const [inviteOpen, setInviteOpen] = useState(false)
   const [memberSearch, setMemberSearch] = useState('')
   const [testWeek, setTestWeek] = useState('1')
@@ -448,6 +461,14 @@ export default function PoolAdminPage() {
   const canReinvite = !!pool && isPoolJoinable && !settingsLocked
   const lifecycle = pool ? poolStage(pool, settingsLocked) : null
   const visibilityChanged = !!pool && isPublicDraft !== pool.is_public
+  const coreRulesChanged = !!pool && (
+    startWeekDraft !== String(pool.start_week)
+    || includePlayoffsDraft !== !!pool.include_playoffs
+    || mulligansDraft !== String(pool.strikes_allowed ?? 0)
+    || tieRuleDraft !== (pool.tie_rule === 'win' ? 'win' : 'loss')
+    || deadlineModeDraft !== (pool.deadline_mode === 'rolling' ? 'rolling' : 'fixed')
+    || notesDraft !== (pool.notes || '')
+  )
   const selectedDoubleWeeks = useMemo(() => {
     return new Set(
       doubleWeeksText
@@ -457,6 +478,16 @@ export default function PoolAdminPage() {
       )
   }, [doubleWeeksText])
   const doubleWeekCount = selectedDoubleWeeks.size
+  const savedDoubleWeeksText = (pool?.double_pick_weeks || []).filter((week) => week >= (pool?.start_week || 1)).sort((a, b) => a - b).join(',')
+  const selectedDoubleWeeksText = Array.from(selectedDoubleWeeks).sort((a, b) => a - b).join(',')
+  const doubleWeeksChanged = !!pool && selectedDoubleWeeksText !== savedDoubleWeeksText
+  const savedCapacityText = pool && isUnlimitedPoolCapacity(pool.max_members) ? 'unlimited' : String(pool?.max_members ?? '')
+  const capacityDraftText = maxMembersPreset === 'unlimited' ? 'unlimited' : maxMembersText.trim()
+  const capacityChanged = !!pool && capacityDraftText !== savedCapacityText
+  const entrySettingsChanged = !!pool && (
+    allowMultipleEntriesDraft !== !!pool.allow_multiple_entries
+    || String(allowMultipleEntriesDraft ? maxEntriesPerUserDraft : '1') !== String(pool.max_entries_per_user ?? 1)
+  )
   const visibleRows = useMemo(() => {
     const q = memberSearch.trim().toLowerCase()
     if (!q) return rows
@@ -647,7 +678,7 @@ export default function PoolAdminPage() {
       }
 
       const [{ data: p, error: pErr }, { data: overview, error: overviewErr }] = await Promise.all([
-        supabase.from('pools').select('id,name,created_by,cloned_from_pool_id,is_public,visibility,double_pick_weeks,archived,season,start_week,include_playoffs,activation_status,max_members,allow_multiple_entries,max_entries_per_user,payment_status,image_url,test_mode,test_current_week,test_now_at').eq('id', poolId).maybeSingle<Pool>(),
+        supabase.from('pools').select('id,name,created_by,cloned_from_pool_id,is_public,visibility,double_pick_weeks,archived,season,start_week,include_playoffs,strikes_allowed,tie_rule,deadline_mode,deadline_fixed,notes,activation_status,max_members,allow_multiple_entries,max_entries_per_user,payment_status,image_url,test_mode,test_current_week,test_now_at').eq('id', poolId).maybeSingle<Pool>(),
         supabase.rpc('admin_pool_entry_week_overview', { p_pool_id: poolId, p_week: week }),
       ])
       if (pErr) throw pErr
@@ -665,6 +696,12 @@ export default function PoolAdminPage() {
       setMaxMembersPreset(limitText === 'unlimited' || MEMBER_LIMIT_OPTIONS.includes(Number(limitText)) ? limitText : 'custom')
       setAllowMultipleEntriesDraft(!!p.allow_multiple_entries)
       setMaxEntriesPerUserDraft(String(p.max_entries_per_user ?? 1))
+      setStartWeekDraft(String(p.start_week || 1))
+      setIncludePlayoffsDraft(!!p.include_playoffs)
+      setMulligansDraft(String(p.strikes_allowed ?? 0))
+      setTieRuleDraft(p.tie_rule === 'win' ? 'win' : 'loss')
+      setDeadlineModeDraft(p.deadline_mode === 'rolling' ? 'rolling' : 'fixed')
+      setNotesDraft(p.notes || '')
       setIsPublicDraft(!!p.is_public)
       setVisibilityPassword('')
       setImageUrlDraft(p.image_url || '')
@@ -760,6 +797,51 @@ export default function PoolAdminPage() {
       setError(getErrorMessage(e, `${label} failed.`))
     } finally {
       setRunningAction(null)
+    }
+  }
+
+  const saveCoreRules = async () => {
+    if (!pool) return
+    if (settingsLocked) {
+      setError('Competitive rules are locked because the pool has started. This protects existing picks and standings.')
+      return
+    }
+    const nextStartWeek = Number.parseInt(startWeekDraft, 10)
+    const nextMulligans = Number.parseInt(mulligansDraft, 10)
+    if (!Number.isFinite(nextStartWeek) || nextStartWeek < 1 || nextStartWeek > 18) {
+      setError('Start week must be between Week 1 and Week 18.')
+      return
+    }
+    if (!Number.isFinite(nextMulligans) || nextMulligans < 0 || nextMulligans > 2) {
+      setError('Mulligans must be 0, 1, or 2.')
+      return
+    }
+    if (notesDraft.length > 2000) {
+      setError('Additional rules cannot be longer than 2,000 characters.')
+      return
+    }
+
+    setSavingCoreRules(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const { error } = await supabase.rpc('admin_update_pool_core_rules', {
+        p_pool_id: pool.id,
+        p_start_week: nextStartWeek,
+        p_include_playoffs: includePlayoffsDraft,
+        p_strikes_allowed: nextMulligans,
+        p_tie_rule: tieRuleDraft,
+        p_deadline_mode: deadlineModeDraft,
+        p_notes: notesDraft.trim() || null,
+      })
+      if (error) throw error
+      setSelectedWeek((week) => Math.max(week, nextStartWeek))
+      setNotice('Core pool rules saved. The updated rules now apply to every entry.')
+      await loadOverview(Math.max(selectedWeek, nextStartWeek))
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to save core pool rules.'))
+    } finally {
+      setSavingCoreRules(false)
     }
   }
 
@@ -1035,6 +1117,14 @@ export default function PoolAdminPage() {
     setError(null)
     setNotice(null)
     try {
+      if (!pool.archived) {
+        const confirmed = await requestConfirm({
+          title: 'Archive this pool?',
+          message: `Archive ${pool.name}? It will disappear from the active dashboard and stop accepting normal activity. Its members, entries, picks, and history are kept, and you can unarchive it before the season starts.`,
+          confirmLabel: 'Archive pool',
+        })
+        if (!confirmed) return
+      }
       const { error } = await supabase.rpc('admin_archive_pool', {
         p_pool_id: pool.id,
         p_archived: !pool.archived,
@@ -1055,9 +1145,11 @@ export default function PoolAdminPage() {
       if (hasFinalPick(row)) {
         const team = (draftTeams[rowKey(row)] || finalTeams[rowKey(row)] || '').trim().toUpperCase()
         if (!team) throw new Error('Choose a team before saving this pick.')
+        const correctionReason = pickCorrectionReason.trim()
+        if (!correctionReason) throw new Error('Enter a reason before changing a locked pick. The reason is saved in the activity log for the dispute record.')
         const confirmed = await requestConfirm({
           title: 'Update locked pick?',
-          message: `Change ${entryLabel(row)}'s Pick ${row.slot} for ${weekLabel(selectedWeek)} to ${team}? This clears the old result and re-scores from the new pick.`,
+          message: `Change ${entryLabel(row)}'s Pick ${row.slot} for ${weekLabel(selectedWeek)} to ${team}? This clears the old result and re-scores from the new pick.\n\nReason recorded: ${correctionReason}`,
           confirmLabel: 'Update pick',
         })
         if (!confirmed) return 'Pick update canceled.'
@@ -1067,9 +1159,10 @@ export default function PoolAdminPage() {
           p_week: selectedWeek,
           p_team_abbr: team,
           p_slot: row.slot,
-          p_reason: 'Updated from admin panel',
+          p_reason: correctionReason,
         })
         if (error) throw error
+        setPickCorrectionReason('')
         return `Pick saved as ${team}.`
       }
       const key = rowKey(row)
@@ -1080,7 +1173,7 @@ export default function PoolAdminPage() {
           p_entry_id: row.entry_id,
           p_week: selectedWeek,
           p_slot: row.slot,
-          p_reason: 'Cleared from admin panel',
+          p_reason: pickCorrectionReason.trim() || 'Commissioner cleared an unlocked draft',
         })
         if (error) throw error
         return 'Pick cleared.'
@@ -1092,9 +1185,10 @@ export default function PoolAdminPage() {
         p_week: selectedWeek,
         p_team_abbr: team,
         p_slot: row.slot,
-        p_reason: 'Updated from admin panel',
+        p_reason: pickCorrectionReason.trim() || 'Commissioner updated an unlocked draft',
       })
       if (error) throw error
+      setPickCorrectionReason('')
       return `Pick saved as ${team}.`
     })
 
@@ -1486,8 +1580,9 @@ export default function PoolAdminPage() {
               <div className="rounded-lg border bg-white p-4">
                 <div className="text-xs uppercase text-gray-500">Access</div>
                 <div className={`text-sm font-semibold ${isPoolJoinable ? 'text-emerald-700' : 'text-amber-700'}`}>
-                  {isPoolJoinable ? 'Free and joinable' : 'Not accepting members'}
+                  {isPoolJoinable ? 'Joining is immediate' : 'Not accepting members'}
                 </div>
+                {isPoolJoinable && <div className="text-xs text-gray-500">No approval queue</div>}
               </div>
               <div className="rounded-lg border bg-white p-4">
                 <div className="text-xs uppercase text-gray-500">Visibility</div>
@@ -1504,6 +1599,24 @@ export default function PoolAdminPage() {
                 <div className="text-sm font-semibold">{doubleWeekCount ? `${doubleWeekCount} selected` : 'None'}</div>
               </div>
             </section>
+
+            {!settingsLocked && (
+              <section className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h2 className="font-semibold text-slate-950">Preseason commissioner checklist</h2>
+                    <p className="mt-1 text-sm text-slate-600">There is no Activate button. This pool starts automatically at {poolStartAt ? fmt(poolStartAt) : `the first kickoff of Week ${pool.start_week}`}.</p>
+                  </div>
+                  {canInvite && <button type="button" onClick={() => setInviteOpen(true)} className="rounded-md bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800">Invite players</button>}
+                </div>
+                <div className="mt-3 grid gap-2 text-sm md:grid-cols-3">
+                  <a href="#commissioner-settings" className="rounded-md border border-blue-200 bg-white p-3 font-medium text-blue-800 hover:bg-blue-50">1. Review every rule</a>
+                  <a href="#commissioner-members" className="rounded-md border border-blue-200 bg-white p-3 font-medium text-blue-800 hover:bg-blue-50">2. Confirm {entryCount} {entryCount === 1 ? 'entry' : 'entries'} from {uniqueMemberCount} {uniqueMemberCount === 1 ? 'person' : 'people'}</a>
+                  <Link href={`/pools?pool=${pool.id}`} className="rounded-md border border-blue-200 bg-white p-3 font-medium text-blue-800 hover:bg-blue-50">3. Preview picks and standings</Link>
+                </div>
+                <p className="mt-3 text-xs text-slate-600">Public players join immediately from search or an invite. Private players join immediately after entering the password. Remove mistakes before kickoff; member and entry removal lock when the pool starts.</p>
+              </section>
+            )}
 
             <section className="rounded-lg border bg-white p-4">
               <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -1911,11 +2024,11 @@ export default function PoolAdminPage() {
               </section>
             )}
 
-            <section className="rounded-lg border bg-white p-4">
+            <section id="commissioner-settings" className="scroll-mt-4 rounded-lg border bg-white p-4">
               <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
                 <div>
                   <h2 className="font-semibold">Setup & Rules</h2>
-                  <p className="text-sm text-gray-600">Adjust capacity, entries, visibility, images, and double-pick weeks before the pool starts.</p>
+                  <p className="text-sm text-gray-600">Review and save competitive rules, access, entries, appearance, and double-pick weeks before the automatic start.</p>
                 </div>
                 <button
                   onClick={toggleArchive}
@@ -1928,12 +2041,12 @@ export default function PoolAdminPage() {
               </div>
               {settingsLocked && (
                 <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                  Pool settings are locked because this pool has reached its configured start week. Admins can still review members and make commissioner pick corrections.
+                  Competitive settings are locked because the first kickoff has passed. This protects the rules players entered under. You can still review members, check scoring, and make logged commissioner pick corrections with a reason.
                 </p>
               )}
               {!settingsLocked && poolStartAt && (
                 <p className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-                  Setup is still open. These settings lock when this pool starts: {fmt(poolStartAt)}.
+                  Setup is still open. The pool starts automatically and competitive settings lock at {fmt(poolStartAt)}. Saved entries and picks stay in place when you change a compatible setting.
                 </p>
               )}
 
@@ -1995,6 +2108,71 @@ export default function PoolAdminPage() {
                   </div>
                 </div>
 
+                <div className="rounded-md border border-blue-200 bg-blue-50 p-4 lg:col-span-2 xl:col-span-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="font-semibold text-slate-950">Core survivor rules</h3>
+                      <p className="mt-1 text-sm text-slate-600">These rules affect scoring for every entry. You can correct them before the first kickoff; after that they lock and existing competition is protected.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={saveCoreRules}
+                      disabled={savingCoreRules || settingsLocked || !coreRulesChanged}
+                      className="rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-50"
+                    >
+                      {savingCoreRules ? 'Saving rules...' : coreRulesChanged ? 'Save rule changes' : 'Rules saved'}
+                    </button>
+                  </div>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    <label className="text-sm font-medium text-slate-800">
+                      Start week
+                      <select value={startWeekDraft} onChange={(e) => setStartWeekDraft(e.target.value)} disabled={settingsLocked} className="mt-1 w-full rounded-md border bg-white px-3 py-2 disabled:bg-slate-100">
+                        {ALL_WEEKS.map((week) => <option key={week} value={week}>Week {week}</option>)}
+                      </select>
+                      <span className="mt-1 block text-xs font-normal text-slate-600">Earlier weeks do not count. Moving it later is blocked if picks already exist in a week that would be skipped.</span>
+                    </label>
+                    <label className="text-sm font-medium text-slate-800">
+                      Mulligans (losses allowed)
+                      <select value={mulligansDraft} onChange={(e) => setMulligansDraft(e.target.value)} disabled={settingsLocked} className="mt-1 w-full rounded-md border bg-white px-3 py-2 disabled:bg-slate-100">
+                        <option value="0">0 — first loss eliminates</option>
+                        <option value="1">1 — second loss eliminates</option>
+                        <option value="2">2 — third loss eliminates</option>
+                      </select>
+                      <span className="mt-1 block text-xs font-normal text-slate-600">Tracked independently for each entry.</span>
+                    </label>
+                    <label className="text-sm font-medium text-slate-800">
+                      NFL tie counts as
+                      <select value={tieRuleDraft} onChange={(e) => setTieRuleDraft(e.target.value as 'win' | 'loss')} disabled={settingsLocked} className="mt-1 w-full rounded-md border bg-white px-3 py-2 disabled:bg-slate-100">
+                        <option value="loss">Loss</option>
+                        <option value="win">Win</option>
+                      </select>
+                      <span className="mt-1 block text-xs font-normal text-slate-600">This grades an NFL tie; it is not a winner tiebreaker.</span>
+                    </label>
+                    <label className="text-sm font-medium text-slate-800">
+                      Pick deadline
+                      <select value={deadlineModeDraft} onChange={(e) => setDeadlineModeDraft(e.target.value as 'fixed' | 'rolling')} disabled={settingsLocked} className="mt-1 w-full rounded-md border bg-white px-3 py-2 disabled:bg-slate-100">
+                        <option value="fixed">Sunday 1 PM ET</option>
+                        <option value="rolling">Rolling — each game locks at kickoff</option>
+                      </select>
+                      <span className="mt-1 block text-xs font-normal text-slate-600">Earlier games always lock at kickoff. The server clock is authoritative.</span>
+                    </label>
+                    <label className="text-sm font-medium text-slate-800">
+                      Season length
+                      <select value={includePlayoffsDraft ? 'playoffs' : 'regular'} onChange={(e) => setIncludePlayoffsDraft(e.target.value === 'playoffs')} disabled={settingsLocked} className="mt-1 w-full rounded-md border bg-white px-3 py-2 disabled:bg-slate-100">
+                        <option value="regular">Regular season</option>
+                        <option value="playoffs">Regular season and playoffs</option>
+                      </select>
+                      <span className="mt-1 block text-xs font-normal text-slate-600">Playoff team history is separate from regular-season team history.</span>
+                    </label>
+                    <label className="text-sm font-medium text-slate-800 md:col-span-2 xl:col-span-1">
+                      Additional rules
+                      <textarea value={notesDraft} onChange={(e) => setNotesDraft(e.target.value)} maxLength={2000} rows={4} disabled={settingsLocked} className="mt-1 w-full rounded-md border bg-white px-3 py-2 disabled:bg-slate-100" placeholder="Prize split, dispute process, commissioner contact..." />
+                      <span className="mt-1 block text-xs font-normal text-slate-600">Shown to players; does not change automated scoring. {notesDraft.length}/2,000</span>
+                    </label>
+                  </div>
+                  {coreRulesChanged && !settingsLocked && <p className="mt-3 text-sm font-medium text-amber-700">You have unsaved rule changes.</p>}
+                </div>
+
                 <div className="rounded-md border border-gray-200 bg-gray-50 p-3 lg:col-span-2 xl:col-span-4">
                   <label className="mb-1 block text-sm font-medium">Pool capacity</label>
                   <div className="flex gap-2">
@@ -2023,8 +2201,8 @@ export default function PoolAdminPage() {
                         placeholder="Enter 2 to 500"
                       />
                     )}
-                    <button onClick={saveMemberLimit} disabled={savingLimit || settingsLocked} className="rounded-md bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50">
-                      {savingLimit ? 'Saving...' : 'Save'}
+                    <button onClick={saveMemberLimit} disabled={savingLimit || settingsLocked || !capacityChanged} className="rounded-md bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50">
+                      {savingLimit ? 'Saving...' : capacityChanged ? 'Save capacity' : 'Saved'}
                     </button>
                   </div>
                   <p className="mt-2 text-xs text-gray-600">
@@ -2057,8 +2235,8 @@ export default function PoolAdminPage() {
                       ))}
                     </select>
                   )}
-                  <button onClick={saveEntrySettings} disabled={savingEntries || settingsLocked} className="mt-2 w-full rounded-md bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50">
-                    {savingEntries ? 'Saving...' : 'Save entries'}
+                  <button onClick={saveEntrySettings} disabled={savingEntries || settingsLocked || !entrySettingsChanged} className="mt-2 w-full rounded-md bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50">
+                    {savingEntries ? 'Saving...' : entrySettingsChanged ? 'Save entries' : 'Entries saved'}
                   </button>
                   <p className="mt-2 text-xs text-gray-600">Members can add separate entries up to this limit, and each entry has its own picks and standings row.</p>
                 </div>
@@ -2105,8 +2283,8 @@ export default function PoolAdminPage() {
                       <label className="block text-sm font-medium">Double-pick weeks</label>
                       <p className="text-xs text-gray-600">Click weeks or type a comma-separated list like 3,6,10. Players must make two picks in these weeks.</p>
                     </div>
-                    <button onClick={saveDoubleWeeks} disabled={savingDouble || settingsLocked} className="rounded-md bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50">
-                      {savingDouble ? 'Saving...' : 'Save weeks'}
+                    <button onClick={saveDoubleWeeks} disabled={savingDouble || settingsLocked || !doubleWeeksChanged} className="rounded-md bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50">
+                      {savingDouble ? 'Saving...' : doubleWeeksChanged ? 'Save weeks' : 'Weeks saved'}
                     </button>
                   </div>
                   <div className="mb-3 flex flex-wrap gap-2">
@@ -2326,11 +2504,11 @@ export default function PoolAdminPage() {
               </div>
             </section>
 
-            <section className="rounded-lg border bg-white p-4">
+            <section id="commissioner-members" className="scroll-mt-4 rounded-lg border bg-white p-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="font-semibold">Member Help & Pick Corrections</h2>
-                  <p className="text-sm text-gray-600">Choose one week, then submit or correct an entry&apos;s pick for that week. Member removal is only available before the pool starts.</p>
+                  <p className="text-sm text-gray-600">Choose one week, then help with an unlocked pick or correct a locked pick after resolving a dispute. A missed pick grades as a loss and uses a mulligan when one is available.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <input
@@ -2358,6 +2536,19 @@ export default function PoolAdminPage() {
                     </select>
                   </label>
                 </div>
+              </div>
+
+              <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3">
+                <label htmlFor="pickCorrectionReason" className="text-sm font-semibold text-amber-950">Reason for commissioner pick change</label>
+                <input
+                  id="pickCorrectionReason"
+                  value={pickCorrectionReason}
+                  onChange={(e) => setPickCorrectionReason(e.target.value)}
+                  maxLength={500}
+                  placeholder="Example: Player sent timestamped pick before deadline"
+                  className="mt-2 w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm"
+                />
+                <p className="mt-1 text-xs text-amber-800">Required for locked picks and saved in the activity log. Changing a graded pick clears its result and re-scores standings.</p>
               </div>
 
               <div className="mb-5 rounded-md border border-slate-200 bg-slate-50">

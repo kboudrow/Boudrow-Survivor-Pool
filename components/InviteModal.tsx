@@ -23,7 +23,8 @@ export function InviteModal({ open, poolId, poolName, isPrivate = false, onClose
   if (!open) return null
 
   const subject = encodeURIComponent(`Join my survivor pool: ${poolName}`)
-  const message = encodeURIComponent(`Join ${poolName} here: ${inviteUrl}`)
+  const privateInstruction = isPrivate ? ' This is a private pool; ask me for the password in a separate message.' : ''
+  const message = encodeURIComponent(`Join ${poolName} here: ${inviteUrl}.${privateInstruction}`)
 
   const markCopied = () => {
     setCopied(true)
@@ -76,6 +77,7 @@ export function InviteModal({ open, poolId, poolName, isPrivate = false, onClose
 
         <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">
           <div className="break-all text-sm font-medium text-slate-800">{inviteUrl}</div>
+          <p className="mt-2 text-xs text-slate-600">Anyone who completes the join steps is added immediately; there is no commissioner approval queue. You can remove a mistaken entry before the pool starts.</p>
           {isPrivate && (
             <p className="mt-2 text-xs text-amber-700">
               This pool is private. Send the pool password separately to people you want to join.
