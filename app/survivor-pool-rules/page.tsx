@@ -27,8 +27,8 @@ const sections = [
     body: 'Early games should lock before kickoff even if the main weekly deadline is later. This prevents someone from waiting to see part of a game before submitting or changing a pick.',
   },
   {
-    title: 'Ties, strikes, and mulligans',
-    body: 'Some pools count ties as wins, some as losses, and some as pushes. Strikes or mulligans let a player survive one or more bad weeks before being eliminated.',
+    title: 'Ties and strikes',
+    body: 'Some pools count ties as wins, some as losses, and some as pushes. Allowed strikes let an entry survive one or more bad weeks before being eliminated.',
   },
   {
     title: 'Multiple entries',

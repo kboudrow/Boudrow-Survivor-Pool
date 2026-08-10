@@ -2026,6 +2026,7 @@ export type Database = {
         Args: { p_pool_id: string; p_week: number }
         Returns: number
       }
+      pool_effective_now: { Args: { p_pool_id: string }; Returns: string }
       pool_entry_roster: {
         Args: { p_pool_id: string }
         Returns: {
@@ -2042,6 +2043,10 @@ export type Database = {
           status: string
           username: string
         }[]
+      }
+      pool_has_declared_winner: {
+        Args: { p_pool_id: string }
+        Returns: boolean
       }
       pool_max_pick_week: { Args: { p_pool_id: string }; Returns: number }
       pool_member_roster: {
@@ -2066,28 +2071,6 @@ export type Database = {
           pool_id: string
           total_entries: number
           total_members: number
-        }[]
-      }
-      pool_has_declared_winner: {
-        Args: { p_pool_id: string }
-        Returns: boolean
-      }
-      pool_winner_decided_week: {
-        Args: { p_pool_id: string }
-        Returns: number
-      }
-      pool_winner_status: {
-        Args: { p_pool_id: string }
-        Returns: {
-          alive_entries: number
-          alive_members: number
-          decided_week: number
-          is_decided: boolean
-          total_entries: number
-          total_members: number
-          winner_avatar_url: string
-          winner_name: string
-          winner_user_id: string
         }[]
       }
       pool_reinvite_overview: {
@@ -2115,6 +2098,10 @@ export type Database = {
           visible_picks: Json
         }[]
       }
+      pool_test_clock_at: {
+        Args: { p_pool_id: string; p_stage: string; p_week: number }
+        Returns: string
+      }
       pool_visible_picks: {
         Args: { p_pool_id: string; p_through_week?: boolean; p_week?: number }
         Returns: {
@@ -2126,14 +2113,6 @@ export type Database = {
           user_id: string
           week: number
         }[]
-      }
-      pool_effective_now: {
-        Args: { p_pool_id: string }
-        Returns: string
-      }
-      pool_test_clock_at: {
-        Args: { p_pool_id: string; p_stage: string; p_week: number }
-        Returns: string
       }
       pool_week_deadline_at: {
         Args: { p_pool_id: string; p_week: number }
@@ -2169,6 +2148,21 @@ export type Database = {
           week: number
         }[]
       }
+      pool_winner_decided_week: { Args: { p_pool_id: string }; Returns: number }
+      pool_winner_status: {
+        Args: { p_pool_id: string }
+        Returns: {
+          alive_entries: number
+          alive_members: number
+          decided_week: number
+          is_decided: boolean
+          total_entries: number
+          total_members: number
+          winner_avatar_url: string
+          winner_name: string
+          winner_user_id: string
+        }[]
+      }
       prune_picks_after_elimination: {
         Args: { p_pool_id?: string }
         Returns: number
@@ -2200,8 +2194,8 @@ export type Database = {
         Returns: {
           activation_status: string
           allow_discovery: boolean
+          already_joined: boolean
           created_at: string
-          created_by: string
           deadline_fixed: string
           deadline_mode: string
           id: string
@@ -2211,6 +2205,7 @@ export type Database = {
           member_count: number
           name: string
           notes: string
+          owned_by_me: boolean
           start_week: number
           strikes_allowed: string
           tie_rule: string
@@ -2271,6 +2266,10 @@ export type Database = {
         Args: { p_pool_id: string }
         Returns: number
       }
+      superadmin_finalize_test_locked_picks: {
+        Args: { p_pool_id: string; p_week: number }
+        Returns: number
+      }
       superadmin_finalize_test_week_drafts: {
         Args: { p_pool_id: string; p_week: number }
         Returns: number
@@ -2327,13 +2326,9 @@ export type Database = {
           stats_rows_count: number
           test_current_week: number
           test_mode: boolean
-          test_now_at: string | null
+          test_now_at: string
           unique_members_count: number
         }[]
-      }
-      superadmin_finalize_test_locked_picks: {
-        Args: { p_pool_id: string; p_week: number }
-        Returns: number
       }
       superadmin_randomize_test_week_outcomes: {
         Args: { p_pool_id: string; p_week: number }
@@ -2405,10 +2400,6 @@ export type Database = {
         Args: { p_enabled: boolean; p_pool_id: string }
         Returns: string
       }
-      superadmin_set_test_pool_clock: {
-        Args: { p_pool_id: string; p_stage?: string; p_week: number }
-        Returns: string
-      }
       superadmin_set_test_game_outcome: {
         Args: {
           p_away_team: string
@@ -2417,6 +2408,10 @@ export type Database = {
           p_pool_id: string
           p_week: number
         }
+        Returns: string
+      }
+      superadmin_set_test_pool_clock: {
+        Args: { p_pool_id: string; p_stage?: string; p_week: number }
         Returns: string
       }
       superadmin_set_test_pool_week: {

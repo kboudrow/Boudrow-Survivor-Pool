@@ -172,7 +172,7 @@ export default function DemoPoolPage() {
                   <tr>
                     <th className="sticky left-0 z-10 border-b border-slate-200 bg-white p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Entry</th>
                     <th className="border-b border-slate-200 p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Progress</th>
-                    <th className="border-b border-slate-200 p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Mulligans</th>
+                    <th className="border-b border-slate-200 p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Strikes remaining</th>
                     {[1, 2, 3].map((w) => (
                       <th key={w} className="border-b border-slate-200 p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                         <span className="block">W{w}</span>

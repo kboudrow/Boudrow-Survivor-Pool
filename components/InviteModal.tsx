@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { trackConversion } from '@/lib/monitoring'
 
 type InviteModalProps = {
   open: boolean
@@ -34,6 +35,7 @@ export function InviteModal({ open, poolId, poolName, isPrivate = false, onClose
     setFeedback(null)
     try {
       await navigator.clipboard.writeText(inviteUrl)
+      void trackConversion('conversion.invite_copied', { is_private: isPrivate }, poolId)
       markCopied()
     } catch {
       setFeedback('Could not copy automatically. You can copy the link shown above.')
@@ -60,11 +62,11 @@ export function InviteModal({ open, poolId, poolName, isPrivate = false, onClose
 
   return (
     <div className="fixed inset-0 z-[80]">
-      <div className="absolute inset-0 bg-slate-950/50" onClick={onClose} />
-      <div className="absolute left-1/2 top-1/2 w-[min(520px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white p-5 shadow-xl">
+      <button type="button" aria-label="Close invite dialog" className="absolute inset-0 bg-slate-950/50" onClick={onClose} />
+      <div role="dialog" aria-modal="true" aria-labelledby="invite-dialog-title" className="absolute left-1/2 top-1/2 w-[min(520px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white p-5 shadow-xl">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-slate-950">Invite players</h2>
+            <h2 id="invite-dialog-title" className="text-lg font-semibold text-slate-950">Invite players</h2>
             <p className="mt-1 text-sm text-slate-600">{poolName}</p>
           </div>
           <button onClick={onClose} className="rounded-md bg-slate-100 px-3 py-1.5 text-sm hover:bg-slate-200">

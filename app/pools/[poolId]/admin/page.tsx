@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { InviteModal } from '@/components/InviteModal'
+import { ConfirmDialogModal, type ConfirmDialog } from '@/components/ConfirmDialogModal'
 import { getErrorMessage } from '@/lib/errorMessage'
 import { poolImageUrl } from '@/lib/poolImages'
 import { makeStorageObjectPath, validatePublicImageUpload } from '@/lib/security'
@@ -138,15 +139,6 @@ type IntegrityCheckRow = {
   status: 'pass' | 'warning' | 'fail' | string
   issue_count: number
   detail: string
-}
-
-type ConfirmDialog = {
-  title: string
-  message: string
-  tone?: 'warning' | 'danger'
-  confirmLabel?: string
-  cancelLabel?: string
-  resolve: (confirmed: boolean) => void
 }
 
 const REGULAR_SEASON_MAX_WEEK = 18
@@ -342,36 +334,6 @@ function TestActionButton({
   )
 }
 
-function ConfirmDialogModal({ dialog, onClose }: { dialog: ConfirmDialog | null; onClose: () => void }) {
-  if (!dialog) return null
-  const danger = dialog.tone === 'danger'
-  const headingClass = danger ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-800'
-  const buttonClass = danger ? 'bg-red-700 hover:bg-red-800' : 'bg-slate-950 hover:bg-black'
-
-  const choose = (confirmed: boolean) => {
-    dialog.resolve(confirmed)
-    onClose()
-  }
-
-  return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center px-4">
-      <button type="button" className="absolute inset-0 bg-slate-950/50" aria-label="Cancel action" onClick={() => choose(false)} />
-      <div className="relative w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
-        <div className={`mb-4 rounded-md border px-3 py-2 text-sm font-semibold ${headingClass}`}>{dialog.title}</div>
-        <p className="whitespace-pre-line text-sm leading-6 text-slate-700">{dialog.message}</p>
-        <div className="mt-5 flex flex-wrap justify-end gap-2">
-          <button type="button" onClick={() => choose(false)} className="rounded-md bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200">
-            {dialog.cancelLabel || 'Cancel'}
-          </button>
-          <button type="button" onClick={() => choose(true)} className={`rounded-md px-4 py-2 text-sm font-semibold text-white ${buttonClass}`}>
-            {dialog.confirmLabel || 'Continue'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 export default function PoolAdminPage() {
   const router = useRouter()
   const { poolId } = useParams<{ poolId: string }>()
@@ -468,6 +430,10 @@ export default function PoolAdminPage() {
       }),
     [testGames],
   )
+  const parsedTestWeek = Number.parseInt(testWeek, 10) || testStartWeek
+  const testPicksRequired = entryCount * (pool?.double_pick_weeks?.includes(parsedTestWeek) ? 2 : 1)
+  const testPicksSubmitted = rows.filter((row) => !!row.draft_team_abbr || !!row.final_team_abbr).length
+  const testPickSlotsMissing = Math.max(0, testPicksRequired - testPicksSubmitted)
   const poolStartMs = poolStartAt ? Date.parse(poolStartAt) : null
   const poolStartKnown = poolStartMs !== null && Number.isFinite(poolStartMs)
   const leagueHasStarted = !!pool && (
@@ -1206,28 +1172,6 @@ export default function PoolAdminPage() {
     }
   }
 
-  const saveTestWeek = async () => {
-    if (!pool || !isSuperAdmin) return
-    const week = parseInt(testWeek, 10)
-    setRunningAction('test-week')
-    setError(null)
-    setNotice(null)
-    try {
-      const { data, error: weekErr } = await supabase.rpc('superadmin_set_test_pool_week', {
-        p_pool_id: pool.id,
-        p_week: week,
-      })
-      if (weekErr) throw weekErr
-      setNotice(String(data || 'Test week updated.'))
-      setSelectedWeek(week)
-      await loadOverview(week)
-    } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Failed to set simulated week.'))
-    } finally {
-      setRunningAction(null)
-    }
-  }
-
   const saveTestClock = async () => {
     if (!pool || !isSuperAdmin) return
     const week = parseInt(testWeek, 10)
@@ -1286,7 +1230,7 @@ export default function PoolAdminPage() {
       'randomize-outcomes': `Randomize empty game winners for ${selectedLabel} in ${pool.name}? Existing choices stay as-is.`,
       score: `Score ${selectedLabel} and advance ${pool.name} to ${nextLabel}?\n\nThis grades submitted picks, counts missed picks as losses, updates standings, clears impossible future picks after elimination, and advances only this test pool.`,
       clear: `Unscore ${selectedLabel} for ${pool.name}?\n\nPicks stay in place. This week's fake outcomes, no-pick losses, and scoring are removed, then standings are rebuilt.`,
-      reset: `Reset the full test run for ${pool.name}?\n\nMembers and settings stay. Test picks, fake outcomes, and test standings are cleared.`,
+      reset: `Reset the full test run for ${pool.name}?\n\nMembers and settings stay. Every entry is restored to alive, and the winner, test picks, fake outcomes, and test standings are cleared.`,
     }
     if (action === 'score' && testGamesNeedingOutcome.length > 0) {
       setError(
@@ -1344,6 +1288,63 @@ export default function PoolAdminPage() {
       await loadOverview(reloadWeek)
     } catch (e: unknown) {
       setError(getErrorMessage(e, 'Test action failed.'))
+    } finally {
+      setRunningAction(null)
+    }
+  }
+
+  const runTestShortcut = async (action: 'start-week' | 'finish-week') => {
+    if (!pool || !isSuperAdmin) return
+    const week = Number.parseInt(testWeek, 10)
+    if (!Number.isFinite(week)) return
+
+    if (action === 'finish-week') {
+      const confirmed = await requestConfirm({
+        title: `Finish ${weekLabel(week)}?`,
+        message: `Move the clock past the final game, randomly fill any missing outcomes for games with picks, then score and advance ${pool.name}.\n\nMissed pick slots count as losses.`,
+        confirmLabel: 'Finish & score',
+        tone: 'warning',
+      })
+      if (!confirmed) return
+    }
+
+    setRunningAction(`test-${action}`)
+    setError(null)
+    setNotice(null)
+    try {
+      if (action === 'start-week') {
+        const { error: weekErr } = await supabase.rpc('superadmin_set_test_pool_week', { p_pool_id: pool.id, p_week: week })
+        if (weekErr) throw weekErr
+        const { data, error: clockErr } = await supabase.rpc('superadmin_set_test_pool_clock', {
+          p_pool_id: pool.id,
+          p_week: week,
+          p_stage: 'before_week',
+        })
+        if (clockErr) throw clockErr
+        setTestClockStage('before_week')
+        setNotice(String(data || `${weekLabel(week)} is ready for picks.`))
+        setSelectedWeek(week)
+        await loadOverview(week)
+        return
+      }
+
+      const { error: clockErr } = await supabase.rpc('superadmin_set_test_pool_clock', {
+        p_pool_id: pool.id,
+        p_week: week,
+        p_stage: 'week_done',
+      })
+      if (clockErr) throw clockErr
+      const { error: outcomeErr } = await supabase.rpc('superadmin_randomize_test_week_outcomes', { p_pool_id: pool.id, p_week: week })
+      if (outcomeErr) throw outcomeErr
+      const { data, error: scoreErr } = await supabase.rpc('superadmin_score_test_pool_week', { p_pool_id: pool.id, p_week: week })
+      if (scoreErr) throw scoreErr
+      const reloadWeek = Math.min(maxTestWeekForPool(pool), week + 1)
+      setTestClockStage('before_week')
+      setSelectedWeek(reloadWeek)
+      setNotice(String(data || `${weekLabel(week)} scored.`))
+      await loadOverview(reloadWeek)
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Test shortcut failed.'))
     } finally {
       setRunningAction(null)
     }
@@ -1627,11 +1628,28 @@ export default function PoolAdminPage() {
 
                 {pool.test_mode ? (
                   <>
-                    <div className="mb-4 grid gap-2 rounded-md border border-violet-200 bg-white p-3 text-sm text-slate-700 md:grid-cols-4">
-                      <div><span className="font-semibold text-slate-950">1.</span> Choose the week the pool should act like.</div>
-                      <div><span className="font-semibold text-slate-950">2.</span> Move the test clock to check lock visibility.</div>
-                      <div><span className="font-semibold text-slate-950">3.</span> Set fake winners for that week&apos;s games.</div>
-                      <div><span className="font-semibold text-slate-950">4.</span> Score & advance so standings move forward.</div>
+                    <div className="mb-4 rounded-md border border-violet-300 bg-violet-900 p-4 text-white">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-wide text-violet-200">Simulation status</p>
+                          <h3 className="mt-1 text-lg font-semibold">
+                            {weekLabel(pool.test_current_week || pool.start_week)} · {pool.double_pick_weeks?.includes(pool.test_current_week || pool.start_week) ? '2 picks required' : '1 pick required'}
+                          </h3>
+                          <p className="mt-1 text-sm text-violet-100">Test clock: {fmt(pool.test_now_at)}</p>
+                        </div>
+                        <Link
+                          href={`/pools?pool=${pool.id}`}
+                          className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-violet-800 hover:bg-violet-50"
+                        >
+                          Open player view
+                        </Link>
+                      </div>
+                    </div>
+
+                    <div className="mb-4 grid gap-2 rounded-md border border-violet-200 bg-white p-3 text-sm text-slate-700 md:grid-cols-3">
+                      <div><span className="font-semibold text-slate-950">1. Start week.</span> This opens picks at the beginning of the selected week.</div>
+                      <div><span className="font-semibold text-slate-950">2. Test locks.</span> Use the clock buttons below whenever you need them.</div>
+                      <div><span className="font-semibold text-slate-950">3. Finish & score.</span> Missing winners can be filled automatically.</div>
                     </div>
 
                     <div className="grid gap-3 lg:grid-cols-[minmax(240px,320px)_1fr]">
@@ -1650,11 +1668,11 @@ export default function PoolAdminPage() {
                         </label>
                         <div className="mt-2 grid grid-cols-2 gap-2">
                           <button
-                            onClick={saveTestWeek}
-                            disabled={runningAction === 'test-week'}
+                            onClick={() => runTestShortcut('start-week')}
+                            disabled={!!runningAction}
                             className="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
                           >
-                            {runningAction === 'test-week' ? 'Saving...' : 'Show This Week'}
+                            {runningAction === 'test-start-week' ? 'Starting...' : 'Start This Week'}
                           </button>
                           <button
                             onClick={() => loadTestOptions(pool.id, testWeek)}
@@ -1664,7 +1682,7 @@ export default function PoolAdminPage() {
                             {testToolsLoading ? 'Loading...' : 'Refresh'}
                           </button>
                         </div>
-                        <p className="mt-2 text-xs text-slate-600">Members see the pool exactly as if this were the current active week.</p>
+                        <p className="mt-2 text-xs text-slate-600">Starts the selected week before its first kickoff. Members can immediately make picks.</p>
                       </div>
 
                       <div className="rounded-md border border-violet-200 bg-white p-3">
@@ -1685,6 +1703,23 @@ export default function PoolAdminPage() {
                         <p className="mt-2 text-xs text-slate-600">
                           {TEST_CLOCK_STAGES.find((stage) => stage.value === testClockStage)?.description}
                         </p>
+                        <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                          {TEST_CLOCK_STAGES.map((stage) => (
+                            <button
+                              key={stage.value}
+                              type="button"
+                              onClick={() => setTestClockStage(stage.value)}
+                              aria-pressed={testClockStage === stage.value}
+                              className={`rounded-md px-2 py-1.5 text-xs font-semibold ${
+                                testClockStage === stage.value
+                                  ? 'bg-violet-700 text-white'
+                                  : 'bg-violet-50 text-violet-800 hover:bg-violet-100'
+                              }`}
+                            >
+                              {stage.label.replace('After ', '').replace('Before week starts', 'Before week')}
+                            </button>
+                          ))}
+                        </div>
                         {pool.test_now_at && (
                           <p className="mt-2 rounded-md bg-violet-50 px-2 py-1 text-xs font-semibold text-violet-800">
                             Current clock: {fmt(pool.test_now_at)}
@@ -1699,7 +1734,8 @@ export default function PoolAdminPage() {
                         </button>
                       </div>
 
-                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 lg:col-span-2">
+                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5 lg:col-span-2">
+                        <InfoTile label="Pick slots filled" value={`${testPicksSubmitted}/${testPicksRequired}`} />
                         <InfoTile label="Games this week" value={String(testGames.length)} />
                         <InfoTile label="Games with picks" value={String(testGamesWithPicks.length)} />
                         <InfoTile label="Winners set" value={`${testGamesWithOutcomes.length}/${testGames.length || 0}`} />
@@ -1712,6 +1748,29 @@ export default function PoolAdminPage() {
                         Before you score and advance, set winners for: {testGamesNeedingOutcome.map((game) => `${game.away_team} @ ${game.home_team}`).slice(0, 6).join(', ')}.
                       </p>
                     )}
+
+                    {testPickSlotsMissing > 0 && (
+                      <p className="mt-3 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                        {testPickSlotsMissing} pick {testPickSlotsMissing === 1 ? 'slot is' : 'slots are'} still empty. You can still score, but every empty slot counts as a loss.
+                      </p>
+                    )}
+
+                    <div className="mt-4 rounded-lg border border-emerald-300 bg-emerald-50 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <h3 className="font-semibold text-emerald-950">Done testing picks for {weekLabel(parsedTestWeek)}?</h3>
+                          <p className="mt-1 text-sm text-emerald-800">One click moves past the final game, fills missing picked-game winners randomly, scores, and advances.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => runTestShortcut('finish-week')}
+                          disabled={!!runningAction}
+                          className="rounded-md bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+                        >
+                          {runningAction === 'test-finish-week' ? 'Finishing...' : 'Finish Week & Score'}
+                        </button>
+                      </div>
+                    </div>
 
                     <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                       <TestActionButton
@@ -2077,7 +2136,7 @@ export default function PoolAdminPage() {
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                     <div className="text-xs uppercase tracking-wide text-slate-500">Strikes After Latest Week</div>
                     <div className="mt-1 text-lg font-bold text-slate-950">{selectedAuditSummary.latest.strikes_after_week}</div>
-                    <div className="text-xs text-slate-500">{selectedAuditSummary.latest.strikes_left_after_week} mulligan(s) left</div>
+                    <div className="text-xs text-slate-500">{selectedAuditSummary.latest.strikes_left_after_week} strikes remaining</div>
                   </div>
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                     <div className="text-xs uppercase tracking-wide text-slate-500">Official Picks</div>
@@ -2476,4 +2535,3 @@ function ReinviteMember({ row }: { row: ReinviteRow }) {
     </div>
   )
 }
-

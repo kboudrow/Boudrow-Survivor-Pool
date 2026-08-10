@@ -46,7 +46,7 @@ const faqs = [
       'No. Survive Sunday tracks used teams inside each pool and prevents repeat team picks for that player.',
   },
   {
-    question: 'What are strikes or mulligans?',
+    question: 'What are strikes?',
     answer:
       'A strike is a loss. Commissioners can allow zero, one, or two misses before a player is eliminated. If a player still has strikes left, they stay alive.',
   },
@@ -130,4 +130,3 @@ export default function FaqPage() {
     </main>
   )
 }
-

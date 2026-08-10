@@ -4,11 +4,13 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { AdSlot } from '@/components/AdSlot'
+import { AppDialogModal, type AppDialog } from '@/components/AppDialogModal'
 import { InviteModal } from '@/components/InviteModal'
 import { getErrorMessage } from '@/lib/errorMessage'
-import { logAppEvent } from '@/lib/monitoring'
+import { logAppEvent, trackConversion } from '@/lib/monitoring'
 import { poolImageUrl } from '@/lib/poolImages'
 import { supabase } from '@/lib/supabaseClient'
+import { entryProgress, poolHasWinner, requiredPickSlots } from '@/lib/survivorRules'
 
 /** ---------------- Types ---------------- */
 type Pool = {
@@ -85,14 +87,6 @@ type WeekPickCompletion = {
   complete_entries: number
   partial_entries: number
   missing_slots: number
-}
-type AppDialog = {
-  title: string
-  message: string
-  tone?: 'info' | 'warning' | 'danger'
-  confirmLabel?: string
-  cancelLabel?: string
-  onConfirm?: () => void | Promise<void>
 }
 type PoolPickStatus = { week: number; made: number; needed: number; entries: number }
 type PoolMemberSummary = { total: number; alive: number; totalEntries: number; aliveEntries: number }
@@ -353,8 +347,11 @@ function fmtEtDateTime(value?: string | null) {
 function Tab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
     <button
+      type="button"
+      role="tab"
+      aria-selected={active}
       onClick={onClick}
-      className={`px-3 py-2 text-sm border-b-2 -mb-px ${
+      className={`min-h-11 whitespace-nowrap px-3 py-2 text-sm border-b-2 -mb-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5161d] ${
         active ? 'border-black font-semibold' : 'border-transparent text-gray-600 hover:text-black'
       }`}
     >
@@ -371,7 +368,7 @@ function InfoTile({ label, value }: { label: string; value: string }) {
   )
 }
 
-const poolDecidedFromSummary = (summary?: PoolMemberSummary) => !!summary && summary.total > 1 && summary.alive === 1 && summary.aliveEntries > 0
+const poolDecidedFromSummary = (summary?: PoolMemberSummary) => !!summary && poolHasWinner(summary.total, summary.alive, summary.aliveEntries)
 
 function PoolStagePill({ pool, pickStatus, isDecided }: { pool: Pool; pickStatus?: PoolPickStatus; isDecided?: boolean }) {
   if (pool.activation_status === 'cancelled') {
@@ -673,45 +670,6 @@ function PickSavedToast({ notice, onClose }: { notice: PickNotice; onClose: () =
   )
 }
 
-function AppDialogModal({ dialog, onClose }: { dialog: AppDialog | null; onClose: () => void }) {
-  if (!dialog) return null
-
-  const toneClass =
-    dialog.tone === 'danger'
-      ? 'border-red-200 bg-red-50 text-red-700'
-      : dialog.tone === 'warning'
-        ? 'border-amber-200 bg-amber-50 text-amber-700'
-        : 'border-blue-200 bg-blue-50 text-blue-700'
-  const buttonClass = dialog.tone === 'danger' ? 'bg-red-700 hover:bg-red-800' : 'bg-slate-950 hover:bg-black'
-
-  const confirm = async () => {
-    const action = dialog.onConfirm
-    onClose()
-    if (!action) return
-    await action()
-  }
-
-  return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center px-4">
-      <button type="button" className="absolute inset-0 bg-slate-950/50" aria-label="Close dialog" onClick={onClose} />
-      <div className="relative w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
-        <div className={`mb-4 rounded-md border px-3 py-2 text-sm font-semibold ${toneClass}`}>{dialog.title}</div>
-        <p className="text-sm leading-6 text-slate-700">{dialog.message}</p>
-        <div className="mt-5 flex flex-wrap justify-end gap-2">
-          {dialog.cancelLabel && (
-            <button type="button" onClick={onClose} className="rounded-md bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200">
-              {dialog.cancelLabel}
-            </button>
-          )}
-          <button type="button" onClick={confirm} className={`rounded-md px-4 py-2 text-sm font-semibold text-white ${buttonClass}`}>
-            {dialog.confirmLabel || 'Got it'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 /** ---------------- Team Picker Modal ---------------- */
 function TeamPickerModal(props: {
   week: number
@@ -735,10 +693,10 @@ function TeamPickerModal(props: {
 
   return (
     <div className="fixed inset-0 z-[60]">
-      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(1100px,92vw)] max-h-[85vh] overflow-y-auto bg-white rounded-xl shadow-xl p-4">
+      <button type="button" aria-label="Close team picker" className="absolute inset-0 bg-black/30" onClick={onClose} />
+      <div role="dialog" aria-modal="true" aria-labelledby="team-picker-title" className="absolute left-1/2 top-1/2 max-h-[85vh] w-[min(1100px,92vw)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl bg-white p-4 shadow-xl">
         <div className="flex items-center justify-between mb-3">
-          <h4 className="text-lg font-semibold">
+          <h4 id="team-picker-title" className="text-lg font-semibold">
             Pick a team - {weekLabel(week)}, Pick {slot}
           </h4>
           <div className="flex items-center gap-2">
@@ -929,7 +887,7 @@ function MyPoolsContent() {
   const availableWeeks = useMemo(() => weeks.filter((week) => week >= (pool?.start_week ?? 1)), [weeks, pool?.start_week])
   const picksAllowedForWeek = useCallback((week: number) => {
     if (week < (pool?.start_week ?? 1)) return 0
-    return pool?.double_pick_weeks?.includes(week) ? 2 : 1
+    return requiredPickSlots(pool?.double_pick_weeks, week)
   }, [pool?.double_pick_weeks, pool?.start_week])
   const poolStartMs = poolStartAt ? Date.parse(poolStartAt) : null
   const poolStartKnown = poolStartMs !== null && Number.isFinite(poolStartMs)
@@ -1513,6 +1471,7 @@ function MyPoolsContent() {
     setTeamPickerTarget(null)
     const saved = await saveDraft(week, slot, team)
     if (saved) {
+      void trackConversion('conversion.pick_saved', { week, slot, entry_id: selectedEntryId }, selectedId)
       showPickNotice({ team, week, slot, action: 'saved' })
     } else {
       setMyDraftPicks((prev) => ({ ...prev, [key]: previousPick }))
@@ -1802,11 +1761,12 @@ function MyPoolsContent() {
             eliminated_week: null,
           } as MemberStats)
         const entryPicksThroughWeek = standingsHistoryPicks.filter((pick) => pick.entry_id === member.id && pick.week <= standingsWeek)
-        const strikesUsedThroughWeek = entryPicksThroughWeek.filter((pick) => pick.result === 'loss' || (pick.result === 'push' && pool?.tie_rule === 'loss')).length
+        const progress = entryProgress(entryPicksThroughWeek.map((pick) => pick.result), strikesAllowed, pool?.tie_rule || 'loss')
+        const strikesUsedThroughWeek = progress.strikesUsed
         const winsThroughWeek = entryPicksThroughWeek.filter((pick) => pick.result === 'win').length
         const lossesThroughWeek = entryPicksThroughWeek.filter((pick) => pick.result === 'loss').length
-        const aliveThroughWeek = strikesUsedThroughWeek <= strikesAllowed
-        const strikesLeft = Math.max(0, strikesAllowed - strikesUsedThroughWeek)
+        const aliveThroughWeek = progress.alive
+        const strikesLeft = progress.strikesLeft
         return {
           member,
           stats,
@@ -2591,13 +2551,14 @@ function MyPoolsContent() {
                         <SurvivalChart alive={activeEntryCount} total={standingsEntryCount} week={standingsWeek} />
                       </div>
                     </div>
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={`Standings through ${weekLabel(standingsWeek)}`}>
                       <table className="isolate w-full border-separate border-spacing-0 text-sm" style={{ minWidth: Math.max(760, 360 + standingsTableWeeks.length * 96) }}>
+                        <caption className="sr-only">Pool entry progression through {weekLabel(standingsWeek)}</caption>
                         <thead>
                           <tr>
-                            <th className="sticky left-0 z-30 w-[240px] min-w-[240px] border-b border-r border-slate-200 bg-white p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 shadow-[6px_0_10px_-10px_rgba(15,23,42,0.75)]">Entry</th>
+                            <th scope="col" className="sticky left-0 z-30 w-[180px] min-w-[180px] border-b border-r border-slate-200 bg-white p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 shadow-[6px_0_10px_-10px_rgba(15,23,42,0.75)] sm:w-[240px] sm:min-w-[240px]">Entry</th>
                             <th className="border-b border-slate-200 p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Progress</th>
-                            <th className="border-b border-slate-200 p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Mulligans</th>
+                            <th className="border-b border-slate-200 p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Strikes remaining</th>
                             {standingsTableWeeks.map((week) => (
                               <th key={week} className="border-b border-slate-200 p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                                 <span className="block">{shortWeekLabel(week)}</span>
@@ -2613,7 +2574,7 @@ function MyPoolsContent() {
                             const eliminatedWeek = !alive ? stats.eliminated_week || standingsWeek : stats.eliminated_week || null
                             return (
                               <tr key={member.id} className={alive ? 'align-top' : 'align-top bg-slate-50 text-slate-500'}>
-                                <td className={`sticky left-0 z-20 w-[240px] min-w-[240px] border-b border-r border-slate-100 p-2 shadow-[6px_0_10px_-10px_rgba(15,23,42,0.75)] ${alive ? 'bg-white' : 'bg-slate-50'}`}>
+                                <th scope="row" className={`sticky left-0 z-20 w-[180px] min-w-[180px] border-b border-r border-slate-100 p-2 text-left font-normal shadow-[6px_0_10px_-10px_rgba(15,23,42,0.75)] sm:w-[240px] sm:min-w-[240px] ${alive ? 'bg-white' : 'bg-slate-50'}`}>
                                   <div className="flex min-w-0 items-center gap-2">
                                     <EntryAvatar member={member} name={name} />
                                     <div className="min-w-0">
@@ -2621,7 +2582,7 @@ function MyPoolsContent() {
                                       <div className="text-xs text-slate-500">Entry {member.entry_number || 1}</div>
                                     </div>
                                   </div>
-                                </td>
+                                </th>
                                 <td className="border-b border-slate-100 p-2">
                                   {alive ? (
                                     <span className="inline-flex rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-semibold text-white">Alive</span>
@@ -2818,4 +2779,3 @@ export default function MyPoolsPage() {
     </Suspense>
   )
 }
-

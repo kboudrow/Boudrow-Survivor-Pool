@@ -15,9 +15,16 @@ Authorization: Bearer <CRON_SECRET>
 
 Never paste the real secret into docs, git, screenshots, or chat.
 
-## Current Vercel Fallback
+## Automation Layers
 
-`vercel.json` keeps one daily run for each route because the current Vercel Hobby plan rejects more frequent schedules.
+`vercel.json` keeps one daily fallback run for each route because the current Vercel Hobby plan rejects more frequent schedules.
+
+GitHub Actions provides the live cadence:
+
+- `.github/workflows/sync-nfl-scores.yml`: every 10 minutes.
+- `.github/workflows/lock-picks.yml`: every 5 minutes.
+
+Both workflows fail visibly when the repository `CRON_SECRET` is missing. The same secret must be configured in GitHub Actions and the production Vercel project.
 
 Daily fallback is useful, but it is not enough for live NFL Sundays.
 
