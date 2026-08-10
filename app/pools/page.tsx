@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import { AdSlot } from '@/components/AdSlot'
 import { AppDialogModal, type AppDialog } from '@/components/AppDialogModal'
 import { InviteModal } from '@/components/InviteModal'
+import { formatLockCountdown } from '@/lib/countdown'
 import { getErrorMessage } from '@/lib/errorMessage'
 import { logAppEvent, trackConversion } from '@/lib/monitoring'
 import { poolEntryCountLabel } from '@/lib/poolCapacity'
@@ -309,15 +310,6 @@ function currentWeekForPool(pool: Pick<Pool, 'start_week' | 'include_playoffs' |
   }
   return Math.max(pool.start_week || 1, currentPickWeek(rows, new Date(), maxWeek))
 }
-function msToCountdown(ms: number) {
-  if (ms <= 0) return '00:00:00'
-  const s = Math.floor(ms / 1000)
-  const hh = Math.floor(s / 3600)
-  const mm = Math.floor((s % 3600) / 60)
-  const ss = s % 60
-  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
-}
-
 function fmtDateTime(value?: string | null) {
   if (!value) return '-'
   return new Date(value).toLocaleString('en-GB', {
@@ -768,7 +760,7 @@ function TeamPickerModal(props: {
                   const fixedMs = deadlineMode === 'fixed' && fixedLockUtc ? Date.parse(fixedLockUtc) : Infinity
                   const lockMs = Math.min(kickoffMs, fixedMs)
                   const locked = currentTimeMs >= lockMs
-                  const countdown = !kickoffConfirmed ? 'Unavailable: kickoff TBD' : locked ? 'Locked' : `Locks in ${msToCountdown(lockMs - currentTimeMs)}`
+                  const countdown = !kickoffConfirmed ? 'Unavailable: kickoff TBD' : locked ? 'Locked' : `Locks in ${formatLockCountdown(lockMs - currentTimeMs)}`
 
                   const cards = [
                     { abbr: awayAbbr, side: 'Away' as const },
@@ -777,9 +769,9 @@ function TeamPickerModal(props: {
 
                   return (
                     <div key={g.id} className="border rounded-lg p-3">
-                      <div className="flex items-center justify-between mb-1">
+                      <div className="mb-1 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                         <div className="text-xs text-gray-500">{kickoffConfirmed ? fmtEtDateTime(kickoffIso) : 'Official kickoff time TBD'}</div>
-                        <span className={`text-[11px] px-2 py-0.5 rounded-full border ${!kickoffConfirmed ? 'bg-amber-50 border-amber-300 text-amber-800' : locked ? 'bg-gray-200 border-gray-300 text-gray-700' : 'bg-green-50 border-green-300 text-green-700'}`}>
+                        <span className={`w-fit rounded-full border px-2 py-0.5 text-[11px] leading-4 ${!kickoffConfirmed ? 'bg-amber-50 border-amber-300 text-amber-800' : locked ? 'bg-gray-200 border-gray-300 text-gray-700' : 'bg-green-50 border-green-300 text-green-700'}`}>
                           {countdown}
                         </span>
                       </div>
