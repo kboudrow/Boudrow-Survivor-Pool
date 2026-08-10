@@ -762,6 +762,59 @@ export type Database = {
           },
         ]
       }
+      pool_entry_survival_graces: {
+        Row: {
+          created_at: string
+          entry_id: string
+          pool_id: string
+          strike_credits: number
+          week: number
+        }
+        Insert: {
+          created_at?: string
+          entry_id: string
+          pool_id: string
+          strike_credits: number
+          week: number
+        }
+        Update: {
+          created_at?: string
+          entry_id?: string
+          pool_id?: string
+          strike_credits?: number
+          week?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pool_entry_survival_graces_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "pool_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pool_entry_survival_graces_pool_id_fkey"
+            columns: ["pool_id"]
+            isOneToOne: false
+            referencedRelation: "pools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pool_entry_survival_graces_pool_id_fkey"
+            columns: ["pool_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_pool_history"
+            referencedColumns: ["pool_id"]
+          },
+          {
+            foreignKeyName: "pool_entry_survival_graces_pool_id_fkey"
+            columns: ["pool_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_pools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pool_member_stats: {
         Row: {
           eliminated: boolean
@@ -1692,6 +1745,15 @@ export type Database = {
           status: string
         }[]
       }
+      admin_pool_scoring_integrity_pre_clarified_rules: {
+        Args: { p_pool_id: string }
+        Returns: {
+          check_name: string
+          detail: string
+          issue_count: number
+          status: string
+        }[]
+      }
       admin_pool_week_overview: {
         Args: { p_pool_id: string; p_week: number }
         Returns: {
@@ -1750,6 +1812,10 @@ export type Database = {
         Returns: undefined
       }
       admin_update_pool_visibility: {
+        Args: { p_is_public: boolean; p_password?: string; p_pool_id: string }
+        Returns: undefined
+      }
+      admin_update_pool_visibility_validated_internal: {
         Args: { p_is_public: boolean; p_password?: string; p_pool_id: string }
         Returns: undefined
       }
@@ -1890,12 +1956,42 @@ export type Database = {
         }
         Returns: undefined
       }
+      clear_entry_draft_pick_unserialized: {
+        Args: {
+          p_entry_id: string
+          p_pool_id: string
+          p_slot: number
+          p_week: number
+        }
+        Returns: undefined
+      }
       clone_pool_for_new_season: {
         Args: { p_new_season: number; p_old_pool_id: string }
         Returns: string
       }
       count_pool_members: { Args: { p_pool_id: string }; Returns: number }
       create_pool_with_owner: {
+        Args: {
+          p_allow_multiple_entries?: boolean
+          p_deadline_fixed?: string
+          p_deadline_mode?: string
+          p_double_pick_weeks?: number[]
+          p_image_url?: string
+          p_include_playoffs?: boolean
+          p_is_public?: boolean
+          p_max_entries_per_user?: number
+          p_max_members?: number
+          p_name: string
+          p_notes?: string
+          p_password?: string
+          p_season?: number
+          p_start_week?: number
+          p_strikes_allowed?: string
+          p_tie_rule?: string
+        }
+        Returns: string
+      }
+      create_pool_with_owner_validated_internal: {
         Args: {
           p_allow_multiple_entries?: boolean
           p_deadline_fixed?: string
@@ -2004,6 +2100,10 @@ export type Database = {
         Args: { p_password?: string; p_pool_id: string; p_token?: string }
         Returns: undefined
       }
+      join_pool_validated_internal: {
+        Args: { p_password?: string; p_pool_id: string; p_token?: string }
+        Returns: undefined
+      }
       leave_pool: { Args: { p_pool_id: string }; Returns: undefined }
       list_pool_members: {
         Args: { p_pool_id: string }
@@ -2073,6 +2173,7 @@ export type Database = {
           total_members: number
         }[]
       }
+      pool_pick_phase: { Args: { p_week: number }; Returns: string }
       pool_reinvite_overview: {
         Args: { p_pool_id: string }
         Returns: {
@@ -2180,6 +2281,16 @@ export type Database = {
         Returns: number
       }
       save_entry_draft_pick: {
+        Args: {
+          p_entry_id: string
+          p_pool_id: string
+          p_slot: number
+          p_team_abbr: string
+          p_week: number
+        }
+        Returns: undefined
+      }
+      save_entry_draft_pick_unserialized: {
         Args: {
           p_entry_id: string
           p_pool_id: string

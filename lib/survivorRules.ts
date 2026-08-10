@@ -23,7 +23,11 @@ export function teamAlreadyUsed(
   teamAbbr: string,
   target: { week: number; slot: number },
 ) {
-  return picks.some((pick) => pick.teamAbbr === teamAbbr && (pick.week !== target.week || pick.slot !== target.slot))
+  return picks.some((pick) =>
+    pick.teamAbbr === teamAbbr &&
+    (pick.week <= 18) === (target.week <= 18) &&
+    (pick.week !== target.week || pick.slot !== target.slot),
+  )
 }
 
 export function effectiveTeamLockMs(options: {
@@ -39,6 +43,6 @@ export function isPickLocked(lockMs: number, nowMs: number) {
   return nowMs >= lockMs
 }
 
-export function poolHasWinner(totalPlayers: number, alivePlayers: number, aliveEntries: number) {
-  return totalPlayers > 1 && alivePlayers === 1 && aliveEntries > 0
+export function poolHasWinner(totalEntries: number, aliveEntries: number) {
+  return totalEntries > 1 && aliveEntries === 1
 }

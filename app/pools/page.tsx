@@ -190,6 +190,7 @@ const FULL_PLAYOFF_WEEK_LABELS: Record<number, string> = {
 }
 
 const POOL_CARD_SELECT = 'id,name,season,is_public,start_week,include_playoffs,strikes_allowed,tie_rule,image_url,max_members,allow_multiple_entries,max_entries_per_user,activation_status,double_pick_weeks,test_mode,test_current_week,test_now_at'
+const POOL_DETAIL_SELECT = 'id,name,season,is_public,visibility,allow_discovery,start_week,include_playoffs,strikes_allowed,mulligans,tie_rule,ties,deadline,deadline_mode,deadline_fixed,notes,image_url,created_by,created_at,activation_status,activated_at,activated_by,archived,archived_at,max_members,allow_multiple_entries,max_entries_per_user,double_pick_weeks,plan,pick_privacy,payment_status,pinned_rank,sponsored_until,cloned_from_pool_id,test_mode,test_current_week,test_now_at,winner_user_id,name_normalized'
 const teamByAbbr = (abbr?: string | null) => NFL_TEAMS.find((t) => t.abbr === abbr) || null
 const isNoPick = (abbr?: string | null) => !!abbr?.startsWith('NO_PICK')
 const toAbbr = (input: string): string => {
@@ -249,6 +250,14 @@ function normalizeTimeTo24h(s?: string | null): string | null {
     return `${String(H).padStart(2, '0')}:${String(M).padStart(2, '0')}`
   }
   return null
+}
+
+function formatEtTime(s?: string | null) {
+  const normalized = normalizeTimeTo24h(s) || '13:00'
+  const [hour, minute] = normalized.split(':').map(Number)
+  const suffix = hour >= 12 ? 'PM' : 'AM'
+  const hour12 = hour % 12 || 12
+  return `${hour12}:${String(minute).padStart(2, '0')} ${suffix} ET`
 }
 function tzOffsetMinutes(zone: string, utcDate: Date): number {
   const dtf = new Intl.DateTimeFormat('en-US', {
@@ -368,7 +377,7 @@ function InfoTile({ label, value }: { label: string; value: string }) {
   )
 }
 
-const poolDecidedFromSummary = (summary?: PoolMemberSummary) => !!summary && poolHasWinner(summary.total, summary.alive, summary.aliveEntries)
+const poolDecidedFromSummary = (summary?: PoolMemberSummary) => !!summary && poolHasWinner(summary.totalEntries, summary.aliveEntries)
 
 function PoolStagePill({ pool, pickStatus, isDecided }: { pool: Pool; pickStatus?: PoolPickStatus; isDecided?: boolean }) {
   if (pool.activation_status === 'cancelled') {
@@ -911,7 +920,7 @@ function MyPoolsContent() {
   const deadlineLabel =
     pool?.deadline_mode === 'rolling'
       ? 'Rolling: each game locks at kickoff'
-      : 'Sunday 1 PM ET'
+      : `Sunday ${formatEtTime(pool?.deadline_fixed)}`
   const selectedWeekCloseLabel =
     isTestMode
       ? pool?.test_now_at
@@ -1505,8 +1514,10 @@ function MyPoolsContent() {
       }
     }
     const alreadyUsedElsewhere =
-      Object.entries(myDraftPicks).some(([k, t]) => k !== key && t?.abbr === team.abbr) ||
-      Object.entries(myFinalPicks).some(([k, pick]) => k !== key && pick.team_abbr === team.abbr)
+      Object.entries(myDraftPicks).some(([k, t]) =>
+        k !== key && t?.abbr === team.abbr && (Number(k.split(':')[0]) <= 18) === (week <= 18)) ||
+      Object.entries(myFinalPicks).some(([k, pick]) =>
+        k !== key && pick.team_abbr === team.abbr && (Number(k.split(':')[0]) <= 18) === (week <= 18))
     if (alreadyUsedElsewhere) {
       showMessage('Team already used', `${team.name} was already used in another week.`, 'warning')
       return
@@ -1955,7 +1966,7 @@ function MyPoolsContent() {
     backgroundRefreshRef.current = null
 
     try {
-      const { data: poolRow, error: poolErr } = await supabase.from('pools').select('*').eq('id', id).maybeSingle<Pool>()
+      const { data: poolRow, error: poolErr } = await supabase.from('pools').select(POOL_DETAIL_SELECT).eq('id', id).maybeSingle<Pool>()
       if (poolErr) throw poolErr
       if (!poolRow) throw new Error('Pool not found')
 
