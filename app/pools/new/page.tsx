@@ -92,7 +92,7 @@ export default function CreatePoolPage() {
   const [isPublic, setIsPublic] = useState(true)
   const [password, setPassword] = useState('')
   const [password2, setPassword2] = useState('')
-  const [maxMembers, setMaxMembers] = useState('25')
+  const [maxMembers, setMaxMembers] = useState('unlimited')
   const [customMaxMembers, setCustomMaxMembers] = useState('')
   const [allowMultipleEntries, setAllowMultipleEntries] = useState(false)
   const [maxEntriesPerUser, setMaxEntriesPerUser] = useState('1')
@@ -110,7 +110,7 @@ export default function CreatePoolPage() {
     () => Number(String(startWeek).replace(/\D+/g, '')) || 1,
     [startWeek]
   )
-  const max_members = maxMembers === 'custom' ? Number(customMaxMembers) : Number(maxMembers)
+  const max_members = maxMembers === 'unlimited' ? null : maxMembers === 'custom' ? Number(customMaxMembers) : Number(maxMembers)
 
   useEffect(() => {
     let alive = true
@@ -222,8 +222,8 @@ export default function CreatePoolPage() {
         if (!password.trim()) throw new Error('Please enter a password for private pools.')
         if (password !== password2) throw new Error('Passwords do not match.')
       }
-      if (!Number.isFinite(max_members) || max_members < 2 || max_members > 500) {
-        throw new Error('Member limit must be between 2 and 500.')
+      if (max_members !== null && (!Number.isFinite(max_members) || max_members < 2 || max_members > 500)) {
+        throw new Error('Pool capacity must be Unlimited or between 2 and 500 entries.')
       }
       const max_entries_per_user = allowMultipleEntries ? Number(maxEntriesPerUser) : 1
       if (!Number.isFinite(max_entries_per_user) || max_entries_per_user < 1 || max_entries_per_user > 10) {
@@ -264,7 +264,7 @@ export default function CreatePoolPage() {
         p_image_url: leagueImageUrl,
         p_season: DEFAULT_SEASON,
         p_double_pick_weeks: validDoubleWeeks,
-        p_max_members: max_members,
+        p_max_members: max_members ?? undefined,
         p_allow_multiple_entries: allowMultipleEntries,
         p_max_entries_per_user: max_entries_per_user,
       })
@@ -435,10 +435,11 @@ export default function CreatePoolPage() {
         </div>
 
         <div className="field">
-          <label htmlFor="maxMembers">Member Limit</label>
+          <label htmlFor="maxMembers">Total Pool Entries</label>
           <select id="maxMembers" value={maxMembers} onChange={(e) => setMaxMembers(e.target.value)}>
+            <option value="unlimited">Unlimited (recommended)</option>
             {MEMBER_LIMIT_OPTIONS.map((limit) => (
-              <option key={limit} value={String(limit)}>{limit} members</option>
+              <option key={limit} value={String(limit)}>{limit} entries</option>
             ))}
             <option value="custom">Custom</option>
           </select>
@@ -450,7 +451,7 @@ export default function CreatePoolPage() {
               placeholder="Enter 2 to 500"
             />
           )}
-          <p className="hint">Control how many members you want in your pool.</p>
+          <p className="hint">Optional cap across all entries. Entries per person are configured separately below.</p>
         </div>
 
         <div className="field">

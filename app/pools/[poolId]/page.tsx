@@ -8,6 +8,7 @@ import { InviteModal } from '@/components/InviteModal'
 import { authCallbackUrl } from '@/lib/authRedirect'
 import { getErrorMessage } from '@/lib/errorMessage'
 import { logAppEvent } from '@/lib/monitoring'
+import { isUnlimitedPoolCapacity, poolEntryCountLabel } from '@/lib/poolCapacity'
 import { supabase } from '@/lib/supabaseClient'
 
 type Pool = {
@@ -27,6 +28,7 @@ type Pool = {
   activation_status?: 'draft' | 'active' | 'cancelled' | string | null
   max_members?: number | null
   member_count?: number | null
+  entry_count?: number | null
   test_mode?: boolean | null
   test_current_week?: number | null
 }
@@ -57,6 +59,7 @@ export default function PoolDetailPage() {
 
   const [pool, setPool] = useState<Pool | null>(null)
   const [memberCount, setMemberCount] = useState<number>(0)
+  const [entryCount, setEntryCount] = useState<number>(0)
   const [alreadyMember, setAlreadyMember] = useState<boolean>(false)
   const [isOwner, setIsOwner] = useState<boolean>(false)
 
@@ -67,7 +70,7 @@ export default function PoolDetailPage() {
   const [poolStartAt, setPoolStartAt] = useState<string | null>(null)
 
   const isJoinable = pool?.activation_status !== 'cancelled'
-  const isFull = !!(pool?.max_members && memberCount >= pool.max_members)
+  const isFull = !!(pool && !isUnlimitedPoolCapacity(pool.max_members) && entryCount >= (pool.max_members ?? 0))
   const poolStartMs = poolStartAt ? Date.parse(poolStartAt) : null
   const poolStartKnown = poolStartMs !== null && Number.isFinite(poolStartMs)
   const leagueHasStarted = !!pool && (
@@ -98,6 +101,8 @@ export default function PoolDetailPage() {
         if (!poolRow) throw new Error('Pool not found.')
         if (!alive) return
         setPool(poolRow)
+        setMemberCount(poolRow.member_count ?? 0)
+        setEntryCount(poolRow.entry_count ?? poolRow.member_count ?? 0)
 
         const { data: firstStartGame } = await supabase
           .from('nfl_games')
@@ -274,8 +279,9 @@ export default function PoolDetailPage() {
 
             <div className="grid sm:grid-cols-3 gap-3 mb-6">
               <div className="border rounded-lg p-3">
-                <div className="text-xs uppercase text-gray-500">Members</div>
-                <div className="text-lg font-semibold">{pool.max_members ? `${memberCount}/${pool.max_members}` : memberCount}</div>
+                <div className="text-xs uppercase text-gray-500">Entries</div>
+                <div className="text-lg font-semibold">{poolEntryCountLabel(entryCount, pool.max_members)}</div>
+                <div className="text-xs text-gray-500">{memberCount} unique members</div>
               </div>
               <div className="border rounded-lg p-3">
                 <div className="text-xs uppercase text-gray-500">Visibility</div>
@@ -373,5 +379,4 @@ export default function PoolDetailPage() {
     </main>
   )
 }
-
 

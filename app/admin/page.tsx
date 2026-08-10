@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { getErrorMessage } from '@/lib/errorMessage'
+import { poolEntryCountLabel } from '@/lib/poolCapacity'
 import { supabase } from '@/lib/supabaseClient'
 
 const SUPERADMIN_EMAIL = 'survivesunday1@gmail.com'
@@ -916,7 +917,7 @@ export default function SuperAdminPage() {
                     </span>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
-                    <span>{pool.entries_count}/{pool.max_members || '-'} entries</span>
+                    <span>{poolEntryCountLabel(pool.entries_count, pool.max_members)} entries</span>
                     <span>Week {pool.start_week}</span>
                     <span>{pool.is_public ? 'Public' : 'Private'}</span>
                     {pool.test_mode && <span className="font-semibold text-violet-700">Test mode</span>}
@@ -961,7 +962,7 @@ export default function SuperAdminPage() {
                 <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <Info label="Status" value={selectedPool.activation_status === 'cancelled' ? 'Closed' : 'Open'} />
                   <Info label="Visibility" value={selectedPool.is_public ? 'Public' : 'Private'} />
-                  <Info label="Entries" value={`${selectedPool.entries_count}/${selectedPool.max_members || '-'}`} />
+                  <Info label="Entries" value={poolEntryCountLabel(selectedPool.entries_count, selectedPool.max_members)} />
                   <Info label="Multi Entry" value={selectedPool.allow_multiple_entries ? `Up to ${selectedPool.max_entries_per_user}` : 'Single entry'} />
                   <Info label="Draft Picks" value={String(selectedPool.draft_picks_count)} />
                   <Info label="Final Picks" value={String(selectedPool.final_picks_count)} />
@@ -1172,4 +1173,3 @@ function CronJobCard({ job }: { job: CronHealthRow }) {
     </div>
   )
 }
-
