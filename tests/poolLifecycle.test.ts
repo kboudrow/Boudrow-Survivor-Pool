@@ -86,3 +86,12 @@ test('commissioner lifecycle display consumes the canonical database result', as
   assert.match(dashboard, /Season complete: \{lifecycle\.description\}/)
   assert.match(dashboard, /waiting for final result processing/)
 })
+
+test('test-season scoring leaves the clock after the configured final week', async () => {
+  const migration = await read('supabase/migrations/20260810002800_test_pool_final_week_completion.sql')
+
+  assert.match(migration, /p_week >= coalesce\(v_max_week, 18\)/)
+  assert.match(migration, /pool_test_clock_at\(p_pool_id, p_week, 'week_done'\)/)
+  assert.match(migration, /The configured season is complete/)
+  assert.match(migration, /test_current_week = p_week/)
+})
