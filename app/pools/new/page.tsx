@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
+import { trackConversion } from '@/lib/monitoring'
 import { defaultPoolImage } from '@/lib/poolImages'
 import { makeStorageObjectPath, validatePublicImageUpload } from '@/lib/security'
 
@@ -202,6 +203,7 @@ export default function CreatePoolPage() {
   }
 
   const handleCreate = async () => {
+    void trackConversion('conversion.pool_creation_started')
     setLoading(true)
     setError(null)
 
@@ -269,6 +271,8 @@ export default function CreatePoolPage() {
 
       if (createErr) throw createErr
       if (!poolId) throw new Error('Failed to create pool.')
+
+      void trackConversion('conversion.pool_creation_completed', { is_public: isPublic, multiple_entries: allowMultipleEntries }, poolId)
 
       router.push(`/pools/${poolId}/admin`)
     } catch (e: unknown) {
@@ -359,7 +363,7 @@ export default function CreatePoolPage() {
 
         <div className="grid2">
           <div className="field">
-            <label htmlFor="mulligans">Mulligans</label>
+            <label htmlFor="mulligans">Strikes allowed</label>
             <select id="mulligans" value={mulligans} onChange={(e) => setMulligans(Number(e.target.value))}>
               <option value={0}>0</option>
               <option value={1}>1</option>
@@ -737,4 +741,3 @@ export default function CreatePoolPage() {
     </div>
   )
 }
-

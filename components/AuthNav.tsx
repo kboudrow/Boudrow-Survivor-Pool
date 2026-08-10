@@ -48,6 +48,7 @@ export function AuthNav() {
   const [email, setEmail] = useState<string | null>(null)
   const [profile, setProfile] = useState<ProfileBadge | null>(null)
   const [hasBlogAccess, setHasBlogAccess] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const isAuthed = !!email
   const isSuperAdmin = email?.toLowerCase() === SUPERADMIN_EMAIL
   const initials = useMemo(() => getInitials(email, profile), [email, profile])
@@ -172,7 +173,8 @@ export function AuthNav() {
   }
 
   return (
-    <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+    <div className="flex shrink-0 items-center gap-1">
+      <div className="hidden items-center gap-0.5 lg:flex">
       <Link href="/blog" className="rounded-md px-2 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white sm:px-3">
         Blog
       </Link>
@@ -215,7 +217,38 @@ export function AuthNav() {
       >
         Sign out
       </button>
+      </div>
+
+      <Link href="/pools" className="rounded-md px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/10 lg:hidden">
+        My Pools
+      </Link>
+      <button
+        type="button"
+        aria-expanded={menuOpen}
+        aria-controls="account-navigation-menu"
+        aria-label="Open account menu"
+        onClick={() => setMenuOpen((open) => !open)}
+        className="flex h-10 w-10 items-center justify-center rounded-md border border-white/15 text-xl text-white hover:bg-white/10 lg:hidden"
+      >
+        ☰
+      </button>
+      {menuOpen && (
+        <div id="account-navigation-menu" className="fixed inset-x-3 top-[4.75rem] z-[80] rounded-xl border border-slate-700 bg-[#111318] p-2 shadow-2xl lg:hidden">
+          <div className="grid grid-cols-2 gap-1">
+            <MobileNavLink href="/join/search" label="Join Pool" onClick={() => setMenuOpen(false)} />
+            <MobileNavLink href="/pools/new" label="Create Pool" onClick={() => setMenuOpen(false)} />
+            <MobileNavLink href="/blog" label="Blog" onClick={() => setMenuOpen(false)} />
+            <MobileNavLink href="/profile" label="Profile" onClick={() => setMenuOpen(false)} />
+            {hasBlogAccess && <MobileNavLink href="/admin/blog" label="Blog Admin" onClick={() => setMenuOpen(false)} />}
+            {isSuperAdmin && <MobileNavLink href="/admin" label="Admin" onClick={() => setMenuOpen(false)} />}
+          </div>
+          <button type="button" onClick={signOut} className="mt-2 w-full rounded-md border border-white/15 px-3 py-2 text-left text-sm font-semibold text-slate-200 hover:bg-white/10">Sign out</button>
+        </div>
+      )}
     </div>
   )
 }
 
+function MobileNavLink({ href, label, onClick }: { href: string; label: string; onClick: () => void }) {
+  return <Link href={href} onClick={onClick} className="rounded-md px-3 py-3 text-sm font-semibold text-slate-100 hover:bg-white/10">{label}</Link>
+}

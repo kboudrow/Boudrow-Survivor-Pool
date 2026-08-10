@@ -30,6 +30,14 @@ npm run backup:db -- --schema-only
 npm run backup:db -- --data-only
 ```
 
+If Docker is unavailable and the CLI dump cannot run, capture a service-role API fallback before proceeding:
+
+```bash
+npm run backup:api
+```
+
+This fallback captures Auth users and every readable public table as JSON. Prefer the SQL dump whenever Docker is available because it also preserves complete schema-level recovery information.
+
 ## Recovery Rules
 
 1. Do not restore directly over production while users are active.

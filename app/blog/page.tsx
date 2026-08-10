@@ -27,7 +27,7 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
   const selectedCategory = params.category || 'All'
   const query = (params.q || '').trim()
   const [allPosts, allCategories] = await Promise.all([getPublicBlogPosts(), getPublicBlogCategories()])
-  const featured = allPosts.find((post) => post.pinned) || allPosts[0]
+  const featured = allPosts.find((post) => post.pinned && post.category === 'Survivor Pools') || allPosts.find((post) => post.category === 'Survivor Pools') || allPosts[0]
   const visibleCategories = allCategories.filter((category) => allPosts.some((post) => post.category === category))
   const filteredPosts = allPosts.filter((post) => {
     const categoryMatch = selectedCategory === 'All' || post.category === selectedCategory
@@ -97,11 +97,22 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
 
         <section className="mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap gap-2">
-              <CategoryLink label="All" active={selectedCategory === 'All'} query={query} />
-              {visibleCategories.map((category) => (
-                <CategoryLink key={category} label={category} active={selectedCategory === category} query={query} />
-              ))}
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="mr-1 text-xs font-bold uppercase tracking-wide text-slate-500">Pool guides</span>
+                <CategoryLink label="All" active={selectedCategory === 'All'} query={query} />
+                {visibleCategories.filter((category) => category === 'Survivor Pools' || category === 'NFL').map((category) => (
+                  <CategoryLink key={category} label={category} active={selectedCategory === category} query={query} />
+                ))}
+              </div>
+              {visibleCategories.some((category) => !['Survivor Pools', 'NFL'].includes(category)) && (
+                <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2">
+                  <span className="mr-1 text-xs font-bold uppercase tracking-wide text-slate-500">Sports takes</span>
+                  {visibleCategories.filter((category) => !['Survivor Pools', 'NFL'].includes(category)).map((category) => (
+                    <CategoryLink key={category} label={category} active={selectedCategory === category} query={query} />
+                  ))}
+                </div>
+              )}
             </div>
             <form action="/blog" className="flex min-w-0 gap-2 sm:min-w-[320px]">
               {selectedCategory !== 'All' && <input type="hidden" name="category" value={selectedCategory} />}
@@ -235,4 +246,3 @@ function BlogCard({ post }: { post: PublicBlogPost }) {
     </article>
   )
 }
-

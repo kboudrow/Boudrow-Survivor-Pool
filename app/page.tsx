@@ -7,8 +7,11 @@ import { useRouter } from 'next/navigation'
 import { authCallbackUrl, safeReturnTo } from '@/lib/authRedirect'
 import { getErrorMessage } from '@/lib/errorMessage'
 import { normalizeEmailAddress, validateEmailAddress } from '@/lib/security'
+import { HomeProductPreview } from '@/components/HomeProductPreview'
+import { trackConversion } from '@/lib/monitoring'
 
 type Mode = 'idle' | 'signin' | 'signup'
+type AuthIntent = 'create' | 'join' | 'signin'
 type SupabaseClientModule = typeof import('@/lib/supabaseClient')
 type EnsureProfileModule = typeof import('@/lib/ensureProfile')
 
@@ -21,6 +24,7 @@ export default function Home() {
   const router = useRouter()
 
   const [mode, setMode] = useState<Mode>('idle')
+  const [authIntent, setAuthIntent] = useState<AuthIntent>('signin')
   const [isAuthed, setIsAuthed] = useState(false)
   const [, setStatus] = useState('Not signed in')
   const [returnTo, setReturnTo] = useState<string | null>(null)
@@ -90,7 +94,9 @@ export default function Home() {
     setMode('idle')
   }
 
-  const openSignIn = () => {
+  const openSignIn = (intent: AuthIntent = 'signin') => {
+    void trackConversion('conversion.auth_opened', { intent, mode: 'signin' })
+    setAuthIntent(intent)
     setAuthError(null)
     setAuthNotice(null)
     setMode('signin')
@@ -100,7 +106,9 @@ export default function Home() {
     })
   }
 
-  const openSignUp = () => {
+  const openSignUp = (intent: AuthIntent = authIntent) => {
+    void trackConversion('conversion.auth_opened', { intent, mode: 'signup' })
+    setAuthIntent(intent)
     setAuthError(null)
     setAuthNotice(null)
     setMode('signup')
@@ -117,23 +125,37 @@ export default function Home() {
     setReturnTo(nextReturnTo)
     returnToRef.current = nextReturnTo
     if (params.get('auth') === 'signin') {
-      openSignIn()
+      setAuthIntent('signin')
+      setMode('signin')
+      requestAnimationFrame(() => signInEmailRef.current?.focus())
       window.history.replaceState(null, '', window.location.pathname)
     } else if (params.get('auth') === 'signup') {
-      openSignUp()
+      setAuthIntent('signin')
+      setMode('signup')
+      requestAnimationFrame(() => signUpFirstRef.current?.focus())
       window.history.replaceState(null, '', window.location.pathname)
     }
   }, [])
 
   // Gate helper: keep hero CTAs visible, but require auth on click
   const requireAuthThen = (nextPath: string) => {
+    void trackConversion(nextPath === '/pools/new' ? 'conversion.create_pool_clicked' : 'conversion.join_pool_clicked', { authenticated: isAuthed })
     if (isAuthed) {
       router.push(nextPath)
       return
     }
     setAuthError(null)
-    openSignIn()
+    openSignIn(nextPath === '/pools/new' ? 'create' : 'join')
   }
+
+  useEffect(() => {
+    if (mode === 'idle') return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMode('idle')
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [mode])
 
   // auth handlers
   const signInWithGoogle = async () => {
@@ -163,6 +185,7 @@ export default function Home() {
     if (error) return setAuthError(getErrorMessage(error, 'Could not sign in. Check your email and password.'))
     if (data.user) {
       await runEnsureProfileOnce(data.user.id)
+      void trackConversion('conversion.auth_completed', { method: 'email', intent: authIntent })
       router.push(returnToRef.current || '/pools')
     }
   }
@@ -210,6 +233,7 @@ export default function Home() {
       try {
         await runEnsureProfileOnce(data.session.user.id)
         await saveSignupProfile(cleanUsername)
+        void trackConversion('conversion.signup_completed', { method: 'email', intent: authIntent })
       } catch (e: unknown) {
         return setAuthError(authMessage(e, 'Account created, but we could not save that username.'))
       }
@@ -260,7 +284,12 @@ export default function Home() {
         <section className="relative overflow-hidden border-b border-red-950 bg-[#090b0f] px-6 pb-14 pt-12 text-center text-white">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#4b0d12_0%,#12151c_42%,#090b0f_78%)] opacity-95" />
           <div className="absolute inset-x-0 bottom-0 h-24 bg-[linear-gradient(180deg,rgba(9,11,15,0),rgba(9,11,15,1))]" />
-          <div className="relative mx-auto max-w-5xl">
+            <div className="relative mx-auto max-w-5xl">
+            <div className="mb-4 flex justify-center">
+              <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-sm font-semibold text-emerald-100">
+                2026 pools are open · Free to create and join
+              </span>
+            </div>
             <div className="mb-5 flex justify-center sm:mb-6">
               <div className="w-[min(230px,74vw)] sm:w-[min(300px,70vw)]">
                 <NextImage src="/survive-sunday-logo.png" alt="Survive Sunday" width={320} height={320} priority className="h-auto w-full object-contain drop-shadow-2xl" />
@@ -302,11 +331,11 @@ export default function Home() {
 
             {!isAuthed && (
               <p className="mt-3 text-sm text-slate-300">
-                <button type="button" onClick={openSignIn} className="underline text-white hover:text-[#d2ad5b]">
+                <button type="button" onClick={() => openSignIn('signin')} className="underline text-white hover:text-[#d2ad5b]">
                   Sign in
                 </button>{' '}
                 or{' '}
-                <button type="button" onClick={openSignUp} className="underline text-white hover:text-[#d2ad5b]">
+                <button type="button" onClick={() => openSignUp('signin')} className="underline text-white hover:text-[#d2ad5b]">
                   create a profile
                 </button>{' '}
                 to create or join a pool.
@@ -315,44 +344,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* FEATURES */}
-        <section className="bg-white px-4 py-10 sm:px-6">
-          <div className="mx-auto max-w-5xl grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Feature title="Automatic locks" desc="Rolling kickoff locks or a fixed weekly deadline, your choice." />
-            <Feature title="Public or private pools" desc="Run public pools or keep things private with password protection." />
-            <Feature title="No repeat teams" desc="Once you pick a team, it is gone. Enforced automatically." />
-            <Feature title="Strikes and elimination" desc="One strike or multiple lives. Your rules." />
-            <Feature title="Standings that make sense" desc="See who is alive, who is out, and who is about to get eliminated." />
-            <Feature title="Run it back" desc="Archive finished pools and restart with the same settings, empty roster." />
-          </div>
-        </section>
-
-        {/* HOW IT WORKS */}
-        <section className="bg-slate-50 px-4 py-12 sm:px-6">
-          <div className="mx-auto max-w-5xl grid sm:grid-cols-3 gap-6 text-center">
-            <How step="1" title="Create or join" text="Start a pool for your group, or join one with an invite link." />
-            <How step="2" title="Pick weekly" text="Choose one team each week. Used teams are tracked automatically." />
-            <How step="3" title="Survive" text="Stay alive longer than everyone else." />
-          </div>
-        </section>
-
-        <section className="bg-white px-4 py-12 sm:px-6">
-          <div className="mx-auto max-w-5xl">
-            <div className="max-w-2xl">
-              <p className="text-xs font-bold uppercase tracking-wide text-[#c5161d]">What happens next</p>
-              <h2 className="mt-1 text-2xl font-bold text-slate-950">The pool runs itself once the rules are set.</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                Commissioners set the rules before the start week. After that, players make picks, locks happen automatically, and standings update as results are scored.
-              </p>
-            </div>
-            <div className="mt-6 grid gap-4 md:grid-cols-4">
-              <LifecycleStep title="Setup" text="Choose visibility, deadlines, strikes, member limits, and double-pick weeks." />
-              <LifecycleStep title="Invite" text="Share the link. Public pools can be found in search; private pools use a password." />
-              <LifecycleStep title="Lock" text="Early games lock at kickoff. Later games follow the pool deadline." />
-              <LifecycleStep title="Standings" text="See who is alive, who is out, and which picks are visible." />
-            </div>
-          </div>
-        </section>
+        <HomeProductPreview />
 
         <section className="bg-slate-50 px-4 py-12 sm:px-6">
           <div className="mx-auto max-w-5xl rounded-xl border border-slate-200 bg-slate-50 p-6 shadow-sm">
@@ -382,6 +374,22 @@ export default function Home() {
           </div>
         </section>
 
+        <section className="bg-[#090b0f] px-4 py-12 text-white sm:px-6">
+          <div className="mx-auto max-w-5xl rounded-2xl border border-red-900/60 bg-[radial-gradient(circle_at_top_left,#4b0d12,#111318_55%)] p-6 sm:p-9">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#e4c575]">Ready for the 2026 season?</p>
+            <div className="mt-2 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+              <div className="max-w-2xl">
+                <h2 className="text-3xl font-extrabold tracking-tight">Stop running your pool in a spreadsheet.</h2>
+                <p className="mt-3 leading-7 text-slate-300">Create a free pool, invite your group, and let Survive Sunday handle locks, repeat teams, strikes, and standings.</p>
+              </div>
+              <div className="flex shrink-0 flex-wrap gap-3">
+                <button type="button" onClick={() => requireAuthThen('/pools/new')} className="rounded-md bg-[#c5161d] px-5 py-3 font-semibold text-white hover:bg-[#a91218]">Create Pool</button>
+                <button type="button" onClick={() => requireAuthThen('/join/search')} className="rounded-md border border-white/20 bg-white/10 px-5 py-3 font-semibold text-white hover:bg-white/15">Join Pool</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section className="bg-white px-4 pb-12 sm:px-6">
           <div className="mx-auto grid max-w-5xl gap-4 md:grid-cols-3">
             <PublicLink
@@ -404,11 +412,14 @@ export default function Home() {
 
         {/* Auth panels */}
         {mode !== 'idle' && (
-          <section className="px-6 pb-14">
-            <div className="mx-auto w-full max-w-md rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <section className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto px-4 py-8" aria-label="Account access">
+            <button type="button" aria-label="Close account dialog" onClick={() => setMode('idle')} className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm" />
+            <div role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title" className="relative w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
               {mode === 'signin' ? (
                 <div ref={signInPanelRef}>
-                  <h2 className="text-xl font-semibold mb-3">Sign in</h2>
+                  <p className="text-xs font-bold uppercase tracking-wide text-[#c5161d]">{authIntent === 'create' ? 'Create a pool' : authIntent === 'join' ? 'Join a pool' : 'Welcome back'}</p>
+                  <h2 id="auth-dialog-title" className="mb-1 mt-1 text-xl font-semibold">Sign in to continue</h2>
+                  <p className="mb-4 text-sm text-slate-600">{authIntent === 'create' ? 'Your new pool settings will be ready right after sign-in.' : authIntent === 'join' ? 'You will return to pool discovery after sign-in.' : 'Access your pools, picks, and profile.'}</p>
 
                   <label className="text-sm block mb-2">
                     Email
@@ -463,7 +474,8 @@ export default function Home() {
                 </div>
               ) : (
                 <div ref={signUpPanelRef}>
-                  <h2 className="text-xl font-semibold mb-3">Create your account</h2>
+                  <p className="text-xs font-bold uppercase tracking-wide text-[#c5161d]">Free for 2026</p>
+                  <h2 id="auth-dialog-title" className="mb-3 mt-1 text-xl font-semibold">Create your account</h2>
 
                   <div className="grid grid-cols-2 gap-2">
                     <label className="text-sm">
@@ -562,34 +574,6 @@ export default function Home() {
   )
 }
 
-function Feature({ title, desc }: { title: string; desc: string }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="font-semibold text-[#111318]">{title}</div>
-      <div className="text-sm text-gray-600">{desc}</div>
-    </div>
-  )
-}
-
-function How({ step, title, text }: { step: string; title: string; text: string }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="text-xs font-bold uppercase text-[#c5161d]">Step {step}</div>
-      <div className="text-lg font-semibold">{title}</div>
-      <p className="text-sm text-gray-600 mt-1">{text}</p>
-    </div>
-  )
-}
-
-function LifecycleStep({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="border-l-4 border-[#c5161d] bg-slate-50 p-4">
-      <div className="font-semibold text-slate-950">{title}</div>
-      <p className="mt-2 text-sm leading-6 text-slate-600">{text}</p>
-    </div>
-  )
-}
-
 function PublicLink({ title, text, href }: { title: string; text: string; href: string }) {
   return (
     <Link href={href} className="rounded-lg border border-slate-200 bg-slate-50 p-5 shadow-sm transition hover:border-[#c5161d]/40 hover:bg-white">
@@ -599,4 +583,3 @@ function PublicLink({ title, text, href }: { title: string; text: string; href: 
     </Link>
   )
 }
-

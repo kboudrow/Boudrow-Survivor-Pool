@@ -6,7 +6,7 @@ import NextImage from 'next/image'
 import { AdSlot } from '@/components/AdSlot'
 import { authCallbackUrl } from '@/lib/authRedirect'
 import { getErrorMessage } from '@/lib/errorMessage'
-import { logAppEvent } from '@/lib/monitoring'
+import { logAppEvent, trackConversion } from '@/lib/monitoring'
 import { supabase } from '@/lib/supabaseClient'
 
 type Pool = {
@@ -21,7 +21,8 @@ type Pool = {
   deadline_mode: string | null
   deadline_fixed: string | null
   notes: string | null
-  created_by: string
+  owned_by_me?: boolean | null
+  already_joined?: boolean | null
   created_at?: string | null
   activation_status?: 'draft' | 'active' | 'cancelled' | string | null
   max_members?: number | null
@@ -58,7 +59,6 @@ export default function JoinSearchPage() {
   const signInToJoinSearch = `/?auth=signin&returnTo=${encodeURIComponent('/join/search')}`
 
   const [authed, setAuthed] = useState(false)
-  const [userId, setUserId] = useState<string | null>(null)
   const [joinedPoolIds, setJoinedPoolIds] = useState<Set<string>>(new Set())
 
   const [query, setQuery] = useState('')
@@ -93,13 +93,11 @@ export default function JoinSearchPage() {
       if (error && !isMissingAuthSession(error)) {
         setError(getErrorMessage(error, 'Could not check your sign-in status.'))
         setAuthed(false)
-        setUserId(null)
         return
       }
 
       if (!alive) return
       setAuthed(!!user)
-      setUserId(user?.id ?? null)
 
       if (!user) {
         setJoinedPoolIds(new Set())
@@ -116,6 +114,15 @@ export default function JoinSearchPage() {
       alive = false
     }
   }, [])
+
+  useEffect(() => {
+    if (!selected) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closePoolModal()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [selected])
 
   useEffect(() => {
     let alive = true
@@ -293,6 +300,7 @@ export default function JoinSearchPage() {
     if (!(await requireAuth())) return
 
     setJoining(true)
+    void trackConversion('conversion.pool_join_started', { is_public: selected.is_public }, selected.id)
     setModalError(null)
 
     try {
@@ -303,6 +311,7 @@ export default function JoinSearchPage() {
 
       if (error) throw error
       setJoinedPoolIds((prev) => new Set(prev).add(selected.id))
+      void trackConversion('conversion.pool_join_completed', { is_public: selected.is_public }, selected.id)
       router.push(`/pools?pool=${selected.id}`)
     } catch (e: unknown) {
       void logAppEvent({
@@ -356,7 +365,7 @@ export default function JoinSearchPage() {
   const showEmptySearch = !searching && results.length === 0 && query.trim()
   const showEmptyRecent = !recentLoading && !query.trim() && recent.length === 0
   const selectedAlreadyJoined = selected ? joinedPoolIds.has(selected.id) : false
-  const selectedOwnedByMe = selected ? selected.created_by === userId : false
+  const selectedOwnedByMe = selected ? Boolean(selected.owned_by_me) : false
   const selectedIsFull = !!(selected && memberCount !== null && selected.max_members && memberCount >= selected.max_members)
 
   return (
@@ -401,14 +410,15 @@ export default function JoinSearchPage() {
 
         <ul className="divide-y overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
           {listToShow.map((pool) => (
-            <li key={pool.id} className="p-3 hover:bg-gray-50 cursor-pointer" onClick={() => openPoolModal(pool)}>
+            <li key={pool.id}>
+              <button type="button" onClick={() => openPoolModal(pool)} className="w-full p-3 text-left transition hover:bg-gray-50 focus-visible:bg-red-50" aria-label={`View ${pool.name} pool details`}>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <div className="font-medium">{pool.name}</div>
                   <div className="text-xs text-gray-600">{formatPoolMeta(pool)}</div>
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
-                  {pool.created_by === userId && (
+                  {pool.owned_by_me && (
                     <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs text-amber-700">Your pool</span>
                   )}
                   {joinedPoolIds.has(pool.id) && (
@@ -424,8 +434,10 @@ export default function JoinSearchPage() {
                   >
                     {pool.is_public ? 'Public' : 'Private'}
                   </span>
+                  <span className="rounded-full bg-slate-950 px-2 py-0.5 text-xs font-semibold text-white">View pool</span>
                 </div>
               </div>
+              </button>
             </li>
           ))}
 
@@ -455,8 +467,8 @@ export default function JoinSearchPage() {
 
       {selected && (
         <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-slate-950/50" onClick={closePoolModal} />
-          <div className="absolute left-1/2 top-1/2 max-h-[88vh] w-[min(760px,94vw)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg bg-white shadow-xl">
+          <button type="button" aria-label="Close pool details" className="absolute inset-0 bg-slate-950/50" onClick={closePoolModal} />
+          <div role="dialog" aria-modal="true" aria-labelledby="pool-details-title" className="absolute left-1/2 top-1/2 max-h-[88vh] w-[min(760px,94vw)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg bg-white shadow-xl">
             <div className="border-b border-slate-200 p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -467,7 +479,7 @@ export default function JoinSearchPage() {
                     {selectedAlreadyJoined && <span className="rounded-full border border-blue-300 bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">Joined</span>}
                     {selectedOwnedByMe && <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">Your pool</span>}
                   </div>
-                  <h3 className="text-2xl font-bold text-slate-950">{selected.name}</h3>
+                  <h3 id="pool-details-title" className="text-2xl font-bold text-slate-950">{selected.name}</h3>
                   <p className="mt-1 text-sm text-slate-600">{formatPoolMeta(selected)}</p>
                 </div>
               <button onClick={closePoolModal} className="rounded-md bg-slate-100 px-3 py-1.5 text-sm hover:bg-slate-200">
@@ -597,4 +609,3 @@ export default function JoinSearchPage() {
     </main>
   )
 }
-

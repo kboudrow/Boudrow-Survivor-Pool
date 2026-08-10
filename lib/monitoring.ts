@@ -56,3 +56,6 @@ export function logAppEvent(input: LogAppEventInput) {
     .catch(() => undefined)
 }
 
+export function trackConversion(eventType: string, metadata: Record<string, unknown> = {}, poolId?: string | null) {
+  return logAppEvent({ eventType, severity: 'info', source: 'client', metadata, poolId })
+}
