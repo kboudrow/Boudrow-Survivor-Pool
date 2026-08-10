@@ -250,6 +250,14 @@ function normalizeTimeTo24h(s?: string | null): string | null {
   }
   return null
 }
+
+function formatEtTime(s?: string | null) {
+  const normalized = normalizeTimeTo24h(s) || '13:00'
+  const [hour, minute] = normalized.split(':').map(Number)
+  const suffix = hour >= 12 ? 'PM' : 'AM'
+  const hour12 = hour % 12 || 12
+  return `${hour12}:${String(minute).padStart(2, '0')} ${suffix} ET`
+}
 function tzOffsetMinutes(zone: string, utcDate: Date): number {
   const dtf = new Intl.DateTimeFormat('en-US', {
     timeZone: zone,
@@ -911,7 +919,7 @@ function MyPoolsContent() {
   const deadlineLabel =
     pool?.deadline_mode === 'rolling'
       ? 'Rolling: each game locks at kickoff'
-      : 'Sunday 1 PM ET'
+      : `Sunday ${formatEtTime(pool?.deadline_fixed)}`
   const selectedWeekCloseLabel =
     isTestMode
       ? pool?.test_now_at
