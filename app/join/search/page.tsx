@@ -27,6 +27,7 @@ type Pool = {
   activation_status?: 'draft' | 'active' | 'cancelled' | string | null
   max_members?: number | null
   member_count?: number | null
+  entry_count?: number | null
 }
 
 function formatPoolMeta(pool: Pool) {
@@ -71,7 +72,9 @@ export default function JoinSearchPage() {
 
   const [selected, setSelected] = useState<Pool | null>(null)
   const [memberCount, setMemberCount] = useState<number | null>(null)
+  const [entryCount, setEntryCount] = useState<number | null>(null)
   const [poolMemberCounts, setPoolMemberCounts] = useState<Record<string, number>>({})
+  const [poolEntryCounts, setPoolEntryCounts] = useState<Record<string, number>>({})
   const [memberCountLoading, setMemberCountLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [password, setPassword] = useState('')
@@ -162,6 +165,13 @@ export default function JoinSearchPage() {
           }
           return next
         })
+        setPoolEntryCounts((prev) => {
+          const next = { ...prev }
+          for (const pool of nextRecent) {
+            if (typeof pool.entry_count === 'number') next[pool.id] = pool.entry_count
+          }
+          return next
+        })
       } catch (e: unknown) {
         if (!alive) return
         void logAppEvent({ eventType: 'pool_search_recent_failed', error: e })
@@ -206,6 +216,13 @@ export default function JoinSearchPage() {
           }
           return next
         })
+        setPoolEntryCounts((prev) => {
+          const next = { ...prev }
+          for (const pool of nextResults) {
+            if (typeof pool.entry_count === 'number') next[pool.id] = pool.entry_count
+          }
+          return next
+        })
       } catch (e: unknown) {
         void logAppEvent({ eventType: 'pool_search_failed', error: e, metadata: { query: trimmed } })
         setError(getErrorMessage(e, 'Search failed.'))
@@ -227,15 +244,23 @@ export default function JoinSearchPage() {
     setShowPassword(false)
     setPassword('')
     setMemberCount(null)
+    setEntryCount(null)
     setModalError(null)
 
     try {
       setMemberCountLoading(true)
-      const { data: count, error } = await supabase.rpc('count_pool_members', { p_pool_id: pool.id })
-      if (error) throw error
-      const nextCount = (count as number) ?? 0
-      setMemberCount(nextCount)
-      setPoolMemberCounts((prev) => ({ ...prev, [pool.id]: nextCount }))
+      const [{ data: members, error: memberError }, { data: entries, error: entryError }] = await Promise.all([
+        supabase.rpc('count_pool_members', { p_pool_id: pool.id }),
+        supabase.rpc('count_pool_entries', { p_pool_id: pool.id }),
+      ])
+      if (memberError) throw memberError
+      if (entryError) throw entryError
+      const nextMemberCount = (members as number) ?? 0
+      const nextEntryCount = (entries as number) ?? 0
+      setMemberCount(nextMemberCount)
+      setEntryCount(nextEntryCount)
+      setPoolMemberCounts((prev) => ({ ...prev, [pool.id]: nextMemberCount }))
+      setPoolEntryCounts((prev) => ({ ...prev, [pool.id]: nextEntryCount }))
     } catch {
       setMemberCount(null)
     } finally {
@@ -330,18 +355,22 @@ export default function JoinSearchPage() {
 
   useEffect(() => {
     let alive = true
-    const missing = listToShow.filter((pool) => poolMemberCounts[pool.id] === undefined)
+    const missing = listToShow.filter((pool) => poolMemberCounts[pool.id] === undefined || poolEntryCounts[pool.id] === undefined)
     if (missing.length === 0) return
 
     const loadCounts = async () => {
       const entries = await Promise.all(
         missing.map(async (pool) => {
           try {
-            const { data, error } = await supabase.rpc('count_pool_members', { p_pool_id: pool.id })
-            if (error) throw error
-            return [pool.id, (data as number) ?? 0] as const
+            const [{ data: members, error: memberError }, { data: entries, error: entryError }] = await Promise.all([
+              supabase.rpc('count_pool_members', { p_pool_id: pool.id }),
+              supabase.rpc('count_pool_entries', { p_pool_id: pool.id }),
+            ])
+            if (memberError) throw memberError
+            if (entryError) throw entryError
+            return [pool.id, (members as number) ?? 0, (entries as number) ?? 0] as const
           } catch {
-            return [pool.id, null] as const
+            return [pool.id, null, null] as const
           }
         })
       )
@@ -349,8 +378,15 @@ export default function JoinSearchPage() {
       if (!alive) return
       setPoolMemberCounts((prev) => {
         const next = { ...prev }
-        for (const [poolId, count] of entries) {
-          if (count !== null) next[poolId] = count
+        for (const [poolId, members] of entries) {
+          if (members !== null) next[poolId] = members
+        }
+        return next
+      })
+      setPoolEntryCounts((prev) => {
+        const next = { ...prev }
+        for (const [poolId, , entryTotal] of entries) {
+          if (entryTotal !== null) next[poolId] = entryTotal
         }
         return next
       })
@@ -360,13 +396,13 @@ export default function JoinSearchPage() {
     return () => {
       alive = false
     }
-  }, [listToShow, poolMemberCounts])
+  }, [listToShow, poolMemberCounts, poolEntryCounts])
 
   const showEmptySearch = !searching && results.length === 0 && query.trim()
   const showEmptyRecent = !recentLoading && !query.trim() && recent.length === 0
   const selectedAlreadyJoined = selected ? joinedPoolIds.has(selected.id) : false
   const selectedOwnedByMe = selected ? Boolean(selected.owned_by_me) : false
-  const selectedIsFull = !!(selected && memberCount !== null && selected.max_members && memberCount >= selected.max_members)
+  const selectedIsFull = !!(selected && entryCount !== null && selected.max_members && entryCount >= selected.max_members)
 
   return (
     <main className="min-h-[70vh] px-4 py-6 sm:px-6 sm:py-8">
@@ -425,7 +461,7 @@ export default function JoinSearchPage() {
                     <span className="rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-xs text-blue-700">Joined</span>
                   )}
                   <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-600">
-                    Members {poolMemberCounts[pool.id] ?? '-'}/{pool.max_members ?? '-'}
+                    Members {poolMemberCounts[pool.id] ?? '-'} · Entries {poolEntryCounts[pool.id] ?? '-'}/{pool.max_members ?? '-'}
                   </span>
                   <span
                     className={`rounded-full border px-2 py-0.5 text-xs ${
@@ -491,7 +527,8 @@ export default function JoinSearchPage() {
             <div className="p-5">
               <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <Info label="Visibility" value={selected.is_public ? 'Public' : 'Private'} />
-                <Info label="Members" value={memberCountLoading ? 'Loading...' : memberCount !== null ? `${memberCount}/${selected.max_members ?? '-'}` : '-'} />
+                <Info label="Members" value={memberCountLoading ? 'Loading...' : memberCount !== null ? String(memberCount) : '-'} />
+                <Info label="Entries" value={memberCountLoading ? 'Loading...' : entryCount !== null ? `${entryCount}/${selected.max_members ?? '-'}` : '-'} />
                 <Info label="Strikes Allowed" value={String(selected.strikes_allowed ?? '-')} />
                 <Info label="Tie Counts As" value={selected.tie_rule === 'win' ? 'Win' : selected.tie_rule === 'loss' ? 'Loss' : '-'} />
                 <Info label="Start Week" value={`Week ${selected.start_week}`} />

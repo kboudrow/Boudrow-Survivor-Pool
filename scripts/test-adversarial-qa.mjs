@@ -41,6 +41,16 @@ try{
   ]);assert(adds.filter(x=>x.status==='fulfilled').length===1&&adds.filter(x=>x.status==='rejected').length===1,'Concurrent entry limit was not serialized.')
   membership=await service.from('pool_members').select('id,entry_number').eq('pool_id',poolId).eq('profile_id',ids[emails[1]]).order('entry_number');assert(membership.data.length===2,'Entry count exceeded or missed configured maximum.');passed.push('concurrent duplicate entries and maximum')
   await reject('entry limit direct replay',()=>rpc(clients[emails[1]],'add_pool_entry',{p_pool_id:poolId}),/entry limit/i)
+  const memberTotal=await rpc(clients[emails[0]],'count_pool_members',{p_pool_id:poolId});const entryTotal=await rpc(clients[emails[0]],'count_pool_entries',{p_pool_id:poolId})
+  assert(memberTotal===2&&entryTotal===3,'Member and entry counts were not independently reported.');passed.push('member count versus entry count')
+  await rpc(clients[emails[0]],'admin_remove_pool_entry',{p_pool_id:poolId,p_entry_id:membership.data[1].id})
+  membership=await service.from('pool_members').select('id,entry_number').eq('pool_id',poolId).eq('profile_id',ids[emails[1]]).order('entry_number');assert(membership.data.length===1,'Admin entry removal deleted the whole member.');passed.push('commissioner removes one entry only')
+  const replacement=await rpc(clients[emails[1]],'add_pool_entry',{p_pool_id:poolId})
+  await rpc(clients[emails[1]],'remove_pool_entry',{p_pool_id:poolId,p_entry_id:replacement})
+  membership=await service.from('pool_members').select('id,entry_number').eq('pool_id',poolId).eq('profile_id',ids[emails[1]]).order('entry_number');assert(membership.data.length===1,'Self-service entry removal deleted the whole member.');passed.push('participant removes one entry only')
+  await reject('cannot remove only entry',()=>rpc(clients[emails[1]],'remove_pool_entry',{p_pool_id:poolId,p_entry_id:membership.data[0].id}),/only entry/i)
+  await rpc(clients[emails[1]],'add_pool_entry',{p_pool_id:poolId})
+  membership=await service.from('pool_members').select('id,entry_number').eq('pool_id',poolId).eq('profile_id',ids[emails[1]]).order('entry_number')
   await rpc(clients[emails[0]],'join_pool',{p_pool_id:poolId,p_password:null,p_token:null})
   await rpc(clients[emails[2]],'join_pool',{p_pool_id:poolId,p_password:password,p_token:null})
 
@@ -55,6 +65,9 @@ try{
   const sensitive=await clients[emails[1]].from('pools').select('join_password_hash,stripe_checkout_session_id').eq('id',poolId)
   assert(sensitive.error,'Browser role could select password/payment secrets.');passed.push('pool secrets denied at column privilege')
   const safePool=await clients[emails[1]].from('pools').select('id,name,deadline_mode').eq('id',poolId).single();assert(!safePool.error&&safePool.data.id===poolId,'Safe pool fields became unreadable.')
+
+  const mismatchedOwner=await service.from('pool_picks').insert({pool_id:poolId,user_id:ids[emails[2]],entry_id:ownerEntry,week:1,slot:1,team_abbr:'BUF',locked_at:new Date().toISOString()})
+  assert(mismatchedOwner.error,'Database accepted a pick whose user_id did not own entry_id.');passed.push('database entry-owner integrity')
 
   await reject('direct pool table mutation',async()=>{const r=await clients[emails[1]].from('pools').update({name:'pwned'}).eq('id',poolId);if(r.error)throw r.error},/permission|denied/i)
   await reject('direct member table mutation',async()=>{const r=await clients[emails[1]].from('pool_members').insert({pool_id:poolId,profile_id:ids[emails[1]],entry_number:9});if(r.error)throw r.error},/permission|denied/i)

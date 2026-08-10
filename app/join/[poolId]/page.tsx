@@ -26,6 +26,7 @@ type Pool = {
   activation_status?: 'draft' | 'active' | 'cancelled' | string | null
   max_members?: number | null
   member_count?: number | null
+  entry_count?: number | null
   test_mode?: boolean | null
   test_current_week?: number | null
 }
@@ -46,6 +47,7 @@ export default function JoinPoolPage() {
 
   const [pool, setPool] = useState<Pool | null>(null)
   const [memberCount, setMemberCount] = useState<number>(0)
+  const [entryCount, setEntryCount] = useState<number>(0)
   const [alreadyMember, setAlreadyMember] = useState<boolean>(false)
 
   const [error, setError] = useState<string | null>(null)
@@ -55,7 +57,7 @@ export default function JoinPoolPage() {
   const [poolStartAt, setPoolStartAt] = useState<string | null>(null)
 
   const isJoinable = pool?.activation_status !== 'cancelled'
-  const isFull = !!(pool?.max_members && memberCount >= pool.max_members)
+  const isFull = !!(pool?.max_members && entryCount >= pool.max_members)
   const poolStartMs = poolStartAt ? Date.parse(poolStartAt) : null
   const poolStartKnown = poolStartMs !== null && Number.isFinite(poolStartMs)
   const poolStarted = !!pool && (
@@ -92,6 +94,7 @@ export default function JoinPoolPage() {
         setPool(poolRow)
 
         setMemberCount(poolRow.member_count ?? 0)
+        setEntryCount(poolRow.entry_count ?? poolRow.member_count ?? 0)
 
         const season = poolRow.season ?? new Date().getFullYear()
         const [{ data: firstStartGame }, { data: startWeek }] = await Promise.all([
@@ -242,8 +245,9 @@ export default function JoinPoolPage() {
               {pool.notes && <p className="text-sm text-gray-600 mt-1">{pool.notes}</p>}
             </div>
 
-            <div className="grid sm:grid-cols-3 gap-3 mb-6">
-              <Info label="Members" value={pool.max_members ? `${memberCount}/${pool.max_members}` : String(memberCount)} />
+            <div className="grid sm:grid-cols-4 gap-3 mb-6">
+              <Info label="Members" value={String(memberCount)} />
+              <Info label="Entries" value={pool.max_members ? `${entryCount}/${pool.max_members}` : String(entryCount)} />
               <Info label="Visibility" value={pool.is_public ? 'Public' : 'Private'} />
               <Info label="Status" value={poolStarted ? 'Started' : isJoinable ? 'Open' : 'Closed'} />
             </div>
@@ -353,4 +357,3 @@ function Info({ label, value }: { label: string; value: string }) {
     </div>
   )
 }
-
