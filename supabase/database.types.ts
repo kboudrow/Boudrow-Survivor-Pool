@@ -553,6 +553,10 @@ export type Database = {
           id: string
           kickoff_at_utc: string | null
           kickoff_confirmed: boolean
+          provider_last_seen_at: string | null
+          provider_result_first_seen_at: string | null
+          provider_result_signature: string | null
+          result_confirmed_at: string | null
           season: number
           status: string
           week: number
@@ -569,6 +573,10 @@ export type Database = {
           id?: string
           kickoff_at_utc?: string | null
           kickoff_confirmed?: boolean
+          provider_last_seen_at?: string | null
+          provider_result_first_seen_at?: string | null
+          provider_result_signature?: string | null
+          result_confirmed_at?: string | null
           season: number
           status?: string
           week: number
@@ -585,6 +593,10 @@ export type Database = {
           id?: string
           kickoff_at_utc?: string | null
           kickoff_confirmed?: boolean
+          provider_last_seen_at?: string | null
+          provider_result_first_seen_at?: string | null
+          provider_result_signature?: string | null
+          result_confirmed_at?: string | null
           season?: number
           status?: string
           week?: number

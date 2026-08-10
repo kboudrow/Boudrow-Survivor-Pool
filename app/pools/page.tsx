@@ -752,15 +752,16 @@ function TeamPickerModal(props: {
             {filteredTeams.map((t) => {
               const usedElsewhere = usedTeamAbbrs.includes(t.abbr) && myDraftPicks[selectedKey]?.abbr !== t.abbr
               const scheduledGame = weekGames.find((game) => toAbbr(game.home_team) === t.abbr || toAbbr(game.away_team) === t.abbr)
+              const providerUnavailable = scheduledGame?.status === 'postponed' || scheduledGame?.status === 'canceled'
               const kickoffUnconfirmed = scheduledGame?.kickoff_confirmed === false
-              const disabled = usedElsewhere || kickoffUnconfirmed
+              const disabled = usedElsewhere || kickoffUnconfirmed || providerUnavailable
               return (
                 <button
                   key={t.abbr}
                   onClick={() => onPickTeam(week, slot, t)}
                   disabled={disabled}
                   className={`border border-gray-200 rounded-lg p-3 hover:shadow flex items-center gap-3 text-left ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  title={kickoffUnconfirmed ? 'Unavailable until the NFL confirms kickoff' : usedElsewhere ? 'Already used in another week' : ''}
+                  title={providerUnavailable ? `Game ${scheduledGame?.status}` : kickoffUnconfirmed ? 'Unavailable until the NFL confirms kickoff' : usedElsewhere ? 'Already used in another week' : ''}
                 >
                   <div className="relative w-8 h-8 shrink-0">
                     {t.logo ? (
@@ -775,6 +776,7 @@ function TeamPickerModal(props: {
                     <div className="text-xs text-gray-500">{t.abbr}</div>
                     {usedElsewhere && <div className="text-[10px] uppercase text-red-600 mt-1">Used</div>}
                     {kickoffUnconfirmed && <div className="mt-1 text-[10px] uppercase text-amber-700">Kickoff TBD</div>}
+                    {providerUnavailable && <div className="mt-1 text-[10px] uppercase text-amber-700">{scheduledGame?.status}</div>}
                   </div>
                 </button>
               )
@@ -789,15 +791,17 @@ function TeamPickerModal(props: {
                 {weekGames.map((g) => {
                   const homeAbbr = toAbbr(g.home_team)
                   const awayAbbr = toAbbr(g.away_team)
-                  const kickoffIso = g.kickoff_at_utc || g.game_time
-                  const kickoffMs = Date.parse(kickoffIso)
+                  const kickoffIso = g.game_time
+                  const lockKickoffIso = g.kickoff_at_utc || g.game_time
+                  const kickoffMs = Date.parse(lockKickoffIso)
                   const kickoffConfirmed = g.kickoff_confirmed !== false
+                  const providerUnavailable = g.status === 'postponed' || g.status === 'canceled'
 
                   // hybrid lock = earlier of kickoff OR global fixed lock (if in fixed mode)
                   const fixedMs = deadlineMode === 'fixed' && fixedLockUtc ? Date.parse(fixedLockUtc) : Infinity
                   const lockMs = Math.min(kickoffMs, fixedMs)
                   const locked = currentTimeMs >= lockMs
-                  const countdown = !kickoffConfirmed ? 'Unavailable: kickoff TBD' : locked ? 'Locked' : `Locks in ${formatLockCountdown(lockMs - currentTimeMs)}`
+                  const countdown = providerUnavailable ? `Unavailable: ${g.status}` : !kickoffConfirmed ? 'Unavailable: kickoff TBD' : locked ? 'Locked' : `Locks in ${formatLockCountdown(lockMs - currentTimeMs)}`
 
                   const cards = [
                     { abbr: awayAbbr, side: 'Away' as const },
@@ -819,8 +823,8 @@ function TeamPickerModal(props: {
                         {cards.map((c) => {
                           const usedElsewhere = usedTeamAbbrs.includes(c.abbr) && myDraftPicks[selectedKey]?.abbr !== c.abbr
                           const team = NFL_TEAMS.find((t) => t.abbr === c.abbr) || { abbr: c.abbr, name: c.abbr }
-                          const disabled = !kickoffConfirmed || locked || usedElsewhere
-                          const title = !kickoffConfirmed ? 'Unavailable until the NFL confirms kickoff' : locked ? 'Locked - pick window has closed' : usedElsewhere ? 'Already used in another week' : ''
+                          const disabled = providerUnavailable || !kickoffConfirmed || locked || usedElsewhere
+                          const title = providerUnavailable ? `Game ${g.status}` : !kickoffConfirmed ? 'Unavailable until the NFL confirms kickoff' : locked ? 'Locked - pick window has closed' : usedElsewhere ? 'Already used in another week' : ''
                           return (
                             <button
                               key={c.abbr}
@@ -1623,6 +1627,10 @@ function MyPoolsContent() {
     if (teamPickerTarget?.week === week) {
       const game = weekGames.find((g) => toAbbr(g.home_team) === team.abbr || toAbbr(g.away_team) === team.abbr)
       if (game) {
+        if (game.status === 'postponed' || game.status === 'canceled') {
+          showMessage('Game unavailable', `${team.name}'s game is ${game.status}. Your existing pick is preserved, but new changes are paused until the NFL clarifies the game.`, 'warning')
+          return
+        }
         if (game.kickoff_confirmed === false) {
           showMessage('Kickoff time not confirmed', `${team.name} will become available after the NFL publishes its official Week ${week} kickoff time.`, 'warning')
           return
@@ -2693,7 +2701,7 @@ function MyPoolsContent() {
                               const home = teamByAbbr(toAbbr(game.home_team)) || { abbr: toAbbr(game.home_team), name: toAbbr(game.home_team) }
                               return (
                                 <div key={game.id} className="rounded-md border border-gray-200 bg-gray-50 p-3">
-                                  <div className="text-xs text-gray-500">{fmtDateTime(game.kickoff_at_utc || game.game_time)}</div>
+                                  <div className="text-xs text-gray-500">{fmtDateTime(game.game_time)}</div>
                                   <div className="mt-2 flex items-center gap-3 font-medium">
                                     <span className="inline-flex items-center gap-1.5">
                                       <TeamLogo team={away} size={26} />

@@ -3,6 +3,7 @@ import { cleanEnvValue } from '@/lib/env'
 import { getErrorMessage } from '@/lib/errorMessage'
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
 import type { Json } from '@/supabase/database.types'
+import { fetchProviderWeek, validateProviderWeek, type ExistingNflGame } from '@/lib/nflFeed'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -15,96 +16,6 @@ type ActivePool = {
   season: number | null
 }
 
-type ExistingGame = {
-  season: number
-  week: number
-  game_time: string
-  kickoff_at_utc: string | null
-  status: string
-  kickoff_confirmed: boolean
-}
-
-type SyncedGame = {
-  season: number
-  week: number
-  game_time: string
-  kickoff_at_utc: string
-  home_team: string
-  away_team: string
-  status: 'scheduled' | 'in_progress' | 'final'
-  winner: string | null
-  home_score: number | null
-  away_score: number | null
-  espn_event_id: string
-  kickoff_confirmed: boolean
-}
-
-type EspnCompetitor = {
-  homeAway?: string
-  score?: number | string | null
-  winner?: boolean
-  team?: {
-    abbreviation?: string | null
-  } | null
-}
-
-type EspnEvent = {
-  id?: number | string | null
-  date?: string | null
-  status?: {
-    type?: {
-      completed?: boolean
-      state?: string | null
-      name?: string | null
-      description?: string | null
-      detail?: string | null
-      shortDetail?: string | null
-    } | null
-  } | null
-  competitions?: Array<{
-    id?: number | string | null
-    date?: string | null
-    startDate?: string | null
-    competitors?: EspnCompetitor[] | null
-  }> | null
-}
-
-const ESPN_TO_APP_TEAM: Record<string, string> = {
-  ARI: 'ARI',
-  ATL: 'ATL',
-  BAL: 'BAL',
-  BUF: 'BUF',
-  CAR: 'CAR',
-  CHI: 'CHI',
-  CIN: 'CIN',
-  CLE: 'CLE',
-  DAL: 'DAL',
-  DEN: 'DEN',
-  DET: 'DET',
-  GB: 'GB',
-  HOU: 'HOU',
-  IND: 'IND',
-  JAX: 'JAX',
-  KC: 'KC',
-  LV: 'LV',
-  LAC: 'LAC',
-  LAR: 'LAR',
-  MIA: 'MIA',
-  MIN: 'MIN',
-  NE: 'NE',
-  NO: 'NO',
-  NYG: 'NYG',
-  NYJ: 'NYJ',
-  PHI: 'PHI',
-  PIT: 'PIT',
-  SEA: 'SEA',
-  SF: 'SF',
-  TB: 'TB',
-  TEN: 'TEN',
-  WAS: 'WAS',
-  WSH: 'WAS',
-}
-
 function isAuthorized(request: NextRequest) {
   const secret = cleanEnvValue(process.env.CRON_SECRET)
   const auth = request.headers.get('authorization')
@@ -113,108 +24,7 @@ function isAuthorized(request: NextRequest) {
   return auth === `Bearer ${secret}`
 }
 
-function appTeam(value: unknown) {
-  const abbreviation = String(value || '').trim().toUpperCase()
-  const mapped = ESPN_TO_APP_TEAM[abbreviation]
-  if (!mapped) throw new Error(`ESPN returned an unknown NFL team abbreviation: ${abbreviation || '(empty)'}`)
-  return mapped
-}
-
-function scoreNumber(value: unknown) {
-  if (value === null || value === undefined || value === '') return null
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
-function espnStatus(event: EspnEvent): SyncedGame['status'] {
-  const type = event?.status?.type
-  const state = String(type?.state || '').toLowerCase()
-  const name = String(type?.name || '').toLowerCase()
-  const description = String(type?.description || '').toLowerCase()
-
-  if (type?.completed || state === 'post' || name.includes('final') || description.includes('final')) return 'final'
-  if (state === 'in' || name.includes('progress') || description.includes('quarter') || description.includes('halftime')) return 'in_progress'
-  return 'scheduled'
-}
-
-function kickoffIsConfirmed(event: EspnEvent) {
-  const type = event?.status?.type
-  const label = `${type?.detail || ''} ${type?.shortDetail || ''}`.toLowerCase()
-  return !label.includes('tbd')
-}
-
-function winnerFor(status: SyncedGame['status'], homeTeam: string, awayTeam: string, homeScore: number | null, awayScore: number | null, homeWinner: boolean, awayWinner: boolean) {
-  if (status !== 'final') return null
-  if (homeWinner) return homeTeam
-  if (awayWinner) return awayTeam
-  if (homeScore === null || awayScore === null || homeScore === awayScore) return null
-  return homeScore > awayScore ? homeTeam : awayTeam
-}
-
-async function fetchEspnWeek(season: number, week: number): Promise<EspnEvent[]> {
-  const playoffWeekMap: Record<number, number> = {
-    19: 1,
-    20: 2,
-    21: 3,
-    22: 5,
-  }
-  const seasontype = week <= 18 ? '2' : '3'
-  const espnWeek = week <= 18 ? week : playoffWeekMap[week]
-  if (!espnWeek) return []
-
-  const url = new URL('https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard')
-  url.searchParams.set('dates', String(season))
-  url.searchParams.set('seasontype', seasontype)
-  url.searchParams.set('week', String(espnWeek))
-
-  const response = await fetch(url, {
-    next: { revalidate: 0 },
-    signal: AbortSignal.timeout(ESPN_FETCH_TIMEOUT_MS),
-  })
-  if (!response.ok) {
-    throw new Error(`ESPN score sync failed for ${season} Week ${week}: ${response.status} ${response.statusText}`)
-  }
-
-  const body = await response.json()
-  return Array.isArray(body?.events) ? body.events : []
-}
-
-function parseEspnGame(event: EspnEvent, season: number, week: number): SyncedGame | null {
-  const competition = event?.competitions?.[0]
-  const competitors = competition?.competitors
-  if (!competition || !Array.isArray(competitors)) return null
-
-  const home = competitors.find((team) => team?.homeAway === 'home')
-  const away = competitors.find((team) => team?.homeAway === 'away')
-  if (!home || !away) return null
-
-  const homeTeam = appTeam(home?.team?.abbreviation)
-  const awayTeam = appTeam(away?.team?.abbreviation)
-  const gameTime = String(competition?.startDate || competition?.date || event?.date || '')
-  if (!gameTime) return null
-
-  const status = espnStatus(event)
-  const homeScore = scoreNumber(home?.score)
-  const awayScore = scoreNumber(away?.score)
-  const winner = winnerFor(status, homeTeam, awayTeam, homeScore, awayScore, !!home?.winner, !!away?.winner)
-
-  return {
-    season,
-    week,
-    game_time: gameTime,
-    kickoff_at_utc: gameTime,
-    home_team: homeTeam,
-    away_team: awayTeam,
-    status,
-    winner,
-    home_score: homeScore,
-    away_score: awayScore,
-    espn_event_id: String(event?.id || competition?.id || `${season}-${week}-${awayTeam}-${homeTeam}`),
-    kickoff_confirmed: kickoffIsConfirmed(event),
-  }
-}
-
-function targetWeeksFromGames(games: ExistingGame[]) {
+function targetWeeksFromGames(games: ExistingNflGame[]) {
   const now = Date.now()
   const lookBehindMs = 10 * 24 * 60 * 60 * 1000
   const lookAheadMs = 35 * 24 * 60 * 60 * 1000
@@ -225,7 +35,7 @@ function targetWeeksFromGames(games: ExistingGame[]) {
     if (!Number.isFinite(kickoffMs)) continue
     const status = String(game.status || '').toLowerCase()
     const inWindow = kickoffMs >= now - lookBehindMs && kickoffMs <= now + lookAheadMs
-    if (inWindow || status === 'in_progress' || !game.kickoff_confirmed) weeks.add(game.week)
+    if (inWindow || status === 'in_progress' || status === 'postponed' || !game.kickoff_confirmed) weeks.add(game.week)
   }
 
   return Array.from(weeks).filter((week) => week >= 1 && week <= 22).sort((a, b) => a - b)
@@ -292,7 +102,7 @@ export async function GET(request: NextRequest) {
       }
       const { data: existingGames, error: gamesError } = await supabaseAdmin
         .from('nfl_games')
-        .select('season, week, game_time, kickoff_at_utc, status, kickoff_confirmed')
+        .select('season, week, game_time, kickoff_at_utc, home_team, away_team, espn_event_id, status, kickoff_confirmed')
         .eq('season', season)
 
       if (gamesError) {
@@ -300,7 +110,8 @@ export async function GET(request: NextRequest) {
         continue
       }
 
-      const targetWeeks = targetWeeksFromGames((existingGames || []) as ExistingGame[])
+      const knownGames = (existingGames || []) as ExistingNflGame[]
+      const targetWeeks = targetWeeksFromGames(knownGames)
       syncedBySeasonWeek[String(season)] = targetWeeks
 
       for (const week of targetWeeks) {
@@ -315,9 +126,8 @@ export async function GET(request: NextRequest) {
           break
         }
         try {
-          const events = await fetchEspnWeek(season, week)
-          const games = events.map((event) => parseEspnGame(event, season, week)).filter(Boolean) as SyncedGame[]
-          if (games.length === 0) continue
+          const events = await fetchProviderWeek(season, week, { timeoutMs: ESPN_FETCH_TIMEOUT_MS, attempts: 3 })
+          const games = validateProviderWeek(events, season, week, knownGames)
 
           const { error: upsertError } = await supabaseAdmin
             .from('nfl_games')
@@ -327,7 +137,9 @@ export async function GET(request: NextRequest) {
           gamesSynced += games.length
           finalGamesSynced += games.filter((game) => game.status === 'final').length
         } catch (e: unknown) {
-          syncErrors.push(`${season} Week ${week}: ${getErrorMessage(e, 'Score sync failed.')}`)
+          const message = getErrorMessage(e, 'Score provider week was rejected.')
+          syncErrors.push(`${season} Week ${week}: ${message}`)
+          await logCronEvent('score_provider_week_rejected', 'error', message, { season, week })
         }
       }
     }
