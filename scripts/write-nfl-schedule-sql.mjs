@@ -115,6 +115,7 @@ for (let week = 1; week <= 18; week += 1) {
 
     const gameTime = competition.startDate || competition.date || event.date
     validateKickoffForSeason(gameTime, week)
+    const statusLabel = `${event.status?.type?.detail || ''} ${event.status?.type?.shortDetail || ''}`.toLowerCase()
 
     games.push({
       season,
@@ -123,6 +124,7 @@ for (let week = 1; week <= 18; week += 1) {
       homeTeam: appTeam(home.team.abbreviation),
       awayTeam: appTeam(away.team.abbreviation),
       espnEventId: String(event.id),
+      kickoffConfirmed: !statusLabel.includes('tbd'),
     })
   }
 }
@@ -138,6 +140,7 @@ const gameValues = games
       sqlString(game.awayTeam),
       sqlString('scheduled'),
       sqlString(game.espnEventId),
+      game.kickoffConfirmed ? 'true' : 'false',
     ].join(', ')
   )
   .map((row) => `  (${row})`)
@@ -170,19 +173,18 @@ insert into public.nfl_games (
   home_team,
   away_team,
   status,
-  espn_event_id
+  espn_event_id,
+  kickoff_confirmed
 )
 values
 ${gameValues}
-on conflict (espn_event_id) do update
+on conflict (season, week, home_team, away_team) do update
 set
-  season = excluded.season,
-  week = excluded.week,
   game_time = excluded.game_time,
   kickoff_at_utc = excluded.kickoff_at_utc,
-  home_team = excluded.home_team,
-  away_team = excluded.away_team,
-  status = excluded.status;
+  status = excluded.status,
+  espn_event_id = excluded.espn_event_id,
+  kickoff_confirmed = excluded.kickoff_confirmed;
 
 commit;
 `

@@ -205,7 +205,7 @@ export default function JoinPoolPage() {
   const fixedDeadlineLabel = useMemo(() => {
     if (!pool) return null
     if (pool.deadline_mode !== 'fixed') return null
-    return 'Sunday 1 PM ET'
+    return 'Sunday 1 PM ET; earlier games lock at kickoff'
   }, [pool])
 
   return (
@@ -241,7 +241,7 @@ export default function JoinPoolPage() {
                 {' '}Strikes {pool.strikes_allowed} - Tie = {pool.tie_rule === 'win' ? 'Win' : 'Loss'}
               </p>
               <p className="text-sm text-gray-600">
-                Pick deadline: {pool.deadline_mode === 'rolling' ? 'Rolling, each game locks at kickoff' : (fixedDeadlineLabel || 'Sunday 1 PM ET')}
+                Pick deadline: {pool.deadline_mode === 'rolling' ? 'Rolling, each game locks at kickoff' : (fixedDeadlineLabel || 'Sunday 1 PM ET; earlier games lock at kickoff')}
               </p>
               {pool.notes && <p className="text-sm text-gray-600 mt-1">{pool.notes}</p>}
             </div>

@@ -38,7 +38,7 @@ function formatPoolMeta(pool: Pool) {
 
 function deadlineLabel(pool: Pool) {
   if (pool.deadline_mode === 'rolling') return 'Rolling: each game locks at kickoff'
-  return 'Sunday 1 PM ET'
+  return 'Sunday 1 PM ET; earlier games lock at kickoff'
 }
 
 function isMissingAuthSession(error: unknown) {

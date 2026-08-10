@@ -21,6 +21,7 @@ type ExistingGame = {
   game_time: string
   kickoff_at_utc: string | null
   status: string
+  kickoff_confirmed: boolean
 }
 
 type SyncedGame = {
@@ -35,6 +36,7 @@ type SyncedGame = {
   home_score: number | null
   away_score: number | null
   espn_event_id: string
+  kickoff_confirmed: boolean
 }
 
 type EspnCompetitor = {
@@ -55,6 +57,8 @@ type EspnEvent = {
       state?: string | null
       name?: string | null
       description?: string | null
+      detail?: string | null
+      shortDetail?: string | null
     } | null
   } | null
   competitions?: Array<{
@@ -133,6 +137,12 @@ function espnStatus(event: EspnEvent): SyncedGame['status'] {
   return 'scheduled'
 }
 
+function kickoffIsConfirmed(event: EspnEvent) {
+  const type = event?.status?.type
+  const label = `${type?.detail || ''} ${type?.shortDetail || ''}`.toLowerCase()
+  return !label.includes('tbd')
+}
+
 function winnerFor(status: SyncedGame['status'], homeTeam: string, awayTeam: string, homeScore: number | null, awayScore: number | null, homeWinner: boolean, awayWinner: boolean) {
   if (status !== 'final') return null
   if (homeWinner) return homeTeam
@@ -200,13 +210,14 @@ function parseEspnGame(event: EspnEvent, season: number, week: number): SyncedGa
     home_score: homeScore,
     away_score: awayScore,
     espn_event_id: String(event?.id || competition?.id || `${season}-${week}-${awayTeam}-${homeTeam}`),
+    kickoff_confirmed: kickoffIsConfirmed(event),
   }
 }
 
 function targetWeeksFromGames(games: ExistingGame[]) {
   const now = Date.now()
   const lookBehindMs = 10 * 24 * 60 * 60 * 1000
-  const lookAheadMs = 4 * 24 * 60 * 60 * 1000
+  const lookAheadMs = 35 * 24 * 60 * 60 * 1000
   const weeks = new Set<number>()
 
   for (const game of games) {
@@ -214,7 +225,7 @@ function targetWeeksFromGames(games: ExistingGame[]) {
     if (!Number.isFinite(kickoffMs)) continue
     const status = String(game.status || '').toLowerCase()
     const inWindow = kickoffMs >= now - lookBehindMs && kickoffMs <= now + lookAheadMs
-    if (inWindow || status === 'in_progress') weeks.add(game.week)
+    if (inWindow || status === 'in_progress' || !game.kickoff_confirmed) weeks.add(game.week)
   }
 
   return Array.from(weeks).filter((week) => week >= 1 && week <= 22).sort((a, b) => a - b)
@@ -276,7 +287,7 @@ export async function GET(request: NextRequest) {
       }
       const { data: existingGames, error: gamesError } = await supabaseAdmin
         .from('nfl_games')
-        .select('season, week, game_time, kickoff_at_utc, status')
+        .select('season, week, game_time, kickoff_at_utc, status, kickoff_confirmed')
         .eq('season', season)
 
       if (gamesError) {
@@ -305,7 +316,7 @@ export async function GET(request: NextRequest) {
 
           const { error: upsertError } = await supabaseAdmin
             .from('nfl_games')
-            .upsert(games, { onConflict: 'espn_event_id' })
+            .upsert(games, { onConflict: 'season,week,home_team,away_team' })
 
           if (upsertError) throw upsertError
           gamesSynced += games.length

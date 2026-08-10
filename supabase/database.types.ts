@@ -552,6 +552,7 @@ export type Database = {
           home_team: string
           id: string
           kickoff_at_utc: string | null
+          kickoff_confirmed: boolean
           season: number
           status: string
           week: number
@@ -567,6 +568,7 @@ export type Database = {
           home_team: string
           id?: string
           kickoff_at_utc?: string | null
+          kickoff_confirmed?: boolean
           season: number
           status?: string
           week: number
@@ -582,6 +584,7 @@ export type Database = {
           home_team?: string
           id?: string
           kickoff_at_utc?: string | null
+          kickoff_confirmed?: boolean
           season?: number
           status?: string
           week?: number

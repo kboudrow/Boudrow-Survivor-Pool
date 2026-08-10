@@ -202,7 +202,7 @@ export default function PoolDetailPage() {
   const fixedDeadlineLabel = useMemo(() => {
     if (!pool) return null
     if (pool.deadline_mode !== 'fixed') return null
-    return 'Sunday 1 PM ET'
+    return 'Sunday 1 PM ET; earlier games lock at kickoff'
   }, [pool])
 
   const onExportCsv = async () => {
@@ -272,7 +272,7 @@ export default function PoolDetailPage() {
                 {pool.is_public ? 'Public' : 'Private'} Â· Starts week {pool.start_week} Â· Strikes {pool.strikes_allowed} Â· Tie = {pool.tie_rule === 'win' ? 'Win' : 'Loss'}
               </p>
               <p className="text-sm text-gray-600">
-                Pick Deadline: {pool.deadline_mode === 'rolling' ? 'Rolling: each game locks at kickoff' : (fixedDeadlineLabel || 'Sunday 1 PM ET')}
+                Pick Deadline: {pool.deadline_mode === 'rolling' ? 'Rolling: each game locks at kickoff' : (fixedDeadlineLabel || 'Sunday 1 PM ET; earlier games lock at kickoff')}
               </p>
               {pool.notes && <p className="text-sm text-gray-600 mt-1">{pool.notes}</p>}
             </div>
@@ -379,4 +379,3 @@ export default function PoolDetailPage() {
     </main>
   )
 }
-
