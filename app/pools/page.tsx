@@ -64,6 +64,7 @@ type Game = {
   week: number
   game_time: string
   kickoff_at_utc?: string | null
+  kickoff_confirmed?: boolean
   home_team: string
   away_team: string
   status: 'scheduled' | 'in_progress' | 'final' | string
@@ -211,18 +212,6 @@ const maxWeekForPool = (pool?: Pick<Pool, 'include_playoffs' | 'test_mode'> | nu
   pool?.test_mode && pool.include_playoffs ? TEST_PLAYOFF_MAX_WEEK : REGULAR_SEASON_MAX_WEEK
 const weekLabel = (week: number) => FULL_PLAYOFF_WEEK_LABELS[week] || `Week ${week}`
 const shortWeekLabel = (week: number) => SHORT_PLAYOFF_WEEK_LABELS[week] || `W${week}`
-
-/** ---------------- Time + Lock Helpers ---------------- */
-const fmtLocal = (iso: string) =>
-  new Date(iso).toLocaleString('en-GB', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  })
 
 const displayNameForMember = (m: Profile) =>
   m.username ||
@@ -730,13 +719,16 @@ function TeamPickerModal(props: {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
             {filteredTeams.map((t) => {
               const usedElsewhere = usedTeamAbbrs.includes(t.abbr) && myDraftPicks[selectedKey]?.abbr !== t.abbr
+              const scheduledGame = weekGames.find((game) => toAbbr(game.home_team) === t.abbr || toAbbr(game.away_team) === t.abbr)
+              const kickoffUnconfirmed = scheduledGame?.kickoff_confirmed === false
+              const disabled = usedElsewhere || kickoffUnconfirmed
               return (
                 <button
                   key={t.abbr}
                   onClick={() => onPickTeam(week, slot, t)}
-                  disabled={usedElsewhere}
-                  className={`border border-gray-200 rounded-lg p-3 hover:shadow flex items-center gap-3 text-left ${usedElsewhere ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  title={usedElsewhere ? 'Already used in another week' : ''}
+                  disabled={disabled}
+                  className={`border border-gray-200 rounded-lg p-3 hover:shadow flex items-center gap-3 text-left ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  title={kickoffUnconfirmed ? 'Unavailable until the NFL confirms kickoff' : usedElsewhere ? 'Already used in another week' : ''}
                 >
                   <div className="relative w-8 h-8 shrink-0">
                     {t.logo ? (
@@ -750,6 +742,7 @@ function TeamPickerModal(props: {
                     <div className="font-medium leading-tight">{t.name}</div>
                     <div className="text-xs text-gray-500">{t.abbr}</div>
                     {usedElsewhere && <div className="text-[10px] uppercase text-red-600 mt-1">Used</div>}
+                    {kickoffUnconfirmed && <div className="mt-1 text-[10px] uppercase text-amber-700">Kickoff TBD</div>}
                   </div>
                 </button>
               )
@@ -766,12 +759,13 @@ function TeamPickerModal(props: {
                   const awayAbbr = toAbbr(g.away_team)
                   const kickoffIso = g.kickoff_at_utc || g.game_time
                   const kickoffMs = Date.parse(kickoffIso)
+                  const kickoffConfirmed = g.kickoff_confirmed !== false
 
                   // hybrid lock = earlier of kickoff OR global fixed lock (if in fixed mode)
                   const fixedMs = deadlineMode === 'fixed' && fixedLockUtc ? Date.parse(fixedLockUtc) : Infinity
                   const lockMs = Math.min(kickoffMs, fixedMs)
                   const locked = currentTimeMs >= lockMs
-                  const countdown = locked ? 'Locked' : `Locks in ${msToCountdown(lockMs - currentTimeMs)}`
+                  const countdown = !kickoffConfirmed ? 'Unavailable: kickoff TBD' : locked ? 'Locked' : `Locks in ${msToCountdown(lockMs - currentTimeMs)}`
 
                   const cards = [
                     { abbr: awayAbbr, side: 'Away' as const },
@@ -781,8 +775,8 @@ function TeamPickerModal(props: {
                   return (
                     <div key={g.id} className="border rounded-lg p-3">
                       <div className="flex items-center justify-between mb-1">
-                        <div className="text-xs text-gray-500">{fmtLocal(kickoffIso)}</div>
-                        <span className={`text-[11px] px-2 py-0.5 rounded-full border ${locked ? 'bg-gray-200 border-gray-300 text-gray-700' : 'bg-green-50 border-green-300 text-green-700'}`}>
+                        <div className="text-xs text-gray-500">{kickoffConfirmed ? fmtEtDateTime(kickoffIso) : 'Official kickoff time TBD'}</div>
+                        <span className={`text-[11px] px-2 py-0.5 rounded-full border ${!kickoffConfirmed ? 'bg-amber-50 border-amber-300 text-amber-800' : locked ? 'bg-gray-200 border-gray-300 text-gray-700' : 'bg-green-50 border-green-300 text-green-700'}`}>
                           {countdown}
                         </span>
                       </div>
@@ -793,8 +787,8 @@ function TeamPickerModal(props: {
                         {cards.map((c) => {
                           const usedElsewhere = usedTeamAbbrs.includes(c.abbr) && myDraftPicks[selectedKey]?.abbr !== c.abbr
                           const team = NFL_TEAMS.find((t) => t.abbr === c.abbr) || { abbr: c.abbr, name: c.abbr }
-                          const disabled = locked || usedElsewhere
-                          const title = locked ? 'Locked - pick window has closed' : usedElsewhere ? 'Already used in another week' : ''
+                          const disabled = !kickoffConfirmed || locked || usedElsewhere
+                          const title = !kickoffConfirmed ? 'Unavailable until the NFL confirms kickoff' : locked ? 'Locked - pick window has closed' : usedElsewhere ? 'Already used in another week' : ''
                           return (
                             <button
                               key={c.abbr}
@@ -924,7 +918,7 @@ function MyPoolsContent() {
   const deadlineLabel =
     pool?.deadline_mode === 'rolling'
       ? 'Rolling: each game locks at kickoff'
-      : `Sunday ${formatEtTime(pool?.deadline_fixed)}`
+      : `Sunday ${formatEtTime(pool?.deadline_fixed)}; earlier games lock at kickoff`
   const selectedWeekCloseLabel =
     isTestMode
       ? pool?.test_now_at
@@ -933,7 +927,7 @@ function MyPoolsContent() {
       : pool?.deadline_mode === 'rolling'
       ? 'Each matchup closes at kickoff.'
       : fixedLockUtc
-        ? `${weekLabel(selectedPickWeek)} closes ${fmtEtDateTime(fixedLockUtc)}.`
+        ? `Most games close ${fmtEtDateTime(fixedLockUtc)}; any earlier game locks at its kickoff.`
         : 'Week close time unavailable.'
   const showPickNotice = (notice: PickNotice) => {
     if (pickNoticeTimerRef.current) window.clearTimeout(pickNoticeTimerRef.current)
@@ -1296,7 +1290,20 @@ function MyPoolsContent() {
         p_pool_id: pool.id,
         p_week: week,
       })
-      const games = (data || []) as Game[]
+      let games = (data || []) as Game[]
+
+      if (!pool.test_mode && !error) {
+        const season = pool.season ?? games[0]?.season ?? new Date().getFullYear()
+        const { data: confirmations, error: confirmationError } = await supabase
+          .from('nfl_games')
+          .select('id, kickoff_confirmed')
+          .eq('season', season)
+          .eq('week', week)
+        if (!confirmationError) {
+          const confirmedById = new Map((confirmations || []).map((game) => [game.id, game.kickoff_confirmed]))
+          games = games.map((game) => ({ ...game, kickoff_confirmed: confirmedById.get(game.id) ?? true }))
+        }
+      }
 
       if (!error) setWeekGames(games)
       setGamesLoading(false)
@@ -1508,6 +1515,10 @@ function MyPoolsContent() {
     if (teamPickerTarget?.week === week) {
       const game = weekGames.find((g) => toAbbr(g.home_team) === team.abbr || toAbbr(g.away_team) === team.abbr)
       if (game) {
+        if (game.kickoff_confirmed === false) {
+          showMessage('Kickoff time not confirmed', `${team.name} will become available after the NFL publishes its official Week ${week} kickoff time.`, 'warning')
+          return
+        }
         const kickoffMs = Date.parse(game.kickoff_at_utc || game.game_time)
         const fixedMs = pool?.deadline_mode === 'fixed' && fixedLockUtc ? Date.parse(fixedLockUtc) : Infinity
         const lockMs = Math.min(kickoffMs, fixedMs)

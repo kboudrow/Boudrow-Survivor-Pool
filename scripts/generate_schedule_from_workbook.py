@@ -40,11 +40,11 @@ def sql(value: object) -> str:
     return "'" + str(value).replace("'", "''") + "'"
 
 
-def kickoff_utc(date_text: object, time_text: object, week: int) -> str:
+def kickoff_utc(date_text: object, time_text: object, week: int) -> tuple[str, bool]:
     if not date_text or not time_text or "TBD" in str(date_text) or "TBD" in str(time_text):
         local_date = datetime.strptime(WEEK_SUNDAYS[week], "%Y-%m-%d").date()
         local_dt = datetime.combine(local_date, time(13, 0), ET)
-        return local_dt.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return local_dt.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), False
 
     match = re.match(r"([A-Za-z]{3})\s+(\d+)", str(date_text))
     if not match:
@@ -55,7 +55,7 @@ def kickoff_utc(date_text: object, time_text: object, week: int) -> str:
     year = 2027 if month == 1 else 2026
     local_time = datetime.strptime(str(time_text).replace(" ET", "").strip(), "%I:%M %p").time()
     local_dt = datetime.combine(date(year, month, day), local_time, ET)
-    return local_dt.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return local_dt.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), True
 
 
 def main() -> None:
@@ -71,14 +71,14 @@ def main() -> None:
         time_text = row[3]
         away = str(row[4]).strip()
         home = str(row[5]).strip()
-        kickoff = kickoff_utc(date_text, time_text, week)
+        kickoff, kickoff_confirmed = kickoff_utc(date_text, time_text, week)
         event_id = f"audited-2026-w{week:02d}-{away}-{home}"
-        rows.append((2026, week, kickoff, kickoff, home, away, "scheduled", event_id))
+        rows.append((2026, week, kickoff, kickoff, home, away, "scheduled", event_id, kickoff_confirmed))
 
     week_counts = collections.Counter(row[1] for row in rows)
     team_counts: collections.Counter[str] = collections.Counter()
     week_teams: dict[int, list[str]] = {}
-    for _, week, _, _, home, away, _, _ in rows:
+    for _, week, _, _, home, away, _, _, _ in rows:
         team_counts[home] += 1
         team_counts[away] += 1
         week_teams.setdefault(week, []).extend([home, away])
@@ -99,7 +99,7 @@ def main() -> None:
     lines: list[str] = []
     lines.append("-- Generated from 2026_NFL_Schedule_Google_Sheets_AUDITED.xlsx.\n")
     lines.append("-- Source workbook audit: 272 games, all 32 teams have 17 games, no duplicate games, no same-week double-booked teams.\n")
-    lines.append("-- Week 18 exact TV windows are TBD in the workbook; placeholders use Sunday 1 PM ET until official times are available.\n\n")
+    lines.append("-- Unconfirmed flex windows retain an ordering placeholder but are marked unavailable until official kickoff is known.\n\n")
     lines.append("begin;\n\n")
     lines.append("delete from public.nfl_games\nwhere season = 2026;\n\n")
     lines.append("insert into public.season_weeks (season, week, week_sunday_date)\nvalues\n")
@@ -114,25 +114,24 @@ def main() -> None:
         "  home_team,\n"
         "  away_team,\n"
         "  status,\n"
-        "  espn_event_id\n"
+        "  espn_event_id,\n"
+        "  kickoff_confirmed\n"
         ")\nvalues\n"
     )
     lines.append(
         ",\n".join(
-            f"  ({season}, {week}, {sql(game_time)}, {sql(kickoff)}, {sql(home)}, {sql(away)}, {sql(status)}, {sql(event_id)})"
-            for season, week, game_time, kickoff, home, away, status, event_id in rows
+            f"  ({season}, {week}, {sql(game_time)}, {sql(kickoff)}, {sql(home)}, {sql(away)}, {sql(status)}, {sql(event_id)}, {'true' if confirmed else 'false'})"
+            for season, week, game_time, kickoff, home, away, status, event_id, confirmed in rows
         )
     )
     lines.append(
-        "\non conflict (espn_event_id) do update\n"
+        "\non conflict (season, week, home_team, away_team) do update\n"
         "set\n"
-        "  season = excluded.season,\n"
-        "  week = excluded.week,\n"
         "  game_time = excluded.game_time,\n"
         "  kickoff_at_utc = excluded.kickoff_at_utc,\n"
-        "  home_team = excluded.home_team,\n"
-        "  away_team = excluded.away_team,\n"
-        "  status = excluded.status;\n\n"
+        "  status = excluded.status,\n"
+        "  espn_event_id = excluded.espn_event_id,\n"
+        "  kickoff_confirmed = excluded.kickoff_confirmed;\n\n"
         "commit;\n"
     )
 
