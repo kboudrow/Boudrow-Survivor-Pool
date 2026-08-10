@@ -11,7 +11,7 @@ import { logAppEvent, trackConversion } from '@/lib/monitoring'
 import { poolEntryCountLabel } from '@/lib/poolCapacity'
 import { poolImageUrl } from '@/lib/poolImages'
 import { supabase } from '@/lib/supabaseClient'
-import { entryProgress, poolHasWinner, requiredPickSlots } from '@/lib/survivorRules'
+import { entryProgress, poolHasWinner, requiredPickSlots, survivalCreditsThroughWeek } from '@/lib/survivorRules'
 
 /** ---------------- Types ---------------- */
 type Pool = {
@@ -114,6 +114,7 @@ type MemberStats = {
   strikes_used: number
   eliminated: boolean
   eliminated_week?: number | null
+  survival_graces?: Array<{ week: number; strike_credits: number }>
 }
 
 type StandingsSnapshot = {
@@ -1826,9 +1827,11 @@ function MyPoolsContent() {
             strikes_used: 0,
             eliminated: false,
             eliminated_week: null,
+            survival_graces: [],
           } as MemberStats)
         const entryPicksThroughWeek = standingsHistoryPicks.filter((pick) => pick.entry_id === member.id && pick.week <= standingsWeek)
-        const progress = entryProgress(entryPicksThroughWeek.map((pick) => pick.result), strikesAllowed, pool?.tie_rule || 'loss')
+        const survivalCredits = survivalCreditsThroughWeek(stats.survival_graces, standingsWeek)
+        const progress = entryProgress(entryPicksThroughWeek.map((pick) => pick.result), strikesAllowed + survivalCredits, pool?.tie_rule || 'loss')
         const strikesUsedThroughWeek = progress.strikesUsed
         const winsThroughWeek = entryPicksThroughWeek.filter((pick) => pick.result === 'win').length
         const lossesThroughWeek = entryPicksThroughWeek.filter((pick) => pick.result === 'loss').length
@@ -1869,12 +1872,16 @@ function MyPoolsContent() {
         const strikes = entryPicks.filter((pick) => pick.result === 'loss' || (pick.result === 'push' && pool?.tie_rule === 'loss')).length
         strikesByEntry.set(member.id, (strikesByEntry.get(member.id) || 0) + strikes)
       }
-      const alive = Array.from(strikesByEntry.values()).filter((strikes) => strikes <= strikesAllowed).length
+      const alive = members.filter((member) => {
+        const strikes = strikesByEntry.get(member.id) || 0
+        const credits = survivalCreditsThroughWeek(standingsStatsByEntry[member.id]?.survival_graces, week)
+        return strikes <= strikesAllowed + credits
+      }).length
       survival.set(week, alive)
     }
 
     return survival
-  }, [members, pool?.tie_rule, standingsHistoryPicks, standingsTableWeeks, strikesAllowed])
+  }, [members, pool?.tie_rule, standingsHistoryPicks, standingsStatsByEntry, standingsTableWeeks, strikesAllowed])
   const visiblePicksThisWeek = useMemo(
     () => picksThisWeek,
     [picksThisWeek],

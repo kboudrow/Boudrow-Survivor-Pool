@@ -7,6 +7,7 @@ import {
   isPickLocked,
   poolHasWinner,
   requiredPickSlots,
+  survivalCreditsThroughWeek,
   teamAlreadyUsed,
 } from '../lib/survivorRules.ts'
 
@@ -73,6 +74,14 @@ test('fixed deadlines never keep an early game open after kickoff', () => {
 test('deadline equality is locked, while one millisecond before remains editable', () => {
   assert.equal(isPickLocked(5_000, 4_999), false)
   assert.equal(isPickLocked(5_000, 5_000), true)
+})
+
+test('wipeout survival credits apply only from their awarded week forward', () => {
+  const graces = [{ week: 3, strike_credits: 1 }, { week: 7, strike_credits: 2 }]
+  assert.equal(survivalCreditsThroughWeek(graces, 2), 0)
+  assert.equal(survivalCreditsThroughWeek(graces, 3), 1)
+  assert.equal(survivalCreditsThroughWeek(graces, 7), 3)
+  assert.equal(entryProgress(['loss'], 1, 'loss').alive, true)
 })
 
 test('winner is entry-based when users can own multiple entries', () => {

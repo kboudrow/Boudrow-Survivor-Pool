@@ -1,5 +1,6 @@
 export type PickResult = 'win' | 'loss' | 'push' | null
 export type TieRule = 'win' | 'loss'
+export type SurvivalGrace = { week: number; strike_credits: number }
 
 export function requiredPickSlots(doublePickWeeks: readonly number[] | null | undefined, week: number) {
   return doublePickWeeks?.includes(week) ? 2 : 1
@@ -16,6 +17,13 @@ export function entryProgress(results: readonly PickResult[], strikesAllowed: nu
     strikesLeft: Math.max(0, strikesAllowed - strikesUsed),
     alive: strikesUsed <= strikesAllowed,
   }
+}
+
+export function survivalCreditsThroughWeek(graces: readonly SurvivalGrace[] | null | undefined, week: number) {
+  return (graces || []).reduce(
+    (total, grace) => total + (grace.week <= week ? Math.max(0, Number(grace.strike_credits) || 0) : 0),
+    0,
+  )
 }
 
 export function teamAlreadyUsed(
