@@ -1541,11 +1541,50 @@ function MyPoolsContent() {
         poolId: selectedId,
         metadata: { week, slot, team_abbr: team?.abbr || null, entry_id: selectedEntryId },
       })
-      if (team && message.toLowerCase().includes('already selected for week')) {
-        await loadMyPicks(selectedId, pool?.start_week ?? 1)
-        setDraftSavedAt(new Date().toISOString())
-        await refreshPoolPickStatus()
-        return true
+      // A mobile connection can disappear after PostgreSQL commits but before
+      // the browser receives the RPC response. Read the authoritative row back
+      // before telling the user the pick failed or rolling back the UI.
+      try {
+        const [{ data: finalPick, error: finalError }, { data: draftPick, error: draftError }] = await Promise.all([
+          supabase
+            .from('pool_picks')
+            .select('team_abbr')
+            .eq('pool_id', selectedId)
+            .eq('entry_id', selectedEntryId)
+            .eq('week', week)
+            .eq('slot', slot)
+            .maybeSingle<{ team_abbr: string }>(),
+          supabase
+            .from('pool_pick_drafts')
+            .select('team_abbr')
+            .eq('pool_id', selectedId)
+            .eq('entry_id', selectedEntryId)
+            .eq('week', week)
+            .eq('slot', slot)
+            .maybeSingle<{ team_abbr: string }>(),
+        ])
+        if (finalError) throw finalError
+        if (draftError) throw draftError
+
+        const intendedTeam = team?.abbr || null
+        const persistedTeam = finalPick?.team_abbr || draftPick?.team_abbr || null
+        const intendedStatePersisted = team
+          ? persistedTeam === intendedTeam
+          : !finalPick && !draftPick
+
+        if (intendedStatePersisted) {
+          await loadMyPicks(selectedId, pool?.start_week ?? 1, selectedEntryId)
+          setDraftSavedAt(new Date().toISOString())
+          await refreshPoolPickStatus()
+          return true
+        }
+      } catch (verificationError) {
+        void logAppEvent({
+          eventType: 'pick_save_verification_failed',
+          error: verificationError,
+          poolId: selectedId,
+          metadata: { week, slot, team_abbr: team?.abbr || null, entry_id: selectedEntryId },
+        })
       }
       showMessage('Pick not saved', message, 'danger')
       return false
@@ -1554,7 +1593,7 @@ function MyPoolsContent() {
     }
   }
 
-  const commitPickTeam = async (week: number, slot: number, team: Team, previousPick: Team | null) => {
+  const commitPickTeam = async (week: number, slot: number, team: Team) => {
     const key = pickKey(week, slot)
     setMyDraftPicks((prev) => ({ ...prev, [key]: team }))
     setTeamPickerTarget(null)
@@ -1562,8 +1601,8 @@ function MyPoolsContent() {
     if (saved) {
       void trackConversion('conversion.pick_saved', { week, slot, entry_id: selectedEntryId }, selectedId)
       showPickNotice({ team, week, slot, action: 'saved' })
-    } else {
-      setMyDraftPicks((prev) => ({ ...prev, [key]: previousPick }))
+    } else if (selectedId && selectedEntryId) {
+      await loadMyPicks(selectedId, pool?.start_week ?? 1, selectedEntryId)
     }
   }
 
@@ -1615,11 +1654,11 @@ function MyPoolsContent() {
         tone: 'warning',
         confirmLabel: 'Yes, change pick',
         cancelLabel: 'No',
-        onConfirm: () => commitPickTeam(week, slot, team, previousPick),
+        onConfirm: () => commitPickTeam(week, slot, team),
       })
       return
     }
-    await commitPickTeam(week, slot, team, previousPick)
+    await commitPickTeam(week, slot, team)
   }
 
   const clearPick = async (week: number, slot: number) => {
@@ -1633,8 +1672,8 @@ function MyPoolsContent() {
     const saved = await saveDraft(week, slot, null)
     if (saved) {
       showPickNotice({ team: previousPick || { abbr: 'NFL', name: 'Pick' }, week, slot, action: 'cleared' })
-    } else {
-      setMyDraftPicks((prev) => ({ ...prev, [key]: previousPick }))
+    } else if (selectedId && selectedEntryId) {
+      await loadMyPicks(selectedId, pool?.start_week ?? 1, selectedEntryId)
     }
   }
 
