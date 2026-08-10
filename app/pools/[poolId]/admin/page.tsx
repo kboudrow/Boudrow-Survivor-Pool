@@ -2060,12 +2060,12 @@ export default function PoolAdminPage() {
               </div>
               {settingsLocked && (
                 <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                  Competitive settings are locked because the first kickoff has passed. This protects the rules players entered under. You can still review members, check scoring, and make logged commissioner pick corrections with a reason.
+                  Competitive settings are locked because the first kickoff has passed. Start week, deadlines, mulligans, tie scoring, season length, entry limits, visibility, password, additional rules, and double-pick weeks cannot change, so historical picks and standings cannot be silently regraded. You can still change the pool image, review members, check scoring, and make logged commissioner pick corrections with a reason.
                 </p>
               )}
               {!settingsLocked && poolStartAt && (
                 <p className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-                  Setup is still open. The pool starts automatically and competitive settings lock at {fmt(poolStartAt)}. Saved entries and picks stay in place when you change a compatible setting.
+                  Setup is still open. The pool starts automatically and competitive settings lock at {fmt(poolStartAt)}. Changes apply to every existing entry. Saved picks stay in place when compatible; limits cannot be reduced below current entries, and moving the start later is blocked if it would discard a picked week.
                 </p>
               )}
 
@@ -2293,7 +2293,7 @@ export default function PoolAdminPage() {
                   >
                     {savingVisibility ? 'Saving...' : 'Save visibility'}
                   </button>
-                  <p className="mt-2 text-xs text-gray-600">Public pools can be found in search. Private pools require a password to join.</p>
+                  <p className="mt-2 text-xs text-gray-600">Public pools can be found in search. Private pools require a password for new members; changing to private does not remove anyone who already joined.</p>
                 </div>
 
                 <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
