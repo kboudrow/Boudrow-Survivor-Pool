@@ -40,3 +40,26 @@ test('cron endpoints require the configured bearer secret',async()=>{
     assert.match(route,/status: 401/)
   }
 })
+
+test('commissioner page verifies authentication before loading admin data',async()=>{
+  const page=await read('app/pools/[poolId]/admin/page.tsx')
+  const loader=page.slice(page.indexOf('const loadOverview'))
+  assert.ok(loader.indexOf('supabase.auth.getUser()')<loader.indexOf("admin_pool_entry_week_overview"))
+  assert.ok(loader.indexOf("admin_can_manage")<loader.indexOf("admin_pool_entry_week_overview"))
+  assert.match(loader,/auth=signin&returnTo=/)
+  assert.match(page,/Verifying commissioner access/)
+})
+
+test('monitoring abuse protection uses a shared atomic database counter',async()=>{
+  const [route,migration]=await Promise.all([
+    read('app/api/monitoring/events/route.ts'),
+    read('supabase/migrations/20260810001400_persistent_monitoring_rate_limit.sql'),
+  ])
+  assert.doesNotMatch(route,/new Map</)
+  assert.match(route,/consume_monitoring_rate_limit/)
+  assert.match(route,/createHmac\('sha256'/)
+  assert.match(route,/status: 503/)
+  assert.match(migration,/on conflict\(fingerprint,bucket_start\) do update/)
+  assert.match(migration,/request_count=public\.monitoring_rate_limit_buckets\.request_count\+1/)
+  assert.match(migration,/grant execute[\s\S]*to service_role/)
+})

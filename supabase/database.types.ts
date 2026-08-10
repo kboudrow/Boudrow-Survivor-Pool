@@ -520,6 +520,27 @@ export type Database = {
           },
         ]
       }
+      monitoring_rate_limit_buckets: {
+        Row: {
+          bucket_start: string
+          fingerprint: string
+          request_count: number
+          updated_at: string
+        }
+        Insert: {
+          bucket_start: string
+          fingerprint: string
+          request_count?: number
+          updated_at?: string
+        }
+        Update: {
+          bucket_start?: string
+          fingerprint?: string
+          request_count?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       nfl_games: {
         Row: {
           away_score: number | null
@@ -1968,6 +1989,14 @@ export type Database = {
       clone_pool_for_new_season: {
         Args: { p_new_season: number; p_old_pool_id: string }
         Returns: string
+      }
+      consume_monitoring_rate_limit: {
+        Args: {
+          p_fingerprint: string
+          p_limit?: number
+          p_window_seconds?: number
+        }
+        Returns: boolean
       }
       count_pool_members: { Args: { p_pool_id: string }; Returns: number }
       create_pool_with_owner: {

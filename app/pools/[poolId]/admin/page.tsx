@@ -628,6 +628,21 @@ export default function PoolAdminPage() {
     setRefreshing(true)
     setError(null)
     try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser()
+      if (userError || !user) {
+        router.replace(`/?auth=signin&returnTo=${encodeURIComponent(`/pools/${poolId}/admin`)}`)
+        return
+      }
+      const { data: canManage, error: manageError } = await supabase.rpc('admin_can_manage', { p_pool_id: poolId })
+      if (manageError) throw manageError
+      if (!canManage) {
+        router.replace(`/pools/${poolId}`)
+        return
+      }
+
       const [{ data: p, error: pErr }, { data: overview, error: overviewErr }] = await Promise.all([
         supabase.from('pools').select('id,name,created_by,cloned_from_pool_id,is_public,visibility,double_pick_weeks,archived,season,start_week,include_playoffs,activation_status,max_members,allow_multiple_entries,max_entries_per_user,payment_status,image_url,test_mode,test_current_week,test_now_at').eq('id', poolId).maybeSingle<Pool>(),
         supabase.rpc('admin_pool_entry_week_overview', { p_pool_id: poolId, p_week: week }),
@@ -636,14 +651,10 @@ export default function PoolAdminPage() {
       if (overviewErr) throw overviewErr
       if (!p) throw new Error('Pool not found')
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      const { data: canManage } = await supabase.rpc('admin_can_manage', { p_pool_id: poolId })
       const nextIsSuperAdmin = user?.email?.toLowerCase() === SUPERADMIN_EMAIL
 
       setPool(p)
-      setIsOwner(!!user?.id && !!canManage)
+      setIsOwner(true)
       setIsSuperAdmin(nextIsSuperAdmin)
       setDoubleWeeksText((p.double_pick_weeks || []).filter((week) => week >= p.start_week).join(','))
       const limitText = String(p.max_members ?? 25)
@@ -1366,6 +1377,16 @@ export default function PoolAdminPage() {
       if (repairErr) throw repairErr
       return String(data || 'Scoring state repaired.')
     })
+  }
+
+  if (loading) {
+    return (
+      <main className="min-h-[70vh] bg-gray-50 px-4 py-8">
+        <div className="mx-auto max-w-md rounded-lg border border-gray-200 bg-white p-5 text-sm text-gray-600 shadow-sm">
+          Verifying commissioner access…
+        </div>
+      </main>
+    )
   }
 
   return (
