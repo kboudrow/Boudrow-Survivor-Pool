@@ -15,6 +15,15 @@ test('primary navigation and product preview expose semantic labels', async () =
   assert.match(preview, /role="tabpanel"/)
 })
 
+test('mobile account navigation escapes clipped header containers', async () => {
+  const authNav = await read('components/AuthNav.tsx')
+  assert.match(authNav, /createPortal\(/)
+  assert.match(authNav, /document\.body/)
+  assert.match(authNav, /aria-label=\{menuOpen \? 'Close account menu' : 'Open account menu'\}/)
+  assert.match(authNav, /role="dialog"/)
+  assert.match(authNav, /event\.key === 'Escape'/)
+})
+
 test('authenticated dialogs identify themselves and their labels', async () => {
   const [dialog, poolPage, adminPage] = await Promise.all([
     read('components/AppDialogModal.tsx'),

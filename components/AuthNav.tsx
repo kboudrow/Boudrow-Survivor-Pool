@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { createPortal } from 'react-dom'
 
 type SupabaseClientModule = typeof import('@/lib/supabaseClient')
 
@@ -134,6 +135,15 @@ export function AuthNav() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!menuOpen) return
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false)
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [menuOpen])
+
   const signOut = async () => {
     const { supabase }: SupabaseClientModule = await import('@/lib/supabaseClient')
     await supabase.auth.signOut()
@@ -220,23 +230,38 @@ export function AuthNav() {
         type="button"
         aria-expanded={menuOpen}
         aria-controls="account-navigation-menu"
-        aria-label="Open account menu"
+        aria-haspopup="dialog"
+        aria-label={menuOpen ? 'Close account menu' : 'Open account menu'}
         onClick={() => setMenuOpen((open) => !open)}
         className="flex h-10 w-10 items-center justify-center rounded-md border border-white/15 text-xl text-white hover:bg-white/10 lg:hidden"
       >
         ☰
       </button>
-      {menuOpen && (
-        <div id="account-navigation-menu" className="fixed inset-x-3 top-[4.75rem] z-[80] rounded-xl border border-slate-700 bg-[#111318] p-2 shadow-2xl lg:hidden">
-          <div className="grid grid-cols-2 gap-1">
-            <MobileNavLink href="/join/search" label="Join Pool" onClick={() => setMenuOpen(false)} />
-            <MobileNavLink href="/pools/new" label="Create Pool" onClick={() => setMenuOpen(false)} />
-            <MobileNavLink href="/profile" label="Profile" onClick={() => setMenuOpen(false)} />
-            {hasBlogAccess && <MobileNavLink href="/admin/blog" label="Blog Admin" onClick={() => setMenuOpen(false)} />}
-            {isSuperAdmin && <MobileNavLink href="/admin" label="Admin" onClick={() => setMenuOpen(false)} />}
+      {menuOpen && typeof document !== 'undefined' && createPortal(
+        <>
+          <button
+            type="button"
+            aria-label="Close account menu"
+            onClick={() => setMenuOpen(false)}
+            className="fixed inset-0 z-[70] bg-black/35 lg:hidden"
+          />
+          <div
+            id="account-navigation-menu"
+            role="dialog"
+            aria-label="Account menu"
+            className="fixed inset-x-3 top-[4.75rem] z-[80] rounded-xl border border-slate-700 bg-[#111318] p-2 shadow-2xl lg:hidden"
+          >
+            <div className="grid grid-cols-2 gap-1">
+              <MobileNavLink href="/join/search" label="Join Pool" onClick={() => setMenuOpen(false)} />
+              <MobileNavLink href="/pools/new" label="Create Pool" onClick={() => setMenuOpen(false)} />
+              <MobileNavLink href="/profile" label="Profile" onClick={() => setMenuOpen(false)} />
+              {hasBlogAccess && <MobileNavLink href="/admin/blog" label="Blog Admin" onClick={() => setMenuOpen(false)} />}
+              {isSuperAdmin && <MobileNavLink href="/admin" label="Admin" onClick={() => setMenuOpen(false)} />}
+            </div>
+            <button type="button" onClick={signOut} className="mt-2 w-full rounded-md border border-white/15 px-3 py-2 text-left text-sm font-semibold text-slate-200 hover:bg-white/10">Sign out</button>
           </div>
-          <button type="button" onClick={signOut} className="mt-2 w-full rounded-md border border-white/15 px-3 py-2 text-left text-sm font-semibold text-slate-200 hover:bg-white/10">Sign out</button>
-        </div>
+        </>,
+        document.body,
       )}
     </div>
   )
