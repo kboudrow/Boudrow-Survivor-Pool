@@ -817,6 +817,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "pool_entry_survival_graces_entry_pool_fkey"
+            columns: ["pool_id", "entry_id"]
+            isOneToOne: false
+            referencedRelation: "pool_members"
+            referencedColumns: ["pool_id", "id"]
+          },
+          {
             foreignKeyName: "pool_entry_survival_graces_pool_id_fkey"
             columns: ["pool_id"]
             isOneToOne: false
@@ -1181,8 +1188,8 @@ export type Database = {
           created_at: string | null
           created_by: string
           deadline: Database["public"]["Enums"]["pick_deadline"]
-          deadline_fixed: string | null
-          deadline_mode: string | null
+          deadline_fixed: string
+          deadline_mode: string
           double_pick_weeks: number[]
           id: string
           image_url: string | null
@@ -1201,16 +1208,16 @@ export type Database = {
           pinned_rank: number | null
           plan: string
           private_password_hash: string | null
-          season: number | null
+          season: number
           sponsored_until: string | null
           start_week: number
-          strikes_allowed: string | null
+          strikes_allowed: string
           stripe_checkout_session_id: string | null
           stripe_payment_intent_id: string | null
           test_current_week: number | null
           test_mode: boolean
           test_now_at: string | null
-          tie_rule: string | null
+          tie_rule: string
           ties: Database["public"]["Enums"]["ties_rule"]
           visibility: Database["public"]["Enums"]["pool_visibility"]
           winner_user_id: string | null
@@ -1227,8 +1234,8 @@ export type Database = {
           created_at?: string | null
           created_by: string
           deadline?: Database["public"]["Enums"]["pick_deadline"]
-          deadline_fixed?: string | null
-          deadline_mode?: string | null
+          deadline_fixed: string
+          deadline_mode: string
           double_pick_weeks?: number[]
           id?: string
           image_url?: string | null
@@ -1247,16 +1254,16 @@ export type Database = {
           pinned_rank?: number | null
           plan?: string
           private_password_hash?: string | null
-          season?: number | null
+          season: number
           sponsored_until?: string | null
           start_week?: number
-          strikes_allowed?: string | null
+          strikes_allowed: string
           stripe_checkout_session_id?: string | null
           stripe_payment_intent_id?: string | null
           test_current_week?: number | null
           test_mode?: boolean
           test_now_at?: string | null
-          tie_rule?: string | null
+          tie_rule: string
           ties?: Database["public"]["Enums"]["ties_rule"]
           visibility?: Database["public"]["Enums"]["pool_visibility"]
           winner_user_id?: string | null
@@ -1273,8 +1280,8 @@ export type Database = {
           created_at?: string | null
           created_by?: string
           deadline?: Database["public"]["Enums"]["pick_deadline"]
-          deadline_fixed?: string | null
-          deadline_mode?: string | null
+          deadline_fixed?: string
+          deadline_mode?: string
           double_pick_weeks?: number[]
           id?: string
           image_url?: string | null
@@ -1293,16 +1300,16 @@ export type Database = {
           pinned_rank?: number | null
           plan?: string
           private_password_hash?: string | null
-          season?: number | null
+          season?: number
           sponsored_until?: string | null
           start_week?: number
-          strikes_allowed?: string | null
+          strikes_allowed?: string
           stripe_checkout_session_id?: string | null
           stripe_payment_intent_id?: string | null
           test_current_week?: number | null
           test_mode?: boolean
           test_now_at?: string | null
-          tie_rule?: string | null
+          tie_rule?: string
           ties?: Database["public"]["Enums"]["ties_rule"]
           visibility?: Database["public"]["Enums"]["pool_visibility"]
           winner_user_id?: string | null
@@ -1311,6 +1318,13 @@ export type Database = {
           {
             foreignKeyName: "pools_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pools_winner_user_id_fkey"
+            columns: ["winner_user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -1683,25 +1697,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      admin_clear_user_week_draft_slot: {
-        Args: {
-          p_pool_id: string
-          p_reason?: string
-          p_slot: number
-          p_target_user: string
-          p_week: number
-        }
-        Returns: number
-      }
-      admin_clear_user_week_drafts: {
-        Args: {
-          p_pool_id: string
-          p_reason?: string
-          p_target_user: string
-          p_week: number
-        }
-        Returns: number
-      }
       admin_override_entry_final_pick: {
         Args: {
           p_entry_id: string
@@ -1713,28 +1708,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      admin_override_final_pick:
-        | {
-            Args: {
-              p_pool_id: string
-              p_reason?: string
-              p_target_user: string
-              p_team_abbr: string
-              p_week: number
-            }
-            Returns: undefined
-          }
-        | {
-            Args: {
-              p_pool_id: string
-              p_reason?: string
-              p_slot?: number
-              p_target_user: string
-              p_team_abbr: string
-              p_week: number
-            }
-            Returns: undefined
-          }
       admin_pool_entry_audit: {
         Args: { p_pool_id: string }
         Returns: {
@@ -1799,27 +1772,6 @@ export type Database = {
           status: string
         }[]
       }
-      admin_pool_week_overview: {
-        Args: { p_pool_id: string; p_week: number }
-        Returns: {
-          display_name: string
-          draft_team_abbr: string
-          draft_updated_at: string
-          eliminated: boolean
-          eliminated_week: number
-          final_team_abbr: string
-          joined_at: string
-          locked_at: string
-          losses: number
-          pushes: number
-          result: string
-          role: string
-          slot: number
-          strikes_used: number
-          user_id: string
-          wins: number
-        }[]
-      }
       admin_remove_member: {
         Args: { p_pool_id: string; p_profile_id: string }
         Returns: undefined
@@ -1838,6 +1790,18 @@ export type Database = {
       }
       admin_set_double_weeks: {
         Args: { p_pool_id: string; p_weeks: number[] }
+        Returns: undefined
+      }
+      admin_update_pool_core_rules: {
+        Args: {
+          p_deadline_mode: string
+          p_include_playoffs: boolean
+          p_notes?: string
+          p_pool_id: string
+          p_start_week: number
+          p_strikes_allowed: number
+          p_tie_rule: string
+        }
         Returns: undefined
       }
       admin_update_pool_entry_settings: {
@@ -1874,17 +1838,6 @@ export type Database = {
           p_pool_id: string
           p_reason?: string
           p_slot?: number
-          p_team_abbr: string
-          p_week: number
-        }
-        Returns: undefined
-      }
-      admin_upsert_user_draft: {
-        Args: {
-          p_pool_id: string
-          p_reason?: string
-          p_slot?: number
-          p_target_user: string
           p_team_abbr: string
           p_week: number
         }
@@ -2390,8 +2343,6 @@ export type Database = {
         Args: { p_plain: string; p_pool_id: string }
         Returns: undefined
       }
-      show_limit: { Args: never; Returns: number }
-      show_trgm: { Args: { "": string }; Returns: string[] }
       superadmin_app_event_logs: {
         Args: { p_limit?: number }
         Returns: {
