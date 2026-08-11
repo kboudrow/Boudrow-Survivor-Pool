@@ -673,51 +673,69 @@ export type Database = {
         Row: {
           action: string
           actor_user_id: string | null
+          applicable_deadline_at: string | null
           created_at: string
           entry_id: string | null
           id: string
+          locked_at: string | null
           new_result: string | null
           new_team_abbr: string | null
           old_result: string | null
           old_team_abbr: string | null
           pool_id: string
           result: string | null
+          rules_snapshot: Json | null
+          server_effective_at: string | null
           slot: number
           source_table: string
+          submission_evidence_source: string | null
+          submitted_at: string | null
           user_id: string | null
           week: number
         }
         Insert: {
           action: string
           actor_user_id?: string | null
+          applicable_deadline_at?: string | null
           created_at?: string
           entry_id?: string | null
           id?: string
+          locked_at?: string | null
           new_result?: string | null
           new_team_abbr?: string | null
           old_result?: string | null
           old_team_abbr?: string | null
           pool_id: string
           result?: string | null
+          rules_snapshot?: Json | null
+          server_effective_at?: string | null
           slot?: number
           source_table: string
+          submission_evidence_source?: string | null
+          submitted_at?: string | null
           user_id?: string | null
           week: number
         }
         Update: {
           action?: string
           actor_user_id?: string | null
+          applicable_deadline_at?: string | null
           created_at?: string
           entry_id?: string | null
           id?: string
+          locked_at?: string | null
           new_result?: string | null
           new_team_abbr?: string | null
           old_result?: string | null
           old_team_abbr?: string | null
           pool_id?: string
           result?: string | null
+          rules_snapshot?: Json | null
+          server_effective_at?: string | null
           slot?: number
           source_table?: string
+          submission_evidence_source?: string | null
+          submitted_at?: string | null
           user_id?: string | null
           week?: number
         }
@@ -809,6 +827,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      pool_dispute_events: {
+        Row: {
+          actor_user_id: string | null
+          applicable_deadline_at: string | null
+          details: Json
+          entry_id: string | null
+          event_type: string
+          id: string
+          occurred_at: string
+          pool_id: string
+          server_effective_at: string | null
+          slot: number | null
+          source_event_id: string | null
+          source_table: string | null
+          subject_user_id: string | null
+          summary: string
+          week: number | null
+        }
+        Insert: {
+          actor_user_id?: string | null
+          applicable_deadline_at?: string | null
+          details?: Json
+          entry_id?: string | null
+          event_type: string
+          id?: string
+          occurred_at?: string
+          pool_id: string
+          server_effective_at?: string | null
+          slot?: number | null
+          source_event_id?: string | null
+          source_table?: string | null
+          subject_user_id?: string | null
+          summary: string
+          week?: number | null
+        }
+        Update: {
+          actor_user_id?: string | null
+          applicable_deadline_at?: string | null
+          details?: Json
+          entry_id?: string | null
+          event_type?: string
+          id?: string
+          occurred_at?: string
+          pool_id?: string
+          server_effective_at?: string | null
+          slot?: number | null
+          source_event_id?: string | null
+          source_table?: string | null
+          subject_user_id?: string | null
+          summary?: string
+          week?: number | null
+        }
+        Relationships: []
       }
       pool_entry_survival_graces: {
         Row: {
@@ -2191,9 +2263,41 @@ export type Database = {
         }
         Returns: undefined
       }
+      clear_entry_draft_pick_with_receipt: {
+        Args: {
+          p_entry_id: string
+          p_pool_id: string
+          p_slot: number
+          p_week: number
+        }
+        Returns: {
+          applicable_deadline_at: string
+          error_message: string
+          saved_at: string
+          success: boolean
+        }[]
+      }
       clone_pool_for_new_season: {
         Args: { p_new_season: number; p_old_pool_id: string }
         Returns: string
+      }
+      commissioner_dispute_history: {
+        Args: { p_entry_id?: string; p_limit?: number; p_pool_id: string }
+        Returns: {
+          actor_name: string
+          applicable_deadline_at: string
+          details: Json
+          entry_id: string
+          entry_label: string
+          event_at: string
+          event_id: string
+          event_type: string
+          server_effective_at: string
+          slot: number
+          subject_name: string
+          summary: string
+          week: number
+        }[]
       }
       consume_monitoring_rate_limit: {
         Args: {
@@ -2615,6 +2719,21 @@ export type Database = {
           p_week: number
         }
         Returns: undefined
+      }
+      save_entry_draft_pick_with_receipt: {
+        Args: {
+          p_entry_id: string
+          p_pool_id: string
+          p_slot: number
+          p_team_abbr: string
+          p_week: number
+        }
+        Returns: {
+          applicable_deadline_at: string
+          error_message: string
+          saved_at: string
+          success: boolean
+        }[]
       }
       search_pools: {
         Args: { p_term: string }

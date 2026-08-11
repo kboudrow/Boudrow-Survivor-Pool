@@ -93,6 +93,22 @@ type PickSaveEventRow = {
   created_at: string
 }
 
+type DisputeEventRow = {
+  event_id: string
+  event_at: string
+  event_type: string
+  entry_id: string | null
+  entry_label: string | null
+  actor_name: string | null
+  subject_name: string | null
+  week: number | null
+  slot: number | null
+  summary: string
+  server_effective_at: string | null
+  applicable_deadline_at: string | null
+  details: Record<string, unknown> | null
+}
+
 type TestGameOption = {
   game_id: string
   season: number
@@ -388,6 +404,7 @@ export default function PoolAdminPage() {
   const [rows, setRows] = useState<AdminRow[]>([])
   const [adminActions, setAdminActions] = useState<AdminActionRow[]>([])
   const [pickEvents, setPickEvents] = useState<PickSaveEventRow[]>([])
+  const [disputeEvents, setDisputeEvents] = useState<DisputeEventRow[]>([])
   const [auditLoading, setAuditLoading] = useState(false)
   const [entryAuditRows, setEntryAuditRows] = useState<EntryAuditRow[]>([])
   const [entryAuditLoading, setEntryAuditLoading] = useState(false)
@@ -596,7 +613,7 @@ export default function PoolAdminPage() {
     if (!poolId) return
     setAuditLoading(true)
     try {
-      const [{ data: actions, error: actionsErr }, { data: events, error: eventsErr }] = await Promise.all([
+      const [{ data: actions, error: actionsErr }, { data: events, error: eventsErr }, { data: disputes, error: disputesErr }] = await Promise.all([
         supabase
           .from('admin_actions')
           .select('id,pool_id,admin_id,target_user_id,week,slot,action,old_team_abbr,new_team_abbr,reason,created_at')
@@ -609,11 +626,18 @@ export default function PoolAdminPage() {
           .eq('pool_id', poolId)
           .order('created_at', { ascending: false })
           .limit(30),
+        supabase.rpc('commissioner_dispute_history', {
+          p_pool_id: poolId,
+          p_entry_id: null,
+          p_limit: 100,
+        }),
       ])
       if (actionsErr) throw actionsErr
       if (eventsErr) throw eventsErr
+      if (disputesErr) throw disputesErr
       setAdminActions((actions || []) as AdminActionRow[])
       setPickEvents((events || []) as PickSaveEventRow[])
+      setDisputeEvents((disputes || []) as DisputeEventRow[])
     } catch (e: unknown) {
       setError(getErrorMessage(e, 'Failed to load audit trail.'))
     } finally {
@@ -2512,8 +2536,8 @@ export default function PoolAdminPage() {
             <section className="rounded-lg border bg-white p-4">
               <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h2 className="font-semibold">Activity Log</h2>
-                  <p className="text-sm text-gray-600">Recent member removals, commissioner pick edits, and saved-pick events for this pool.</p>
+                  <h2 className="font-semibold">Dispute History</h2>
+                  <p className="text-sm text-gray-600">Server-timestamped pick saves and rejections, deadlines, rule changes, mulligan and elimination changes, commissioner corrections, and roster removals.</p>
                 </div>
                 <button
                   onClick={loadAuditTrail}
@@ -2524,7 +2548,43 @@ export default function PoolAdminPage() {
                 </button>
               </div>
 
-              <div className="grid gap-4 lg:grid-cols-2">
+              <div className="mb-4 rounded-md border border-slate-200 bg-slate-50">
+                <div className="border-b border-slate-200 px-3 py-2 text-sm font-semibold text-slate-900">Competition timeline</div>
+                <div className="max-h-[32rem] divide-y divide-slate-200 overflow-y-auto bg-white">
+                  {disputeEvents.map((event) => {
+                    const reason = typeof event.details?.reason === 'string' ? event.details.reason : null
+                    return (
+                      <div key={event.event_id} className="p-3 text-sm">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <div className="font-semibold text-slate-950">{event.summary}</div>
+                            <div className="mt-0.5 text-xs text-slate-600">
+                              {event.entry_label ? `${event.entry_label} · ` : ''}
+                              {event.week ? `${weekLabel(event.week)}${event.slot ? `, Pick ${event.slot}` : ''} · ` : ''}
+                              {event.actor_name || 'System'}
+                              {event.subject_name && event.subject_name !== event.actor_name ? ` for ${event.subject_name}` : ''}
+                            </div>
+                          </div>
+                          <span className="text-xs text-slate-500">{fmt(event.event_at)}</span>
+                        </div>
+                        {(event.server_effective_at || event.applicable_deadline_at) && (
+                          <div className="mt-2 rounded bg-slate-50 px-2 py-1 text-xs text-slate-600">
+                            {event.server_effective_at && <span>Server time: {fmt(event.server_effective_at)}</span>}
+                            {event.server_effective_at && event.applicable_deadline_at && <span> · </span>}
+                            {event.applicable_deadline_at && <span>Applicable deadline: {fmt(event.applicable_deadline_at)}</span>}
+                          </div>
+                        )}
+                        {reason && <div className="mt-1 text-xs text-slate-600">Reason: {reason}</div>}
+                      </div>
+                    )
+                  })}
+                  {disputeEvents.length === 0 && <p className="p-3 text-sm text-slate-500">No competition events have been recorded for this pool.</p>}
+                </div>
+              </div>
+
+              <details className="rounded-md border border-slate-200 bg-slate-50">
+                <summary className="cursor-pointer px-3 py-2 text-sm font-semibold text-slate-900">Technical pick and commissioner logs</summary>
+              <div className="grid gap-4 border-t border-slate-200 p-3 lg:grid-cols-2">
                 <div className="rounded-md border border-slate-200 bg-slate-50">
                   <div className="border-b border-slate-200 px-3 py-2 text-sm font-semibold text-slate-900">Admin actions</div>
                   <div className="max-h-72 overflow-y-auto divide-y divide-slate-200 bg-white">
@@ -2578,6 +2638,7 @@ export default function PoolAdminPage() {
                   </div>
                 </div>
               </div>
+              </details>
             </section>
 
             <section id="commissioner-members" className="scroll-mt-4 rounded-lg border bg-white p-4">

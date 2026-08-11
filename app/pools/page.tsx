@@ -1491,6 +1491,13 @@ function MyPoolsContent() {
   }, [isOpen, detailsLoading, selectedId, pool, userId, selectedEntryId])
 
   /** ---------- Draft save / clear ---------- */
+  type PickWriteReceipt = {
+    success: boolean
+    error_message: string | null
+    saved_at: string | null
+    applicable_deadline_at: string | null
+  }
+
   const saveDraft = async (week: number, slot: number, team: Team | null) => {
     if (!selectedId || !userId || !selectedEntryId) return false
     if (pool && week < pool.start_week) {
@@ -1517,7 +1524,7 @@ function MyPoolsContent() {
     setSavingPickKeys((prev) => ({ ...prev, [key]: true }))
     try {
       if (team) {
-        const { error } = await supabase.rpc('save_entry_draft_pick', {
+        const { data, error } = await supabase.rpc('save_entry_draft_pick_with_receipt', {
           p_pool_id: selectedId,
           p_entry_id: selectedEntryId,
           p_week: week,
@@ -1525,16 +1532,21 @@ function MyPoolsContent() {
           p_team_abbr: team.abbr,
         })
         if (error) throw error
+        const receipt = ((data || []) as PickWriteReceipt[])[0]
+        if (!receipt?.success) throw new Error(receipt?.error_message || 'The server rejected this pick.')
+        setDraftSavedAt(receipt.saved_at || new Date().toISOString())
       } else {
-        const { error } = await supabase.rpc('clear_entry_draft_pick', {
+        const { data, error } = await supabase.rpc('clear_entry_draft_pick_with_receipt', {
           p_pool_id: selectedId,
           p_entry_id: selectedEntryId,
           p_week: week,
           p_slot: slot,
         })
         if (error) throw error
+        const receipt = ((data || []) as PickWriteReceipt[])[0]
+        if (!receipt?.success) throw new Error(receipt?.error_message || 'The server rejected this pick change.')
+        setDraftSavedAt(receipt.saved_at || new Date().toISOString())
       }
-      setDraftSavedAt(new Date().toISOString())
       await refreshPoolPickStatus()
       return true
     } catch (e: unknown) {
@@ -1729,7 +1741,7 @@ function MyPoolsContent() {
         try {
           const results = await Promise.all(
             editableDrafts.map(({ week, slot }) =>
-              supabase.rpc('clear_entry_draft_pick', {
+              supabase.rpc('clear_entry_draft_pick_with_receipt', {
                 p_pool_id: selectedId,
                 p_entry_id: selectedEntryId,
                 p_week: week,
@@ -1739,6 +1751,10 @@ function MyPoolsContent() {
           )
           const firstError = results.find((result) => result.error)?.error
           if (firstError) throw firstError
+          const rejectedReceipt = results
+            .flatMap((result) => (result.data || []) as PickWriteReceipt[])
+            .find((receipt) => !receipt.success)
+          if (rejectedReceipt) throw new Error(rejectedReceipt.error_message || 'The server rejected one of the pick changes.')
           setDraftSavedAt(new Date().toISOString())
           await refreshPoolPickStatus()
           showPickNotice({ action: 'all-cleared', count: editableDrafts.length })
