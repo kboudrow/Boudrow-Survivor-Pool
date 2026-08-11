@@ -19,6 +19,7 @@ export type Database = {
           action: string
           admin_id: string
           created_at: string
+          entry_id: string | null
           id: string
           new_team_abbr: string | null
           old_team_abbr: string | null
@@ -32,6 +33,7 @@ export type Database = {
           action: string
           admin_id: string
           created_at?: string
+          entry_id?: string | null
           id?: string
           new_team_abbr?: string | null
           old_team_abbr?: string | null
@@ -45,6 +47,7 @@ export type Database = {
           action?: string
           admin_id?: string
           created_at?: string
+          entry_id?: string | null
           id?: string
           new_team_abbr?: string | null
           old_team_abbr?: string | null
@@ -671,42 +674,51 @@ export type Database = {
           action: string
           actor_user_id: string | null
           created_at: string
+          entry_id: string | null
           id: string
+          new_result: string | null
           new_team_abbr: string | null
+          old_result: string | null
           old_team_abbr: string | null
           pool_id: string
           result: string | null
           slot: number
           source_table: string
-          user_id: string
+          user_id: string | null
           week: number
         }
         Insert: {
           action: string
           actor_user_id?: string | null
           created_at?: string
+          entry_id?: string | null
           id?: string
+          new_result?: string | null
           new_team_abbr?: string | null
+          old_result?: string | null
           old_team_abbr?: string | null
           pool_id: string
           result?: string | null
           slot?: number
           source_table: string
-          user_id: string
+          user_id?: string | null
           week: number
         }
         Update: {
           action?: string
           actor_user_id?: string | null
           created_at?: string
+          entry_id?: string | null
           id?: string
+          new_result?: string | null
           new_team_abbr?: string | null
+          old_result?: string | null
           old_team_abbr?: string | null
           pool_id?: string
           result?: string | null
           slot?: number
           source_table?: string
-          user_id?: string
+          user_id?: string | null
           week?: number
         }
         Relationships: [
@@ -851,6 +863,100 @@ export type Database = {
           },
           {
             foreignKeyName: "pool_entry_survival_graces_pool_id_fkey"
+            columns: ["pool_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_pools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pool_entry_week_history: {
+        Row: {
+          eliminated: boolean
+          eliminated_week: number | null
+          entry_id: string
+          entry_name_snapshot: string | null
+          entry_number: number
+          is_complete: boolean
+          losses: number
+          mulligans_applied: number
+          mulligans_remaining: number
+          picks_snapshot: Json
+          pool_id: string
+          pushes: number
+          recorded_at: string
+          revised_at: string
+          revision: number
+          rules_snapshot: Json
+          strikes_used: number
+          survival_credits: number
+          used_teams: string[]
+          week: number
+          wins: number
+        }
+        Insert: {
+          eliminated: boolean
+          eliminated_week?: number | null
+          entry_id: string
+          entry_name_snapshot?: string | null
+          entry_number: number
+          is_complete?: boolean
+          losses: number
+          mulligans_applied: number
+          mulligans_remaining: number
+          picks_snapshot?: Json
+          pool_id: string
+          pushes: number
+          recorded_at?: string
+          revised_at?: string
+          revision?: number
+          rules_snapshot: Json
+          strikes_used: number
+          survival_credits: number
+          used_teams?: string[]
+          week: number
+          wins: number
+        }
+        Update: {
+          eliminated?: boolean
+          eliminated_week?: number | null
+          entry_id?: string
+          entry_name_snapshot?: string | null
+          entry_number?: number
+          is_complete?: boolean
+          losses?: number
+          mulligans_applied?: number
+          mulligans_remaining?: number
+          picks_snapshot?: Json
+          pool_id?: string
+          pushes?: number
+          recorded_at?: string
+          revised_at?: string
+          revision?: number
+          rules_snapshot?: Json
+          strikes_used?: number
+          survival_credits?: number
+          used_teams?: string[]
+          week?: number
+          wins?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pool_entry_week_history_pool_id_fkey"
+            columns: ["pool_id"]
+            isOneToOne: false
+            referencedRelation: "pools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pool_entry_week_history_pool_id_fkey"
+            columns: ["pool_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_pool_history"
+            referencedColumns: ["pool_id"]
+          },
+          {
+            foreignKeyName: "pool_entry_week_history_pool_id_fkey"
             columns: ["pool_id"]
             isOneToOne: false
             referencedRelation: "v_my_pools"
@@ -1108,36 +1214,48 @@ export type Database = {
       pool_picks: {
         Row: {
           adjudicated_at: string | null
+          applicable_deadline_at: string | null
           created_at: string
           entry_id: string
           locked_at: string
           pool_id: string
           result: string | null
+          rules_snapshot: Json | null
           slot: number
+          submission_evidence_source: string | null
+          submitted_at: string | null
           team_abbr: string
           user_id: string
           week: number
         }
         Insert: {
           adjudicated_at?: string | null
+          applicable_deadline_at?: string | null
           created_at?: string
           entry_id: string
           locked_at: string
           pool_id: string
           result?: string | null
+          rules_snapshot?: Json | null
           slot?: number
+          submission_evidence_source?: string | null
+          submitted_at?: string | null
           team_abbr: string
           user_id: string
           week: number
         }
         Update: {
           adjudicated_at?: string | null
+          applicable_deadline_at?: string | null
           created_at?: string
           entry_id?: string
           locked_at?: string
           pool_id?: string
           result?: string | null
+          rules_snapshot?: Json | null
           slot?: number
+          submission_evidence_source?: string | null
+          submitted_at?: string | null
           team_abbr?: string
           user_id?: string
           week?: number
@@ -2423,11 +2541,19 @@ export type Database = {
         Args: { p_pool_id: string }
         Returns: number
       }
+      refresh_pool_week_history: {
+        Args: { p_pool_id: string }
+        Returns: number
+      }
       remove_pool_entry: {
         Args: { p_entry_id: string; p_pool_id: string }
         Returns: undefined
       }
       restore_unlocked_picks_for_pool: {
+        Args: { p_pool_id: string }
+        Returns: number
+      }
+      sanitize_pool_week_used_teams: {
         Args: { p_pool_id: string }
         Returns: number
       }
