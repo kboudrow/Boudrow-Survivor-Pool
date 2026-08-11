@@ -431,11 +431,11 @@ export default function JoinSearchPage() {
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search public and discoverable private pools"
+          placeholder="Search public pools"
           className="mb-3 w-full rounded-md border border-slate-300 px-3 py-3 text-base shadow-sm focus:border-[#c5161d] focus:outline-none focus:ring-2 focus:ring-red-100"
         />
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs leading-5 text-gray-500">Public pools need no password. Private pools require the commissioner&apos;s password. A valid join adds you immediately—there is no approval queue.</p>
+          <p className="text-xs leading-5 text-gray-500">Only public pools appear in search. Public pools need no password. For a private pool, use the invite link and password from its commissioner. A valid join adds you immediately—there is no approval queue.</p>
           {query.trim() && (
             <button onClick={() => setQuery('')} className="rounded-md bg-gray-100 px-3 py-1 text-xs hover:bg-gray-200">
               Clear search
@@ -497,7 +497,7 @@ export default function JoinSearchPage() {
           {showEmptyRecent && (
             <li className="p-5 text-sm text-gray-600">
               <div className="font-semibold text-slate-900">No public pools are open right now.</div>
-              <p className="mt-1">Private pools can still be joined from an invite link or with the password from the commissioner.</p>
+              <p className="mt-1">Private pools can still be joined with the invite link and password from the commissioner.</p>
             </li>
           )}
         </ul>
