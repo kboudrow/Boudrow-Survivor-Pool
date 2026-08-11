@@ -156,11 +156,11 @@ function compactJson(value: unknown) {
 const CRON_COPY: Record<string, { purpose: string; liveLabel: string }> = {
   '/api/cron/lock-picks': {
     purpose: 'Turns eligible picks into locked picks after each pool deadline, then applies completed game results.',
-    liveLabel: 'Every 5 minutes on game days',
+    liveLabel: 'Target: every 5 min',
   },
   '/api/cron/sync-scores': {
     purpose: 'Pulls NFL game status and scores, then updates final winners when games finish.',
-    liveLabel: 'Every 10 minutes during game windows',
+    liveLabel: 'Target: every 10 min',
   },
 }
 
@@ -382,6 +382,31 @@ export default function SuperAdminPage() {
     setCronHealth((data || []) as CronHealthRow[])
   }
 
+  const runCronNow = async (route: string) => {
+    setError(null)
+    setNotice(null)
+    setRunningAction(`cron:${route}`)
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError) throw sessionError
+      const accessToken = sessionData.session?.access_token
+      if (!accessToken) throw new Error('Your session expired. Sign in again before running a production job.')
+      const response = await fetch('/api/admin/run-cron', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ route }),
+      })
+      const result = await response.json().catch(() => null) as { ok?: boolean; error?: string } | null
+      if (!response.ok || result?.ok === false) throw new Error(result?.error || 'The production job failed.')
+      setNotice(`${route === '/api/cron/sync-scores' ? 'Score sync' : 'Pick locking'} finished successfully.`)
+      await Promise.all([loadCronHealth(), loadScoreFeedHealth(), loadEventLogs()])
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'The production job could not be run.'))
+    } finally {
+      setRunningAction(null)
+    }
+  }
+
   const loadEventLogs = async () => {
     setEventLogsLoading(true)
     try {
@@ -487,7 +512,7 @@ export default function SuperAdminPage() {
     const entryCount = entries.filter((candidate) => candidate.profile_id === entry.profile_id).length
     const confirmed = await requestConfirm({
       title: 'Remove member?',
-      message: `Remove ${label} from ${selectedPool.name}?\n\nEntries removed: ${entryCount}\n\nThis removes the member, every entry, and all picks from this pool.`,
+      message: `Permanently remove ${label} from ${selectedPool.name}?\n\nEntries removed: ${entryCount}\n\nThis is only allowed before the pool starts. It deletes every entry and saved pick for this member. The pool invite link remains active, so the member could rejoin while registration is open.`,
       tone: 'danger',
       confirmLabel: 'Remove member',
     })
@@ -500,8 +525,11 @@ export default function SuperAdminPage() {
         p_pool_id: selectedPool.pool_id,
         p_profile_id: entry.profile_id,
       })
-      if (removeErr) throw removeErr
-      setNotice(`${label} removed.`)
+      if (removeErr) {
+        const verified = await supabase.from('pool_members').select('id').eq('pool_id', selectedPool.pool_id).eq('profile_id', entry.profile_id).limit(1)
+        if (verified.error || (verified.data || []).length > 0) throw removeErr
+      }
+      setNotice(`${label} removed and confirmed in the database.`)
       await loadPools()
       await loadEntries(selectedPool.pool_id)
     } catch (e: unknown) {
@@ -630,7 +658,7 @@ export default function SuperAdminPage() {
             <div>
               <h2 className="font-semibold text-slate-950">Cron Jobs</h2>
               <p className="text-sm text-slate-600">
-                These jobs are safe to run more than once. Production is currently monitored against the daily fallback schedule; the live-season cadence is shown separately.
+                These jobs are safe to run more than once. GitHub targets the live-season cadence, but scheduled delivery can be delayed. Vercel supplies a daily fallback. If a job is stale near a deadline or after a game, use Run now and confirm the new success time.
               </p>
             </div>
             <button
@@ -647,7 +675,12 @@ export default function SuperAdminPage() {
           ) : (
             <div className="grid gap-3 lg:grid-cols-2">
               {cronHealth.map((job) => (
-                <CronJobCard key={job.job_name} job={job} />
+                <CronJobCard
+                  key={job.job_name}
+                  job={job}
+                  running={runningAction === `cron:${job.route}`}
+                  onRun={() => runCronNow(job.route)}
+                />
               ))}
             </div>
           )}
@@ -665,11 +698,12 @@ export default function SuperAdminPage() {
                 <code className="block rounded-md border border-slate-200 bg-slate-950 p-3 text-xs text-white">npm run backup:db</code>
                 <code className="block rounded-md border border-slate-200 bg-slate-950 p-3 text-xs text-white">npm run backup:db -- --schema-only</code>
                 <code className="block rounded-md border border-slate-200 bg-slate-950 p-3 text-xs text-white">npm run backup:db -- --data-only</code>
+                <code className="block rounded-md border border-slate-200 bg-slate-950 p-3 text-xs text-white">npm run backup:db -- --public-data-only</code>
               </div>
             </div>
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
               <h3 className="font-semibold text-amber-950">Recovery rules</h3>
-              <p className="mt-2">Restore to a temporary Supabase project first when possible. Prefer pool-scoped repair tools over a full production restore. After recovery, refresh cron health, score feed health, and schedule audit here.</p>
+              <p className="mt-2">Restore the public schema and public data to a temporary Supabase project first. Managed Auth data requires a compatible Supabase version or platform recovery. Prefer pool-scoped repairs over a full production restore. After recovery, refresh cron health, score feed health, and schedule audit here.</p>
               <p className="mt-2 font-semibold">Full runbook: docs/backup-recovery.md</p>
             </div>
           </div>
@@ -1095,7 +1129,7 @@ function Info({ label, value }: { label: string; value: string }) {
   )
 }
 
-function CronJobCard({ job }: { job: CronHealthRow }) {
+function CronJobCard({ job, running, onRun }: { job: CronHealthRow; running: boolean; onRun: () => void }) {
   const copy = CRON_COPY[job.route]
   const summary = cronRunSummary(job)
   const status = job.status.toLowerCase()
@@ -1118,9 +1152,19 @@ function CronJobCard({ job }: { job: CronHealthRow }) {
           </p>
           <p className="mt-1 break-words font-mono text-xs text-slate-500">{job.route}</p>
         </div>
-        <span className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${statusClass(job.status)}`}>
-          {cronStatusLabel(job.status)}
-        </span>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={onRun}
+            disabled={running}
+            className="rounded-md bg-slate-900 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+          >
+            {running ? 'Running…' : 'Run now'}
+          </button>
+          <span className={`rounded-full border px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${statusClass(job.status)}`}>
+            {cronStatusLabel(job.status)}
+          </span>
+        </div>
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">

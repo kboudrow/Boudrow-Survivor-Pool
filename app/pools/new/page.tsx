@@ -12,6 +12,25 @@ const START_WEEKS = Array.from({ length: 12 }, (_, i) => i + 1)
 const DEFAULT_SEASON = 2026
 const MEMBER_LIMIT_OPTIONS = [10, 25, 50, 100, 250, 500]
 const ENTRY_LIMIT_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1)
+const CREATE_POOL_DRAFT_KEY = 'survivor:create-pool-draft'
+const CREATE_POOL_OPERATION_KEY = 'survivor:create-pool-operation'
+const CREATE_POOL_IMAGE_KEY_PREFIX = 'survivor:create-pool-image:'
+
+type SavedPoolDraft = {
+  poolName: string
+  startWeek: string
+  pickDeadline: string
+  mulligans: number
+  tiebreaker: 'Win' | 'Loss'
+  seasonLength: string
+  notes: string
+  isPublic: boolean
+  maxMembers: string
+  customMaxMembers: string
+  allowMultipleEntries: boolean
+  maxEntriesPerUser: string
+  doubleWeeks: number[]
+}
 
 /** Turn DB/SDK errors into plain-English UI messages */
 function formatCreatePoolError(e: unknown): string {
@@ -105,6 +124,7 @@ export default function CreatePoolPage() {
   const [loading, setLoading] = useState(false)
   const [authChecking, setAuthChecking] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [draftReady, setDraftReady] = useState(false)
 
   // Derived
   const start_week = useMemo(
@@ -122,6 +142,22 @@ export default function CreatePoolPage() {
         router.replace(`/?auth=signin&returnTo=${encodeURIComponent('/pools/new')}`)
         return
       }
+
+      const pendingOperationId = window.sessionStorage.getItem(CREATE_POOL_OPERATION_KEY)
+      if (pendingOperationId) {
+        const { data: recoveredPoolId } = await supabase.rpc('my_operation_result', {
+          p_operation_type: 'create_pool',
+          p_operation_id: pendingOperationId,
+        })
+        if (!alive) return
+        if (recoveredPoolId) {
+          window.sessionStorage.removeItem(CREATE_POOL_OPERATION_KEY)
+          window.sessionStorage.removeItem(CREATE_POOL_DRAFT_KEY)
+          window.sessionStorage.removeItem(`${CREATE_POOL_IMAGE_KEY_PREFIX}${pendingOperationId}`)
+          router.replace(`/pools/${recoveredPoolId}/admin`)
+          return
+        }
+      }
       setAuthChecking(false)
     }
 
@@ -130,6 +166,41 @@ export default function CreatePoolPage() {
       alive = false
     }
   }, [router])
+
+  useEffect(() => {
+    try {
+      const saved = window.sessionStorage.getItem(CREATE_POOL_DRAFT_KEY)
+      if (saved) {
+        const draft = JSON.parse(saved) as Partial<SavedPoolDraft>
+        if (typeof draft.poolName === 'string') setPoolName(draft.poolName)
+        if (typeof draft.startWeek === 'string') setStartWeek(draft.startWeek)
+        if (typeof draft.pickDeadline === 'string') setPickDeadline(draft.pickDeadline)
+        if (typeof draft.mulligans === 'number') setMulligans(draft.mulligans)
+        if (draft.tiebreaker === 'Win' || draft.tiebreaker === 'Loss') setTiebreaker(draft.tiebreaker)
+        if (typeof draft.seasonLength === 'string') setSeasonLength(draft.seasonLength)
+        if (typeof draft.notes === 'string') setNotes(draft.notes)
+        if (typeof draft.isPublic === 'boolean') setIsPublic(draft.isPublic)
+        if (typeof draft.maxMembers === 'string') setMaxMembers(draft.maxMembers)
+        if (typeof draft.customMaxMembers === 'string') setCustomMaxMembers(draft.customMaxMembers)
+        if (typeof draft.allowMultipleEntries === 'boolean') setAllowMultipleEntries(draft.allowMultipleEntries)
+        if (typeof draft.maxEntriesPerUser === 'string') setMaxEntriesPerUser(draft.maxEntriesPerUser)
+        if (Array.isArray(draft.doubleWeeks)) setDoubleWeeks(draft.doubleWeeks.filter(Number.isInteger))
+      }
+    } catch {
+      window.sessionStorage.removeItem(CREATE_POOL_DRAFT_KEY)
+    } finally {
+      setDraftReady(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!draftReady) return
+    const draft: SavedPoolDraft = {
+      poolName, startWeek, pickDeadline, mulligans, tiebreaker, seasonLength, notes,
+      isPublic, maxMembers, customMaxMembers, allowMultipleEntries, maxEntriesPerUser, doubleWeeks,
+    }
+    window.sessionStorage.setItem(CREATE_POOL_DRAFT_KEY, JSON.stringify(draft))
+  }, [draftReady, poolName, startWeek, pickDeadline, mulligans, tiebreaker, seasonLength, notes, isPublic, maxMembers, customMaxMembers, allowMultipleEntries, maxEntriesPerUser, doubleWeeks])
 
   const toggleWeek = (w: number) => {
     if (w < start_week) return
@@ -157,6 +228,8 @@ export default function CreatePoolPage() {
     const file = event.target.files?.[0] || null
     const validationError = file ? validatePublicImageUpload(file, 'Pool image') : null
     setError(null)
+    const pendingOperationId = window.sessionStorage.getItem(CREATE_POOL_OPERATION_KEY)
+    if (pendingOperationId) window.sessionStorage.removeItem(`${CREATE_POOL_IMAGE_KEY_PREFIX}${pendingOperationId}`)
     if (validationError) {
       setImageError(validationError)
       setImageFile(null)
@@ -178,6 +251,8 @@ export default function CreatePoolPage() {
   const clearImageSelection = () => {
     setImageError(null)
     setImageFile(null)
+    const pendingOperationId = window.sessionStorage.getItem(CREATE_POOL_OPERATION_KEY)
+    if (pendingOperationId) window.sessionStorage.removeItem(`${CREATE_POOL_IMAGE_KEY_PREFIX}${pendingOperationId}`)
     setImagePreview((prev) => {
       if (prev) URL.revokeObjectURL(prev)
       return null
@@ -210,6 +285,7 @@ export default function CreatePoolPage() {
     setLoading(true)
     setError(null)
 
+    let operationId: string | null = null
     try {
       const { data: { user }, error: userErr } = await supabase.auth.getUser()
       if (userErr || !user) {
@@ -241,13 +317,20 @@ export default function CreatePoolPage() {
       const tie_rule = tiebreaker.toLowerCase() as 'win' | 'loss'
       const validDoubleWeeks = doubleWeeks.filter((week) => week >= start_week)
 
+      operationId = window.sessionStorage.getItem(CREATE_POOL_OPERATION_KEY) || crypto.randomUUID()
+      window.sessionStorage.setItem(CREATE_POOL_OPERATION_KEY, operationId)
+
       let deadline_mode: 'fixed' | 'rolling' = 'fixed'
       const deadline_fixed: string | null = '13:00'
       if (pickDeadline === 'Rolling: each game locks at kickoff') deadline_mode = 'rolling'
       let leagueImageUrl = defaultPoolImage(trimmedName)
-      if (imageFile) {
+      const savedImageUrl = window.sessionStorage.getItem(`${CREATE_POOL_IMAGE_KEY_PREFIX}${operationId}`)
+      if (savedImageUrl) {
+        leagueImageUrl = savedImageUrl
+      } else if (imageFile) {
         try {
           leagueImageUrl = await uploadLeagueImage(imageFile, user.id)
+          window.sessionStorage.setItem(`${CREATE_POOL_IMAGE_KEY_PREFIX}${operationId}`, leagueImageUrl)
         } catch (uploadError) {
           console.error('Pool image upload failed during pool creation', uploadError)
           setImageError('We could not upload that pool image. Remove it and create the pool without an image, or try a different JPG/JPEG, PNG, WebP, or GIF.')
@@ -256,7 +339,8 @@ export default function CreatePoolPage() {
         }
       }
 
-      const { data: poolId, error: createErr } = await supabase.rpc('create_pool_with_owner', {
+      const { data: poolId, error: createErr } = await supabase.rpc('create_pool_with_owner_idempotent', {
+        p_operation_id: operationId,
         p_name: trimmedName,
         p_is_public: isPublic,
         p_password: isPublic ? null : password,
@@ -278,12 +362,33 @@ export default function CreatePoolPage() {
       if (createErr) throw createErr
       if (!poolId) throw new Error('Failed to create pool.')
 
+      window.sessionStorage.removeItem(CREATE_POOL_OPERATION_KEY)
+      window.sessionStorage.removeItem(CREATE_POOL_DRAFT_KEY)
+      window.sessionStorage.removeItem(`${CREATE_POOL_IMAGE_KEY_PREFIX}${operationId}`)
+
       void trackConversion('conversion.pool_creation_completed', { is_public: isPublic, multiple_entries: allowMultipleEntries }, poolId)
 
       router.push(`/pools/${poolId}/admin`)
     } catch (e: unknown) {
+      if (operationId) {
+        try {
+          const { data: recoveredPoolId } = await supabase.rpc('my_operation_result', {
+            p_operation_type: 'create_pool',
+            p_operation_id: operationId,
+          })
+          if (recoveredPoolId) {
+            window.sessionStorage.removeItem(CREATE_POOL_OPERATION_KEY)
+            window.sessionStorage.removeItem(CREATE_POOL_DRAFT_KEY)
+            window.sessionStorage.removeItem(`${CREATE_POOL_IMAGE_KEY_PREFIX}${operationId}`)
+            router.push(`/pools/${recoveredPoolId}/admin`)
+            return
+          }
+        } catch {
+          // Keep the operation key and form draft so the next retry is safe.
+        }
+      }
       const msg = formatCreatePoolError(e)
-      setError(msg)
+      setError(operationId ? `${msg} Your pool details are preserved. It is safe to press Create Pool again; the same pool will not be created twice.` : msg)
       scrollToTopAndFocusIfNeeded(msg)
     } finally {
       creatingPoolRef.current = false

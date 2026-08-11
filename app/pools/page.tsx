@@ -752,15 +752,16 @@ function TeamPickerModal(props: {
             {filteredTeams.map((t) => {
               const usedElsewhere = usedTeamAbbrs.includes(t.abbr) && myDraftPicks[selectedKey]?.abbr !== t.abbr
               const scheduledGame = weekGames.find((game) => toAbbr(game.home_team) === t.abbr || toAbbr(game.away_team) === t.abbr)
+              const providerUnavailable = scheduledGame?.status === 'postponed' || scheduledGame?.status === 'canceled'
               const kickoffUnconfirmed = scheduledGame?.kickoff_confirmed === false
-              const disabled = usedElsewhere || kickoffUnconfirmed
+              const disabled = usedElsewhere || kickoffUnconfirmed || providerUnavailable
               return (
                 <button
                   key={t.abbr}
                   onClick={() => onPickTeam(week, slot, t)}
                   disabled={disabled}
                   className={`border border-gray-200 rounded-lg p-3 hover:shadow flex items-center gap-3 text-left ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  title={kickoffUnconfirmed ? 'Unavailable until the NFL confirms kickoff' : usedElsewhere ? 'Already used in another week' : ''}
+                  title={providerUnavailable ? `Game ${scheduledGame?.status}` : kickoffUnconfirmed ? 'Unavailable until the NFL confirms kickoff' : usedElsewhere ? 'Already used in another week' : ''}
                 >
                   <div className="relative w-8 h-8 shrink-0">
                     {t.logo ? (
@@ -775,6 +776,7 @@ function TeamPickerModal(props: {
                     <div className="text-xs text-gray-500">{t.abbr}</div>
                     {usedElsewhere && <div className="text-[10px] uppercase text-red-600 mt-1">Used</div>}
                     {kickoffUnconfirmed && <div className="mt-1 text-[10px] uppercase text-amber-700">Kickoff TBD</div>}
+                    {providerUnavailable && <div className="mt-1 text-[10px] uppercase text-amber-700">{scheduledGame?.status}</div>}
                   </div>
                 </button>
               )
@@ -789,15 +791,17 @@ function TeamPickerModal(props: {
                 {weekGames.map((g) => {
                   const homeAbbr = toAbbr(g.home_team)
                   const awayAbbr = toAbbr(g.away_team)
-                  const kickoffIso = g.kickoff_at_utc || g.game_time
-                  const kickoffMs = Date.parse(kickoffIso)
+                  const kickoffIso = g.game_time
+                  const lockKickoffIso = g.kickoff_at_utc || g.game_time
+                  const kickoffMs = Date.parse(lockKickoffIso)
                   const kickoffConfirmed = g.kickoff_confirmed !== false
+                  const providerUnavailable = g.status === 'postponed' || g.status === 'canceled'
 
                   // hybrid lock = earlier of kickoff OR global fixed lock (if in fixed mode)
                   const fixedMs = deadlineMode === 'fixed' && fixedLockUtc ? Date.parse(fixedLockUtc) : Infinity
                   const lockMs = Math.min(kickoffMs, fixedMs)
                   const locked = currentTimeMs >= lockMs
-                  const countdown = !kickoffConfirmed ? 'Unavailable: kickoff TBD' : locked ? 'Locked' : `Locks in ${formatLockCountdown(lockMs - currentTimeMs)}`
+                  const countdown = providerUnavailable ? `Unavailable: ${g.status}` : !kickoffConfirmed ? 'Unavailable: kickoff TBD' : locked ? 'Locked' : `Locks in ${formatLockCountdown(lockMs - currentTimeMs)}`
 
                   const cards = [
                     { abbr: awayAbbr, side: 'Away' as const },
@@ -819,8 +823,8 @@ function TeamPickerModal(props: {
                         {cards.map((c) => {
                           const usedElsewhere = usedTeamAbbrs.includes(c.abbr) && myDraftPicks[selectedKey]?.abbr !== c.abbr
                           const team = NFL_TEAMS.find((t) => t.abbr === c.abbr) || { abbr: c.abbr, name: c.abbr }
-                          const disabled = !kickoffConfirmed || locked || usedElsewhere
-                          const title = !kickoffConfirmed ? 'Unavailable until the NFL confirms kickoff' : locked ? 'Locked - pick window has closed' : usedElsewhere ? 'Already used in another week' : ''
+                          const disabled = providerUnavailable || !kickoffConfirmed || locked || usedElsewhere
+                          const title = providerUnavailable ? `Game ${g.status}` : !kickoffConfirmed ? 'Unavailable until the NFL confirms kickoff' : locked ? 'Locked - pick window has closed' : usedElsewhere ? 'Already used in another week' : ''
                           return (
                             <button
                               key={c.abbr}
@@ -1487,6 +1491,13 @@ function MyPoolsContent() {
   }, [isOpen, detailsLoading, selectedId, pool, userId, selectedEntryId])
 
   /** ---------- Draft save / clear ---------- */
+  type PickWriteReceipt = {
+    success: boolean
+    error_message: string | null
+    saved_at: string | null
+    applicable_deadline_at: string | null
+  }
+
   const saveDraft = async (week: number, slot: number, team: Team | null) => {
     if (!selectedId || !userId || !selectedEntryId) return false
     if (pool && week < pool.start_week) {
@@ -1513,7 +1524,7 @@ function MyPoolsContent() {
     setSavingPickKeys((prev) => ({ ...prev, [key]: true }))
     try {
       if (team) {
-        const { error } = await supabase.rpc('save_entry_draft_pick', {
+        const { data, error } = await supabase.rpc('save_entry_draft_pick_with_receipt', {
           p_pool_id: selectedId,
           p_entry_id: selectedEntryId,
           p_week: week,
@@ -1521,16 +1532,21 @@ function MyPoolsContent() {
           p_team_abbr: team.abbr,
         })
         if (error) throw error
+        const receipt = ((data || []) as PickWriteReceipt[])[0]
+        if (!receipt?.success) throw new Error(receipt?.error_message || 'The server rejected this pick.')
+        setDraftSavedAt(receipt.saved_at || new Date().toISOString())
       } else {
-        const { error } = await supabase.rpc('clear_entry_draft_pick', {
+        const { data, error } = await supabase.rpc('clear_entry_draft_pick_with_receipt', {
           p_pool_id: selectedId,
           p_entry_id: selectedEntryId,
           p_week: week,
           p_slot: slot,
         })
         if (error) throw error
+        const receipt = ((data || []) as PickWriteReceipt[])[0]
+        if (!receipt?.success) throw new Error(receipt?.error_message || 'The server rejected this pick change.')
+        setDraftSavedAt(receipt.saved_at || new Date().toISOString())
       }
-      setDraftSavedAt(new Date().toISOString())
       await refreshPoolPickStatus()
       return true
     } catch (e: unknown) {
@@ -1541,11 +1557,50 @@ function MyPoolsContent() {
         poolId: selectedId,
         metadata: { week, slot, team_abbr: team?.abbr || null, entry_id: selectedEntryId },
       })
-      if (team && message.toLowerCase().includes('already selected for week')) {
-        await loadMyPicks(selectedId, pool?.start_week ?? 1)
-        setDraftSavedAt(new Date().toISOString())
-        await refreshPoolPickStatus()
-        return true
+      // A mobile connection can disappear after PostgreSQL commits but before
+      // the browser receives the RPC response. Read the authoritative row back
+      // before telling the user the pick failed or rolling back the UI.
+      try {
+        const [{ data: finalPick, error: finalError }, { data: draftPick, error: draftError }] = await Promise.all([
+          supabase
+            .from('pool_picks')
+            .select('team_abbr')
+            .eq('pool_id', selectedId)
+            .eq('entry_id', selectedEntryId)
+            .eq('week', week)
+            .eq('slot', slot)
+            .maybeSingle<{ team_abbr: string }>(),
+          supabase
+            .from('pool_pick_drafts')
+            .select('team_abbr')
+            .eq('pool_id', selectedId)
+            .eq('entry_id', selectedEntryId)
+            .eq('week', week)
+            .eq('slot', slot)
+            .maybeSingle<{ team_abbr: string }>(),
+        ])
+        if (finalError) throw finalError
+        if (draftError) throw draftError
+
+        const intendedTeam = team?.abbr || null
+        const persistedTeam = finalPick?.team_abbr || draftPick?.team_abbr || null
+        const intendedStatePersisted = team
+          ? persistedTeam === intendedTeam
+          : !finalPick && !draftPick
+
+        if (intendedStatePersisted) {
+          await loadMyPicks(selectedId, pool?.start_week ?? 1, selectedEntryId)
+          setDraftSavedAt(new Date().toISOString())
+          await refreshPoolPickStatus()
+          return true
+        }
+      } catch (verificationError) {
+        void logAppEvent({
+          eventType: 'pick_save_verification_failed',
+          error: verificationError,
+          poolId: selectedId,
+          metadata: { week, slot, team_abbr: team?.abbr || null, entry_id: selectedEntryId },
+        })
       }
       showMessage('Pick not saved', message, 'danger')
       return false
@@ -1554,7 +1609,7 @@ function MyPoolsContent() {
     }
   }
 
-  const commitPickTeam = async (week: number, slot: number, team: Team, previousPick: Team | null) => {
+  const commitPickTeam = async (week: number, slot: number, team: Team) => {
     const key = pickKey(week, slot)
     setMyDraftPicks((prev) => ({ ...prev, [key]: team }))
     setTeamPickerTarget(null)
@@ -1562,8 +1617,8 @@ function MyPoolsContent() {
     if (saved) {
       void trackConversion('conversion.pick_saved', { week, slot, entry_id: selectedEntryId }, selectedId)
       showPickNotice({ team, week, slot, action: 'saved' })
-    } else {
-      setMyDraftPicks((prev) => ({ ...prev, [key]: previousPick }))
+    } else if (selectedId && selectedEntryId) {
+      await loadMyPicks(selectedId, pool?.start_week ?? 1, selectedEntryId)
     }
   }
 
@@ -1584,6 +1639,10 @@ function MyPoolsContent() {
     if (teamPickerTarget?.week === week) {
       const game = weekGames.find((g) => toAbbr(g.home_team) === team.abbr || toAbbr(g.away_team) === team.abbr)
       if (game) {
+        if (game.status === 'postponed' || game.status === 'canceled') {
+          showMessage('Game unavailable', `${team.name}'s game is ${game.status}. Your existing pick is preserved, but new changes are paused until the NFL clarifies the game.`, 'warning')
+          return
+        }
         if (game.kickoff_confirmed === false) {
           showMessage('Kickoff time not confirmed', `${team.name} will become available after the NFL publishes its official Week ${week} kickoff time.`, 'warning')
           return
@@ -1615,11 +1674,11 @@ function MyPoolsContent() {
         tone: 'warning',
         confirmLabel: 'Yes, change pick',
         cancelLabel: 'No',
-        onConfirm: () => commitPickTeam(week, slot, team, previousPick),
+        onConfirm: () => commitPickTeam(week, slot, team),
       })
       return
     }
-    await commitPickTeam(week, slot, team, previousPick)
+    await commitPickTeam(week, slot, team)
   }
 
   const clearPick = async (week: number, slot: number) => {
@@ -1633,8 +1692,8 @@ function MyPoolsContent() {
     const saved = await saveDraft(week, slot, null)
     if (saved) {
       showPickNotice({ team: previousPick || { abbr: 'NFL', name: 'Pick' }, week, slot, action: 'cleared' })
-    } else {
-      setMyDraftPicks((prev) => ({ ...prev, [key]: previousPick }))
+    } else if (selectedId && selectedEntryId) {
+      await loadMyPicks(selectedId, pool?.start_week ?? 1, selectedEntryId)
     }
   }
 
@@ -1682,7 +1741,7 @@ function MyPoolsContent() {
         try {
           const results = await Promise.all(
             editableDrafts.map(({ week, slot }) =>
-              supabase.rpc('clear_entry_draft_pick', {
+              supabase.rpc('clear_entry_draft_pick_with_receipt', {
                 p_pool_id: selectedId,
                 p_entry_id: selectedEntryId,
                 p_week: week,
@@ -1692,6 +1751,10 @@ function MyPoolsContent() {
           )
           const firstError = results.find((result) => result.error)?.error
           if (firstError) throw firstError
+          const rejectedReceipt = results
+            .flatMap((result) => (result.data || []) as PickWriteReceipt[])
+            .find((receipt) => !receipt.success)
+          if (rejectedReceipt) throw new Error(rejectedReceipt.error_message || 'The server rejected one of the pick changes.')
           setDraftSavedAt(new Date().toISOString())
           await refreshPoolPickStatus()
           showPickNotice({ action: 'all-cleared', count: editableDrafts.length })
@@ -1735,17 +1798,46 @@ function MyPoolsContent() {
       confirmLabel: 'Add entry',
       onConfirm: async () => {
         setAddingEntry(true)
+        const operationStorageKey = `survivor:add-entry-operation:${selectedId}`
+        const operationId = window.sessionStorage.getItem(operationStorageKey) || crypto.randomUUID()
+        window.sessionStorage.setItem(operationStorageKey, operationId)
         try {
-          const { data, error } = await supabase.rpc('add_pool_entry', { p_pool_id: selectedId })
-          if (error) throw error
+          let { data, error } = await supabase.rpc('add_pool_entry_idempotent', {
+            p_pool_id: selectedId,
+            p_operation_id: operationId,
+          })
+          if (error) {
+            const recovered = await supabase.rpc('my_operation_result', {
+              p_operation_type: 'add_pool_entry',
+              p_operation_id: operationId,
+            })
+            if (recovered.data) {
+              data = recovered.data
+              error = null
+            } else {
+              throw error
+            }
+          }
+          if (typeof data !== 'string') {
+            const recovered = await supabase.rpc('my_operation_result', {
+              p_operation_type: 'add_pool_entry',
+              p_operation_id: operationId,
+            })
+            if (typeof recovered.data === 'string') data = recovered.data
+            else throw new Error('The server returned an unexpected response while adding the entry.')
+          }
           const roster = await loadMembers(selectedId)
-          const newEntryId = typeof data === 'string' ? data : roster.filter((m) => m.profile_id === userId).at(-1)?.id
+          const newEntryId = data
+          if (!newEntryId || !roster.some((entry) => entry.id === newEntryId)) {
+            throw new Error('The server did not return the new entry. Refresh and check your entry list before trying again.')
+          }
+          window.sessionStorage.removeItem(operationStorageKey)
           if (newEntryId) await selectEntry(newEntryId)
           setMemberCount(roster.length)
           await refreshPoolPickStatus(pool, roster.filter((member) => member.profile_id === userId))
         } catch (e: unknown) {
           void logAppEvent({ eventType: 'pool_add_entry_failed', error: e, poolId: pool.id })
-          showMessage('Entry not added', getErrorMessage(e, 'Failed to add entry.'), 'danger')
+          showMessage('Entry not confirmed', `${getErrorMessage(e, 'Failed to add entry.')} Refresh to check your entries, or retry—retries cannot create this entry twice.`, 'danger')
         } finally {
           setAddingEntry(false)
         }
@@ -1759,7 +1851,7 @@ function MyPoolsContent() {
     const label = selectedEntry ? entryLabelForMember(selectedEntry) : 'this entry'
     confirmAction({
       title: 'Remove this entry?',
-      message: `Remove ${label} from ${pool.name}? This deletes only this entry and its picks. Your other entries stay in the pool.`,
+      message: `Permanently remove ${label} from ${pool.name}? This is only allowed before the pool starts. It deletes this entry, its saved picks, and its pick history. Your other entries and the pool invite link stay active.`,
       tone: 'danger',
       confirmLabel: 'Remove entry',
       onConfirm: async () => {
@@ -1784,8 +1876,26 @@ function MyPoolsContent() {
           }
           await refreshPoolPickStatus(pool, remaining)
         } catch (e: unknown) {
+          try {
+            const verified = await supabase.from('pool_members').select('id').eq('pool_id', selectedId).eq('id', selectedEntryId).maybeSingle()
+            if (!verified.error && !verified.data) {
+              const roster = await loadMembers(selectedId)
+              const remaining = roster.filter((member) => member.profile_id === userId)
+              const nextEntryId = remaining[0]?.id ?? null
+              setSelectedEntryId(nextEntryId)
+              if (nextEntryId) {
+                window.localStorage.setItem(selectedEntryStorageKey(selectedId), nextEntryId)
+                await loadMyPicks(selectedId, pool.start_week, nextEntryId)
+              }
+              await refreshPoolPickStatus(pool, remaining)
+              showMessage('Entry removed', `${label} was removed and confirmed in the database after the delayed response.`, 'info')
+              return
+            }
+          } catch {
+            // Keep the original error when authoritative verification is offline.
+          }
           void logAppEvent({ eventType: 'pool_remove_entry_failed', error: e, poolId: pool.id, metadata: { entry_id: selectedEntryId } })
-          showMessage('Entry not removed', getErrorMessage(e, 'Failed to remove entry.'), 'danger')
+          showMessage('Entry removal not confirmed', `${getErrorMessage(e, 'Failed to remove entry.')} Reconnect and refresh your entry list before trying again.`, 'danger')
         } finally {
           setAddingEntry(false)
         }
@@ -1805,7 +1915,7 @@ function MyPoolsContent() {
     }
     confirmAction({
       title: 'Leave this pool?',
-      message: `Leave ${pool.name}? This removes all of your entries and picks from this pool.`,
+      message: `Leave ${pool.name}? This is only allowed before the pool starts. It permanently removes all of your entries and saved picks. The pool and its invite link remain active, so you may be able to join again while registration is open.`,
       tone: 'danger',
       confirmLabel: 'Leave pool',
       onConfirm: async () => {
@@ -1816,8 +1926,18 @@ function MyPoolsContent() {
           setPools((prev) => prev.filter((p) => p.id !== pool.id))
           closeModal()
         } catch (e: unknown) {
+          try {
+            const verified = await supabase.from('pool_members').select('id').eq('pool_id', pool.id).eq('profile_id', userId).limit(1)
+            if (!verified.error && (verified.data || []).length === 0) {
+              setPools((prev) => prev.filter((candidate) => candidate.id !== pool.id))
+              closeModal()
+              return
+            }
+          } catch {
+            // Keep the original error when authoritative verification is offline.
+          }
           void logAppEvent({ eventType: 'pool_leave_failed', error: e, poolId: pool.id })
-          showMessage('Could not leave pool', getErrorMessage(e, 'Failed to leave pool.'), 'danger')
+          showMessage('Leave not confirmed', `${getErrorMessage(e, 'Failed to leave pool.')} Reconnect and refresh My Pools before trying again.`, 'danger')
         } finally {
           setLeavingPool(false)
         }
@@ -2597,7 +2717,7 @@ function MyPoolsContent() {
                               const home = teamByAbbr(toAbbr(game.home_team)) || { abbr: toAbbr(game.home_team), name: toAbbr(game.home_team) }
                               return (
                                 <div key={game.id} className="rounded-md border border-gray-200 bg-gray-50 p-3">
-                                  <div className="text-xs text-gray-500">{fmtDateTime(game.kickoff_at_utc || game.game_time)}</div>
+                                  <div className="text-xs text-gray-500">{fmtDateTime(game.game_time)}</div>
                                   <div className="mt-2 flex items-center gap-3 font-medium">
                                     <span className="inline-flex items-center gap-1.5">
                                       <TeamLogo team={away} size={26} />

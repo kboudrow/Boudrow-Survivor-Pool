@@ -93,6 +93,22 @@ type PickSaveEventRow = {
   created_at: string
 }
 
+type DisputeEventRow = {
+  event_id: string
+  event_at: string
+  event_type: string
+  entry_id: string | null
+  entry_label: string | null
+  actor_name: string | null
+  subject_name: string | null
+  week: number | null
+  slot: number | null
+  summary: string
+  server_effective_at: string | null
+  applicable_deadline_at: string | null
+  details: Record<string, unknown> | null
+}
+
 type TestGameOption = {
   game_id: string
   season: number
@@ -388,6 +404,7 @@ export default function PoolAdminPage() {
   const [rows, setRows] = useState<AdminRow[]>([])
   const [adminActions, setAdminActions] = useState<AdminActionRow[]>([])
   const [pickEvents, setPickEvents] = useState<PickSaveEventRow[]>([])
+  const [disputeEvents, setDisputeEvents] = useState<DisputeEventRow[]>([])
   const [auditLoading, setAuditLoading] = useState(false)
   const [entryAuditRows, setEntryAuditRows] = useState<EntryAuditRow[]>([])
   const [entryAuditLoading, setEntryAuditLoading] = useState(false)
@@ -596,7 +613,7 @@ export default function PoolAdminPage() {
     if (!poolId) return
     setAuditLoading(true)
     try {
-      const [{ data: actions, error: actionsErr }, { data: events, error: eventsErr }] = await Promise.all([
+      const [{ data: actions, error: actionsErr }, { data: events, error: eventsErr }, { data: disputes, error: disputesErr }] = await Promise.all([
         supabase
           .from('admin_actions')
           .select('id,pool_id,admin_id,target_user_id,week,slot,action,old_team_abbr,new_team_abbr,reason,created_at')
@@ -609,11 +626,18 @@ export default function PoolAdminPage() {
           .eq('pool_id', poolId)
           .order('created_at', { ascending: false })
           .limit(30),
+        supabase.rpc('commissioner_dispute_history', {
+          p_pool_id: poolId,
+          p_entry_id: null,
+          p_limit: 100,
+        }),
       ])
       if (actionsErr) throw actionsErr
       if (eventsErr) throw eventsErr
+      if (disputesErr) throw disputesErr
       setAdminActions((actions || []) as AdminActionRow[])
       setPickEvents((events || []) as PickSaveEventRow[])
+      setDisputeEvents((disputes || []) as DisputeEventRow[])
     } catch (e: unknown) {
       setError(getErrorMessage(e, 'Failed to load audit trail.'))
     } finally {
@@ -813,10 +837,19 @@ export default function PoolAdminPage() {
       setNotice(message || `${label} complete.`)
       await loadOverview(selectedWeek)
     } catch (e: unknown) {
-      setError(getErrorMessage(e, `${label} failed.`))
+      await loadOverview(selectedWeek)
+      setError(`${getErrorMessage(e, `${label} failed.`)} The current database state has been refreshed; check the page before retrying.`)
     } finally {
       setRunningAction(null)
     }
+  }
+
+  const confirmPoolSettings = async (matches: (row: Pool) => boolean) => {
+    if (!poolId) return false
+    const { data, error: verifyError } = await supabase.from('pools')
+      .select('id,name,created_by,is_public,visibility,double_pick_weeks,archived,season,start_week,include_playoffs,strikes_allowed,tie_rule,deadline_mode,deadline_fixed,notes,activation_status,max_members,allow_multiple_entries,max_entries_per_user,payment_status,image_url,test_mode,test_current_week,test_now_at')
+      .eq('id', poolId).maybeSingle<Pool>()
+    return !verifyError && !!data && matches(data)
   }
 
   const saveCoreRules = async () => {
@@ -858,7 +891,16 @@ export default function PoolAdminPage() {
       setNotice('Core pool rules saved. The updated rules now apply to every entry.')
       await loadOverview(Math.max(selectedWeek, nextStartWeek))
     } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Failed to save core pool rules.'))
+      const confirmed = await confirmPoolSettings((row) =>
+        row.start_week === nextStartWeek
+        && !!row.include_playoffs === includePlayoffsDraft
+        && Number(row.strikes_allowed) === nextMulligans
+        && row.tie_rule === tieRuleDraft
+        && row.deadline_mode === deadlineModeDraft
+        && (row.notes || '') === notesDraft.trim())
+      await loadOverview(Math.max(selectedWeek, nextStartWeek))
+      if (confirmed) setNotice('Core pool rules saved and confirmed after the delayed response.')
+      else setError(`${getErrorMessage(e, 'Failed to save core pool rules.')} Current database settings were refreshed; review them before retrying.`)
     } finally {
       setSavingCoreRules(false)
     }
@@ -887,7 +929,11 @@ export default function PoolAdminPage() {
       setNotice('Double-pick weeks saved.')
       setPool({ ...pool, double_pick_weeks: weeks })
     } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Failed to save double-pick weeks.'))
+      const expected = [...new Set(doubleWeeksText.split(',').map((value) => Number.parseInt(value.trim(), 10)).filter((week) => Number.isFinite(week) && week >= (pool.start_week ?? 1) && week <= 18))].sort((a, b) => a - b)
+      const confirmed = await confirmPoolSettings((row) => JSON.stringify([...(row.double_pick_weeks || [])].sort((a, b) => a - b)) === JSON.stringify(expected))
+      await loadOverview(selectedWeek)
+      if (confirmed) setNotice('Double-pick weeks saved and confirmed after the delayed response.')
+      else setError(`${getErrorMessage(e, 'Failed to save double-pick weeks.')} Current database settings were refreshed; review them before retrying.`)
     } finally {
       setSavingDouble(false)
     }
@@ -932,7 +978,10 @@ export default function PoolAdminPage() {
       setPool({ ...pool, max_members: nextLimit })
       setNotice('Pool capacity saved.')
     } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Failed to save pool capacity.'))
+      const confirmed = await confirmPoolSettings((row) => nextLimit === null ? isUnlimitedPoolCapacity(row.max_members) : row.max_members === nextLimit)
+      await loadOverview(selectedWeek)
+      if (confirmed) setNotice('Pool capacity saved and confirmed after the delayed response.')
+      else setError(`${getErrorMessage(e, 'Failed to save pool capacity.')} Current database settings were refreshed; review them before retrying.`)
     } finally {
       setSavingLimit(false)
     }
@@ -963,7 +1012,10 @@ export default function PoolAdminPage() {
       setPool({ ...pool, allow_multiple_entries: allowMultipleEntriesDraft, max_entries_per_user: nextEntries })
       setNotice('Entry settings saved.')
     } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Failed to save entry settings.'))
+      const confirmed = await confirmPoolSettings((row) => !!row.allow_multiple_entries === allowMultipleEntriesDraft && row.max_entries_per_user === nextEntries)
+      await loadOverview(selectedWeek)
+      if (confirmed) setNotice('Entry settings saved and confirmed after the delayed response.')
+      else setError(`${getErrorMessage(e, 'Failed to save entry settings.')} Current database settings were refreshed; review them before retrying.`)
     } finally {
       setSavingEntries(false)
     }
@@ -995,7 +1047,14 @@ export default function PoolAdminPage() {
       setVisibilityPassword('')
       setNotice(isPublicDraft ? 'Pool is now public.' : 'Pool is now private.')
     } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Failed to save pool visibility.'))
+      const confirmed = await confirmPoolSettings((row) => row.is_public === isPublicDraft)
+      await loadOverview(selectedWeek)
+      if (confirmed) {
+        setVisibilityPassword('')
+        setNotice(`Pool visibility saved as ${isPublicDraft ? 'public' : 'private'} and confirmed after the delayed response.`)
+      } else {
+        setError(`${getErrorMessage(e, 'Failed to save pool visibility.')} Current database settings were refreshed; review them before retrying.`)
+      }
     } finally {
       setSavingVisibility(false)
     }
@@ -1180,9 +1239,13 @@ export default function PoolAdminPage() {
           p_slot: row.slot,
           p_reason: correctionReason,
         })
-        if (error) throw error
+        if (error) {
+          const verified = await supabase.from('pool_picks').select('team_abbr').eq('pool_id', pool.id)
+            .eq('entry_id', row.entry_id).eq('week', selectedWeek).eq('slot', row.slot).maybeSingle<{ team_abbr: string }>()
+          if (verified.error || verified.data?.team_abbr !== team) throw error
+        }
         setPickCorrectionReason('')
-        return `Pick saved as ${team}.`
+        return `Pick saved as ${team} and confirmed in the database.`
       }
       const key = rowKey(row)
       const team = (draftTeams[key] || finalTeams[key] || '').trim().toUpperCase()
@@ -1194,8 +1257,14 @@ export default function PoolAdminPage() {
           p_slot: row.slot,
           p_reason: pickCorrectionReason.trim() || 'Commissioner cleared an unlocked draft',
         })
-        if (error) throw error
-        return 'Pick cleared.'
+        if (error) {
+          const [draft, final] = await Promise.all([
+            supabase.from('pool_pick_drafts').select('entry_id').eq('pool_id', pool.id).eq('entry_id', row.entry_id).eq('week', selectedWeek).eq('slot', row.slot).maybeSingle(),
+            supabase.from('pool_picks').select('entry_id').eq('pool_id', pool.id).eq('entry_id', row.entry_id).eq('week', selectedWeek).eq('slot', row.slot).maybeSingle(),
+          ])
+          if (draft.error || final.error || draft.data || final.data) throw error
+        }
+        return 'Pick cleared and confirmed in the database.'
       }
 
       const { error } = await supabase.rpc('admin_upsert_entry_draft', {
@@ -1206,9 +1275,15 @@ export default function PoolAdminPage() {
         p_slot: row.slot,
         p_reason: pickCorrectionReason.trim() || 'Commissioner updated an unlocked draft',
       })
-      if (error) throw error
+      if (error) {
+        const [draft, final] = await Promise.all([
+          supabase.from('pool_pick_drafts').select('team_abbr').eq('pool_id', pool.id).eq('entry_id', row.entry_id).eq('week', selectedWeek).eq('slot', row.slot).maybeSingle<{ team_abbr: string }>(),
+          supabase.from('pool_picks').select('team_abbr').eq('pool_id', pool.id).eq('entry_id', row.entry_id).eq('week', selectedWeek).eq('slot', row.slot).maybeSingle<{ team_abbr: string }>(),
+        ])
+        if (draft.error || final.error || (draft.data?.team_abbr !== team && final.data?.team_abbr !== team)) throw error
+      }
       setPickCorrectionReason('')
-      return `Pick saved as ${team}.`
+      return `Pick saved as ${team} and confirmed in the database.`
     })
 
   const removeMember = (row: AdminRow, entryCount = 1) =>
@@ -1220,7 +1295,7 @@ export default function PoolAdminPage() {
       const label = memberLabel(row)
       const confirmed = await requestConfirm({
         title: 'Remove member?',
-        message: `Remove ${label} from ${pool.name}?\n\nEntries removed: ${entryCount}\n\nThis removes the member, every entry, and all picks from this pool. It cannot be undone from this screen.`,
+        message: `Permanently remove ${label} from ${pool.name}?\n\nEntries removed: ${entryCount}\n\nThis is only allowed before the pool starts. It deletes every entry and saved pick for this member. The pool invite link remains active, so the member could rejoin while registration is open.`,
         tone: 'danger',
         confirmLabel: 'Remove member',
       })
@@ -1230,8 +1305,11 @@ export default function PoolAdminPage() {
         p_pool_id: pool.id,
         p_profile_id: row.user_id,
       })
-      if (error) throw error
-      return `${label} removed.`
+      if (error) {
+        const verified = await supabase.from('pool_members').select('id').eq('pool_id', pool.id).eq('profile_id', row.user_id).limit(1)
+        if (verified.error || (verified.data || []).length > 0) throw error
+      }
+      return `${label} removed and confirmed in the database.`
     })
 
   const removeEntry = (row: AdminRow) =>
@@ -1241,7 +1319,7 @@ export default function PoolAdminPage() {
       const label = entryLabel(row)
       const confirmed = await requestConfirm({
         title: 'Remove entry?',
-        message: `Remove ${label} from ${pool.name}? This deletes only Entry #${row.entry_number || 1} and its picks. The member's other entries stay in the pool.`,
+        message: `Permanently remove ${label} from ${pool.name}? This is only allowed before the pool starts. It deletes Entry #${row.entry_number || 1} and its saved picks. The member's other entries stay in the pool.`,
         tone: 'danger',
         confirmLabel: 'Remove entry',
       })
@@ -1251,8 +1329,11 @@ export default function PoolAdminPage() {
         p_pool_id: pool.id,
         p_entry_id: row.entry_id,
       })
-      if (error) throw error
-      return `${label} removed.`
+      if (error) {
+        const verified = await supabase.from('pool_members').select('id').eq('pool_id', pool.id).eq('id', row.entry_id).maybeSingle()
+        if (verified.error || verified.data) throw error
+      }
+      return `${label} removed and confirmed in the database.`
     })
 
   const copyText = async (text: string, successMessage: string) => {
@@ -2060,12 +2141,12 @@ export default function PoolAdminPage() {
               </div>
               {settingsLocked && (
                 <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                  Competitive settings are locked because the first kickoff has passed. This protects the rules players entered under. You can still review members, check scoring, and make logged commissioner pick corrections with a reason.
+                  Competitive settings are locked because the first kickoff has passed. Start week, deadlines, mulligans, tie scoring, season length, entry limits, visibility, password, additional rules, and double-pick weeks cannot change, so historical picks and standings cannot be silently regraded. You can still change the pool image, review members, check scoring, and make logged commissioner pick corrections with a reason.
                 </p>
               )}
               {!settingsLocked && poolStartAt && (
                 <p className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-                  Setup is still open. The pool starts automatically and competitive settings lock at {fmt(poolStartAt)}. Saved entries and picks stay in place when you change a compatible setting.
+                  Setup is still open. The pool starts automatically and competitive settings lock at {fmt(poolStartAt)}. Changes apply to every existing entry. Saved picks stay in place when compatible; limits cannot be reduced below current entries, and moving the start later is blocked if it would discard a picked week.
                 </p>
               )}
 
@@ -2293,7 +2374,7 @@ export default function PoolAdminPage() {
                   >
                     {savingVisibility ? 'Saving...' : 'Save visibility'}
                   </button>
-                  <p className="mt-2 text-xs text-gray-600">Public pools can be found in search. Private pools require a password to join.</p>
+                  <p className="mt-2 text-xs text-gray-600">Public pools can be found in search. Private pools require a password for new members; changing to private does not remove anyone who already joined.</p>
                 </div>
 
                 <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
@@ -2455,8 +2536,8 @@ export default function PoolAdminPage() {
             <section className="rounded-lg border bg-white p-4">
               <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h2 className="font-semibold">Activity Log</h2>
-                  <p className="text-sm text-gray-600">Recent member removals, commissioner pick edits, and saved-pick events for this pool.</p>
+                  <h2 className="font-semibold">Dispute History</h2>
+                  <p className="text-sm text-gray-600">Server-timestamped pick saves and rejections, deadlines, rule changes, mulligan and elimination changes, commissioner corrections, and roster removals.</p>
                 </div>
                 <button
                   onClick={loadAuditTrail}
@@ -2467,7 +2548,43 @@ export default function PoolAdminPage() {
                 </button>
               </div>
 
-              <div className="grid gap-4 lg:grid-cols-2">
+              <div className="mb-4 rounded-md border border-slate-200 bg-slate-50">
+                <div className="border-b border-slate-200 px-3 py-2 text-sm font-semibold text-slate-900">Competition timeline</div>
+                <div className="max-h-[32rem] divide-y divide-slate-200 overflow-y-auto bg-white">
+                  {disputeEvents.map((event) => {
+                    const reason = typeof event.details?.reason === 'string' ? event.details.reason : null
+                    return (
+                      <div key={event.event_id} className="p-3 text-sm">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <div className="font-semibold text-slate-950">{event.summary}</div>
+                            <div className="mt-0.5 text-xs text-slate-600">
+                              {event.entry_label ? `${event.entry_label} · ` : ''}
+                              {event.week ? `${weekLabel(event.week)}${event.slot ? `, Pick ${event.slot}` : ''} · ` : ''}
+                              {event.actor_name || 'System'}
+                              {event.subject_name && event.subject_name !== event.actor_name ? ` for ${event.subject_name}` : ''}
+                            </div>
+                          </div>
+                          <span className="text-xs text-slate-500">{fmt(event.event_at)}</span>
+                        </div>
+                        {(event.server_effective_at || event.applicable_deadline_at) && (
+                          <div className="mt-2 rounded bg-slate-50 px-2 py-1 text-xs text-slate-600">
+                            {event.server_effective_at && <span>Server time: {fmt(event.server_effective_at)}</span>}
+                            {event.server_effective_at && event.applicable_deadline_at && <span> · </span>}
+                            {event.applicable_deadline_at && <span>Applicable deadline: {fmt(event.applicable_deadline_at)}</span>}
+                          </div>
+                        )}
+                        {reason && <div className="mt-1 text-xs text-slate-600">Reason: {reason}</div>}
+                      </div>
+                    )
+                  })}
+                  {disputeEvents.length === 0 && <p className="p-3 text-sm text-slate-500">No competition events have been recorded for this pool.</p>}
+                </div>
+              </div>
+
+              <details className="rounded-md border border-slate-200 bg-slate-50">
+                <summary className="cursor-pointer px-3 py-2 text-sm font-semibold text-slate-900">Technical pick and commissioner logs</summary>
+              <div className="grid gap-4 border-t border-slate-200 p-3 lg:grid-cols-2">
                 <div className="rounded-md border border-slate-200 bg-slate-50">
                   <div className="border-b border-slate-200 px-3 py-2 text-sm font-semibold text-slate-900">Admin actions</div>
                   <div className="max-h-72 overflow-y-auto divide-y divide-slate-200 bg-white">
@@ -2521,6 +2638,7 @@ export default function PoolAdminPage() {
                   </div>
                 </div>
               </div>
+              </details>
             </section>
 
             <section id="commissioner-members" className="scroll-mt-4 rounded-lg border bg-white p-4">
