@@ -4,9 +4,6 @@
 
 begin;
 
-delete from public.nfl_games
-where season = 2026;
-
 insert into public.season_weeks (season, week, week_sunday_date)
 values
   (2026, 1, '2026-09-13'),
@@ -313,14 +310,35 @@ values
   (2026, 18, '2027-01-10T18:00:00Z', '2027-01-10T18:00:00Z', 'ARI', 'SF', 'scheduled', 'audited-2026-w18-SF-ARI'),
   (2026, 18, '2027-01-10T18:00:00Z', '2027-01-10T18:00:00Z', 'NO', 'TB', 'scheduled', 'audited-2026-w18-TB-NO'),
   (2026, 18, '2027-01-10T18:00:00Z', '2027-01-10T18:00:00Z', 'HOU', 'TEN', 'scheduled', 'audited-2026-w18-TEN-HOU')
-on conflict (espn_event_id) do update
+on conflict (season, week, home_team, away_team) do update
 set
-  season = excluded.season,
-  week = excluded.week,
   game_time = excluded.game_time,
   kickoff_at_utc = excluded.kickoff_at_utc,
-  home_team = excluded.home_team,
-  away_team = excluded.away_team,
-  status = excluded.status;
+  espn_event_id = excluded.espn_event_id,
+  -- A schedule seed must never roll a live/final provider result backward.
+  status = case
+    when public.nfl_games.status in ('in_progress', 'final') then public.nfl_games.status
+    else excluded.status
+  end;
+
+-- Exact kickoff windows are not yet official for these flex games. The seed is
+-- applied after migrations during a local reset, so this must be repeated here
+-- rather than relying on the earlier schema migration's data backfill.
+with unconfirmed(week, away_team, home_team) as (
+  values
+    (16, 'TB', 'ATL'), (16, 'CIN', 'IND'), (16, 'WAS', 'MIN'), (16, 'CAR', 'PIT'),
+    (17, 'WAS', 'JAX'), (17, 'KC', 'LAC'), (17, 'DEN', 'NE'), (17, 'LAR', 'TB'),
+    (18, 'SF', 'ARI'), (18, 'PIT', 'BAL'), (18, 'NYJ', 'BUF'), (18, 'ATL', 'CAR'),
+    (18, 'CLE', 'CIN'), (18, 'LAC', 'DEN'), (18, 'DET', 'GB'), (18, 'TEN', 'HOU'),
+    (18, 'JAX', 'IND'), (18, 'LV', 'KC'), (18, 'SEA', 'LAR'), (18, 'CHI', 'MIN'),
+    (18, 'MIA', 'NE'), (18, 'TB', 'NO'), (18, 'PHI', 'NYG'), (18, 'DAL', 'WAS')
+)
+update public.nfl_games game
+set kickoff_confirmed = false
+from unconfirmed flex
+where game.season = 2026
+  and game.week = flex.week
+  and upper(game.away_team) = flex.away_team
+  and upper(game.home_team) = flex.home_team;
 
 commit;
