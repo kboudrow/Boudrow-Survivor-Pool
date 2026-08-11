@@ -13,6 +13,7 @@
     "test:partial-failure": "node --env-file=.env.local scripts/test-partial-failure-recovery.mjs",
     "quality:rpc": "node scripts/check-rpc-sql-coverage.mjs",
     "quality:migrations": "node scripts/check-migration-integrity.mjs",
+    "production:audit": "node --env-file=.env.local scripts/audit-production-readiness.mjs",
     "load:test": "node scripts/load-test.mjs",
     "backup:db": "node scripts/db-backup.mjs",
     "backup:api": "node --env-file=.env.local scripts/api-backup.mjs",

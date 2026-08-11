@@ -52,3 +52,25 @@ test('the configured NFL seed is idempotent and preserves provider results', () 
   assert.doesNotMatch(generator, /delete from public\.nfl_games/)
   assert.match(generator, /when public\.nfl_games\.status in \('in_progress', 'final'\)/)
 })
+
+test('a default backup contains separate schema public-data and managed-data artifacts', () => {
+  const backup = read('scripts/db-backup.mjs')
+
+  assert.match(backup, /public-schema\.sql/)
+  assert.match(backup, /public-data\.sql/)
+  assert.match(backup, /managed-and-public-data\.sql/)
+  assert.match(backup, /--data-only', '--schema', 'public'/)
+  assert.match(backup, /managed schemas only into a compatible supabase version/)
+})
+
+test('the superadmin can manually recover delayed production cron jobs', () => {
+  const route = read('app/api/admin/run-cron/route.ts')
+  const admin = read('app/admin/page.tsx')
+
+  assert.match(route, /admin\.auth\.getuser\(token\)/)
+  assert.match(route, /userdata\.user\?\.email\?\.tolowercase\(\) !== superadmin_email/)
+  assert.match(route, /job_routes\.has\(route\)/)
+  assert.match(route, /authorization: `bearer \$\{cronsecret\}`/)
+  assert.match(admin, /runcronnow/)
+  assert.match(admin, /run now/)
+})

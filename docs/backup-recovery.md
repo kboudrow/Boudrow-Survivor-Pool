@@ -21,13 +21,16 @@ From the project root:
 npm run backup:db
 ```
 
-The script writes a timestamped SQL dump into `/backups`. That folder is ignored by git on purpose.
+The script writes a timestamped recovery bundle into `/backups`. The bundle
+contains the public schema, restorable public data, and a separate managed-data
+dump that includes Supabase Auth. That folder is ignored by git on purpose.
 
 Optional narrower dumps:
 
 ```bash
 npm run backup:db -- --schema-only
 npm run backup:db -- --data-only
+npm run backup:db -- --public-data-only
 ```
 
 If Docker is unavailable and the CLI dump cannot run, capture a service-role API fallback before proceeding:
@@ -36,15 +39,20 @@ If Docker is unavailable and the CLI dump cannot run, capture a service-role API
 npm run backup:api
 ```
 
-This fallback captures Auth users and every readable public table as JSON. Prefer the SQL dump whenever Docker is available because it also preserves complete schema-level recovery information.
+This fallback captures Auth users and every readable public table as JSON.
+Prefer the SQL recovery bundle whenever Docker is available because it also
+preserves complete schema-level recovery information.
 
 ## Recovery Rules
 
 1. Do not restore directly over production while users are active.
 2. First restore to a temporary Supabase project when possible.
-3. Verify auth users, profiles, pools, members, picks, stats, blog posts, comments, and storage references.
-4. If only one pool is affected, prefer pool-scoped repair RPCs over a full database restore.
-5. After any restore, run the superadmin health checks and the load smoke test.
+3. Restore `public-schema.sql`, then `public-data.sql`. Only restore the managed
+   Auth data dump into a compatible Supabase version; otherwise use Supabase's
+   platform recovery or Admin API because managed schemas evolve independently.
+4. Verify auth users, profiles, pools, members, picks, stats, blog posts, comments, and storage references.
+5. If only one pool is affected, prefer pool-scoped repair RPCs over a full database restore.
+6. After any restore, run the superadmin health checks and the load smoke test.
 
 ## New Project Or Disaster-Recovery Bootstrap
 
