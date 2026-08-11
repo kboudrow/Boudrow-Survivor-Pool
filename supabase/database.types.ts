@@ -1305,6 +1305,45 @@ export type Database = {
           },
         ]
       }
+      pool_roster_removal_events: {
+        Row: {
+          actor_user_id: string | null
+          created_at: string
+          drafts_removed: number
+          entries_removed: number
+          entry_id: string | null
+          id: string
+          locked_picks_removed: number
+          pool_id: string
+          removal_type: string
+          subject_user_id: string | null
+        }
+        Insert: {
+          actor_user_id?: string | null
+          created_at?: string
+          drafts_removed: number
+          entries_removed: number
+          entry_id?: string | null
+          id?: string
+          locked_picks_removed: number
+          pool_id: string
+          removal_type: string
+          subject_user_id?: string | null
+        }
+        Update: {
+          actor_user_id?: string | null
+          created_at?: string
+          drafts_removed?: number
+          entries_removed?: number
+          entry_id?: string | null
+          id?: string
+          locked_picks_removed?: number
+          pool_id?: string
+          removal_type?: string
+          subject_user_id?: string | null
+        }
+        Relationships: []
+      }
       pools: {
         Row: {
           activated_at: string | null

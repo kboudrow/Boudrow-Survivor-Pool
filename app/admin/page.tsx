@@ -487,7 +487,7 @@ export default function SuperAdminPage() {
     const entryCount = entries.filter((candidate) => candidate.profile_id === entry.profile_id).length
     const confirmed = await requestConfirm({
       title: 'Remove member?',
-      message: `Remove ${label} from ${selectedPool.name}?\n\nEntries removed: ${entryCount}\n\nThis removes the member, every entry, and all picks from this pool.`,
+      message: `Permanently remove ${label} from ${selectedPool.name}?\n\nEntries removed: ${entryCount}\n\nThis is only allowed before the pool starts. It deletes every entry and saved pick for this member. The pool invite link remains active, so the member could rejoin while registration is open.`,
       tone: 'danger',
       confirmLabel: 'Remove member',
     })

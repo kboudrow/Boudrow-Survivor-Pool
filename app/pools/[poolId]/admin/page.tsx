@@ -1271,7 +1271,7 @@ export default function PoolAdminPage() {
       const label = memberLabel(row)
       const confirmed = await requestConfirm({
         title: 'Remove member?',
-        message: `Remove ${label} from ${pool.name}?\n\nEntries removed: ${entryCount}\n\nThis removes the member, every entry, and all picks from this pool. It cannot be undone from this screen.`,
+        message: `Permanently remove ${label} from ${pool.name}?\n\nEntries removed: ${entryCount}\n\nThis is only allowed before the pool starts. It deletes every entry and saved pick for this member. The pool invite link remains active, so the member could rejoin while registration is open.`,
         tone: 'danger',
         confirmLabel: 'Remove member',
       })
@@ -1295,7 +1295,7 @@ export default function PoolAdminPage() {
       const label = entryLabel(row)
       const confirmed = await requestConfirm({
         title: 'Remove entry?',
-        message: `Remove ${label} from ${pool.name}? This deletes only Entry #${row.entry_number || 1} and its picks. The member's other entries stay in the pool.`,
+        message: `Permanently remove ${label} from ${pool.name}? This is only allowed before the pool starts. It deletes Entry #${row.entry_number || 1} and its saved picks. The member's other entries stay in the pool.`,
         tone: 'danger',
         confirmLabel: 'Remove entry',
       })

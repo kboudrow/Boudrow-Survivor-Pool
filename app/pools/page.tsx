@@ -1835,7 +1835,7 @@ function MyPoolsContent() {
     const label = selectedEntry ? entryLabelForMember(selectedEntry) : 'this entry'
     confirmAction({
       title: 'Remove this entry?',
-      message: `Remove ${label} from ${pool.name}? This deletes only this entry and its picks. Your other entries stay in the pool.`,
+      message: `Permanently remove ${label} from ${pool.name}? This is only allowed before the pool starts. It deletes this entry, its saved picks, and its pick history. Your other entries and the pool invite link stay active.`,
       tone: 'danger',
       confirmLabel: 'Remove entry',
       onConfirm: async () => {
@@ -1899,7 +1899,7 @@ function MyPoolsContent() {
     }
     confirmAction({
       title: 'Leave this pool?',
-      message: `Leave ${pool.name}? This removes all of your entries and picks from this pool.`,
+      message: `Leave ${pool.name}? This is only allowed before the pool starts. It permanently removes all of your entries and saved picks. The pool and its invite link remain active, so you may be able to join again while registration is open.`,
       tone: 'danger',
       confirmLabel: 'Leave pool',
       onConfirm: async () => {
