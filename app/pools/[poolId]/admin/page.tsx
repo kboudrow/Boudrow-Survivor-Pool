@@ -497,7 +497,7 @@ export default function PoolAdminPage() {
   )
   const parsedTestWeek = Number.parseInt(testWeek, 10) || testStartWeek
   const testPicksRequired = entryCount * (pool?.double_pick_weeks?.includes(parsedTestWeek) ? 2 : 1)
-  const testPicksSubmitted = rows.filter((row) => !!row.draft_team_abbr || !!row.final_team_abbr).length
+  const testPicksSubmitted = rows.filter((row) => !!row.draft_updated_at || !!row.final_team_abbr || !!row.locked_at).length
   const testPickSlotsMissing = Math.max(0, testPicksRequired - testPicksSubmitted)
   const poolStartMs = poolStartAt ? Date.parse(poolStartAt) : null
   const poolStartKnown = poolStartMs !== null && Number.isFinite(poolStartMs)
@@ -1250,6 +1250,9 @@ export default function PoolAdminPage() {
       const key = rowKey(row)
       const team = (draftTeams[key] || finalTeams[key] || '').trim().toUpperCase()
       if (!team) {
+        if (row.draft_updated_at && !row.draft_team_abbr) {
+          throw new Error('This entry has a saved pick, but its team is hidden until lock. Choose a replacement team to change it; leaving this field unchanged will not clear the participant’s pick.')
+        }
         const { error } = await supabase.rpc('admin_clear_entry_week_draft_slot', {
           p_pool_id: pool.id,
           p_entry_id: row.entry_id,
@@ -2490,7 +2493,7 @@ export default function PoolAdminPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
                     {selectedEntryAuditRows.map((row) => {
-                      const pick = row.final_team_abbr || row.draft_team_abbr || '-'
+                      const pick = row.final_team_abbr || row.draft_team_abbr || (row.pick_state === 'draft' ? 'Hidden until lock' : '-')
                       return (
                         <tr key={`${row.entry_id}:${row.week}:${row.slot}`} className={row.issue ? 'bg-amber-50/60' : undefined}>
                           <td className="px-3 py-2 font-medium text-slate-950">
@@ -2645,7 +2648,7 @@ export default function PoolAdminPage() {
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="font-semibold">Member Help & Pick Corrections</h2>
-                  <p className="text-sm text-gray-600">Choose one week, then help with an unlocked pick or correct a locked pick after resolving a dispute. A missed pick grades as a loss and uses a mulligan when one is available.</p>
+                  <p className="text-sm text-gray-600">Choose one week, then help with an unlocked pick or correct a locked pick after resolving a dispute. To keep the pool fair, another entry&apos;s saved team stays hidden from commissioners until that pick locks. A missed pick grades as a loss and uses a mulligan when one is available.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <input
@@ -2807,7 +2810,7 @@ export default function PoolAdminPage() {
                             onChange={(e) => setDraftTeams((prev) => ({ ...prev, [rowKey(row)]: e.target.value }))}
                             className="w-full rounded-md border px-2 py-1"
                           >
-                            <option value="">No pick</option>
+                            <option value="">{row.draft_updated_at && !row.draft_team_abbr && !row.final_team_abbr ? 'Saved pick hidden until lock' : 'No pick'}</option>
                             {TEAMS.map((team) => (
                               <option key={team} value={team}>
                                 {team}
@@ -2815,7 +2818,11 @@ export default function PoolAdminPage() {
                             ))}
                           </select>
                           <div className="mt-1 text-xs text-gray-500">
-                            {row.locked_at ? `Official pick locked ${fmt(row.locked_at)}` : row.draft_updated_at ? `Saved ${fmt(row.draft_updated_at)}` : 'No pick submitted yet'}
+                            {row.locked_at
+                              ? `Official pick locked ${fmt(row.locked_at)}`
+                              : row.draft_updated_at
+                                ? `${row.draft_team_abbr ? 'Saved' : 'Saved team hidden until lock'} ${fmt(row.draft_updated_at)}`
+                                : 'No pick submitted yet'}
                           </div>
                           {row.result && <div className="mt-1 text-xs font-medium text-amber-700">Result already set. Saving a new pick will clear that result.</div>}
                         </td>
