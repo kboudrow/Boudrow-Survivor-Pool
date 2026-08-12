@@ -70,5 +70,6 @@
   "20260810003700_pool_password_storage_invariants.sql": "f75d3027c84f4b2121baaeb0c0fb81919c8ada019b496909022820bc46bf7d30",
   "20260810003800_competition_dispute_evidence.sql": "52fd1da24676cf283e36149dfe3a89c6a8cd7df86d86a3851ce88d4e6d21e777",
   "20260810003900_browser_role_least_privilege.sql": "4603020e560223bb49e424d87be0a29d5bb8600da6c40c713ae3192d6c18df9f",
-  "20260810004000_foreign_key_supporting_indexes.sql": "b799387fba806e482cd6eb12a6ac9e8c2e3dffa67e910e1f36a572c4558dd867"
+  "20260810004000_foreign_key_supporting_indexes.sql": "b799387fba806e482cd6eb12a6ac9e8c2e3dffa67e910e1f36a572c4558dd867",
+  "20260811000100_competitive_pick_secrecy.sql": "d1b634d7dc5536ac7b0ee232755d14968249239f11d83ca0a78ec4379501a99a"
 }

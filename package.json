@@ -11,6 +11,7 @@
     "test:season-sim": "node --env-file=.env.local scripts/test-multi-pool-season-simulation.mjs",
     "test:concurrency": "node --env-file=.env.local scripts/test-concurrency-audit.mjs",
     "test:partial-failure": "node --env-file=.env.local scripts/test-partial-failure-recovery.mjs",
+    "test:pick-secrecy": "node --env-file=.env.local scripts/test-pick-secrecy-audit.mjs",
     "quality:rpc": "node scripts/check-rpc-sql-coverage.mjs",
     "quality:migrations": "node scripts/check-migration-integrity.mjs",
     "production:audit": "node --env-file=.env.local scripts/audit-production-readiness.mjs",
