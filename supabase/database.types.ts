@@ -2026,7 +2026,53 @@ export type Database = {
           week: number
         }[]
       }
+      admin_pool_entry_audit_unredacted_internal: {
+        Args: { p_pool_id: string }
+        Returns: {
+          display_name: string
+          draft_team_abbr: string
+          draft_updated_at: string
+          eliminated_week: number
+          entry_id: string
+          entry_number: number
+          final_team_abbr: string
+          issue: string
+          locked_at: string
+          pick_state: string
+          result: string
+          slot: number
+          status_after_week: string
+          strikes_after_week: number
+          strikes_left_after_week: number
+          user_id: string
+          week: number
+        }[]
+      }
       admin_pool_entry_week_overview: {
+        Args: { p_pool_id: string; p_week: number }
+        Returns: {
+          display_name: string
+          draft_team_abbr: string
+          draft_updated_at: string
+          eliminated: boolean
+          eliminated_week: number
+          entry_id: string
+          entry_name: string
+          entry_number: number
+          final_team_abbr: string
+          joined_at: string
+          locked_at: string
+          losses: number
+          pushes: number
+          result: string
+          role: string
+          slot: number
+          strikes_used: number
+          user_id: string
+          wins: number
+        }[]
+      }
+      admin_pool_entry_week_overview_unredacted_internal: {
         Args: { p_pool_id: string; p_week: number }
         Returns: {
           display_name: string
@@ -2299,6 +2345,24 @@ export type Database = {
           week: number
         }[]
       }
+      commissioner_dispute_history_unredacted_internal: {
+        Args: { p_entry_id?: string; p_limit?: number; p_pool_id: string }
+        Returns: {
+          actor_name: string
+          applicable_deadline_at: string
+          details: Json
+          entry_id: string
+          entry_label: string
+          event_at: string
+          event_id: string
+          event_type: string
+          server_effective_at: string
+          slot: number
+          subject_name: string
+          summary: string
+          week: number
+        }[]
+      }
       consume_monitoring_rate_limit: {
         Args: {
           p_fingerprint: string
@@ -2500,6 +2564,10 @@ export type Database = {
         Returns: string
       }
       normalize_username: { Args: { p_username: string }; Returns: string }
+      pick_deadline_has_passed: {
+        Args: { p_deadline_at: string; p_pool_id: string; p_week?: number }
+        Returns: boolean
+      }
       picks_allowed: {
         Args: { p_pool_id: string; p_week: number }
         Returns: number
