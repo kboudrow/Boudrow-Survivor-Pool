@@ -25,13 +25,13 @@ test('score sync updates a matchup instead of duplicating imported event ids', a
 })
 
 test('score sync keeps TBD weeks under observation and detects ESPN TBD labels', async () => {
-  const [route, feed] = await Promise.all([
-    read('app/api/cron/sync-scores/route.ts'),
+  const [syncLogic, feed] = await Promise.all([
+    read('lib/nflWeekSync.ts'),
     read('lib/nflFeed.ts'),
   ])
   assert.match(feed, /!label\.includes\('tbd'\)/)
-  assert.match(route, /\|\| !game\.kickoff_confirmed/)
-  assert.match(route, /35 \* 24 \* 60 \* 60 \* 1000/)
+  assert.match(syncLogic, /\|\| !game\.kickoff_confirmed/)
+  assert.match(syncLogic, /35 \* 24 \* 60 \* 60 \* 1000/)
 })
 
 test('cron failures are retryable and postseason uses the prior calendar year', async () => {

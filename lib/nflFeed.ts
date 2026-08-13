@@ -1,3 +1,5 @@
+import { expectedPostseasonGameCount } from './seasonModel.ts'
+
 export type NflFeedStatus = 'scheduled' | 'in_progress' | 'final' | 'postponed' | 'canceled'
 
 export type SyncedNflGame = {
@@ -152,6 +154,11 @@ export function validateProviderWeek(events: EspnEvent[], season: number, week: 
   const eventIds = games.map((game) => game.espn_event_id)
   if (new Set(matchups).size !== matchups.length) throw new Error('Provider returned duplicate matchups; the entire week was rejected.')
   if (new Set(eventIds).size !== eventIds.length) throw new Error('Provider returned duplicate game ids; the entire week was rejected.')
+
+  const expectedGameCount = expectedPostseasonGameCount(week)
+  if (expectedGameCount !== null && games.length !== expectedGameCount) {
+    throw new Error(`Provider returned ${games.length} games for postseason week ${week}; expected ${expectedGameCount}. The entire round was rejected.`)
+  }
 
   const existingWeek = existing.filter((game) => game.week === week)
   if (existingWeek.length > 0) {

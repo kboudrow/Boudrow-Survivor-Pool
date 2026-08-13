@@ -29,6 +29,21 @@ function event(overrides: Partial<EspnEvent> = {}): EspnEvent {
   }
 }
 
+function postseasonEvents(count: number): EspnEvent[] {
+  const teams = ['ARI','ATL','BAL','BUF','CAR','CHI','CIN','CLE','DAL','DEN','DET','GB','HOU','IND']
+  return Array.from({ length: count }, (_, index) => event({
+    id: `post-${index}`,
+    competitions: [{
+      id: `post-${index}`,
+      startDate: `2027-01-${String(16 + Math.floor(index / 2)).padStart(2, '0')}T${index % 2 ? '21' : '18'}:00:00Z`,
+      competitors: [
+        { homeAway: 'home', team: { abbreviation: teams[index * 2] } },
+        { homeAway: 'away', team: { abbreviation: teams[index * 2 + 1] } },
+      ],
+    }],
+  }))
+}
+
 const existing: ExistingNflGame[] = [{
   season: 2026,
   week: 1,
@@ -90,6 +105,14 @@ test('kickoff changes are accepted when the matchup remains intact', () => {
     ],
   }] })
   assert.equal(validateProviderWeek([changed], 2026, 1, existing)[0].game_time, '2026-09-14T00:20:00.000Z')
+})
+
+test('postseason rounds reject partial first ingestion before any schedule exists', () => {
+  assert.equal(validateProviderWeek(postseasonEvents(6), 2026, 19, []).length, 6)
+  assert.throws(() => validateProviderWeek(postseasonEvents(5), 2026, 19, []), /expected 6/i)
+  assert.equal(validateProviderWeek(postseasonEvents(4), 2026, 20, []).length, 4)
+  assert.equal(validateProviderWeek(postseasonEvents(2), 2026, 21, []).length, 2)
+  assert.equal(validateProviderWeek(postseasonEvents(1), 2026, 22, []).length, 1)
 })
 
 test('timeouts, rate limits, server errors, and invalid JSON retry without inventing data', async () => {

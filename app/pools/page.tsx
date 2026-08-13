@@ -11,6 +11,7 @@ import { getErrorMessage } from '@/lib/errorMessage'
 import { logAppEvent, trackConversion } from '@/lib/monitoring'
 import { poolEntryCountLabel } from '@/lib/poolCapacity'
 import { poolImageUrl } from '@/lib/poolImages'
+import { REGULAR_SEASON_LAST_WEEK, maxWeekForPool, weekLongLabel, weekShortLabel } from '@/lib/seasonModel'
 import { supabase } from '@/lib/supabaseClient'
 import { entryProgress, poolHasWinner, requiredPickSlots, survivalCreditsThroughWeek } from '@/lib/survivorRules'
 
@@ -190,21 +191,6 @@ const NFL_TEAMS: Team[] = [
   { abbr: 'WAS', name: 'Washington Commanders', logo: espnLogo('WSH') },
 ]
 
-const REGULAR_SEASON_MAX_WEEK = 18
-const TEST_PLAYOFF_MAX_WEEK = 22
-const SHORT_PLAYOFF_WEEK_LABELS: Record<number, string> = {
-  19: 'WC',
-  20: 'DIV',
-  21: 'CONF',
-  22: 'SB',
-}
-const FULL_PLAYOFF_WEEK_LABELS: Record<number, string> = {
-  19: 'Wild Card',
-  20: 'Divisional',
-  21: 'Conference Championship',
-  22: 'Super Bowl',
-}
-
 const POOL_CARD_SELECT = 'id,name,season,is_public,start_week,include_playoffs,strikes_allowed,tie_rule,image_url,max_members,allow_multiple_entries,max_entries_per_user,activation_status,double_pick_weeks,test_mode,test_current_week,test_now_at'
 const POOL_DETAIL_SELECT = 'id,name,season,is_public,visibility,allow_discovery,start_week,include_playoffs,strikes_allowed,mulligans,tie_rule,ties,deadline,deadline_mode,deadline_fixed,notes,image_url,created_by,created_at,activation_status,activated_at,activated_by,archived,archived_at,max_members,allow_multiple_entries,max_entries_per_user,double_pick_weeks,plan,pick_privacy,payment_status,pinned_rank,sponsored_until,cloned_from_pool_id,test_mode,test_current_week,test_now_at,winner_user_id,name_normalized'
 const teamByAbbr = (abbr?: string | null) => NFL_TEAMS.find((t) => t.abbr === abbr) || null
@@ -222,10 +208,8 @@ const pickWeekFromKey = (key: string) => Number(key.split(':')[0])
 function filterPickRecordThroughWeek<T>(picks: Record<string, T>, maxWeek: number): Record<string, T> {
   return Object.fromEntries(Object.entries(picks).filter(([key]) => pickWeekFromKey(key) <= maxWeek))
 }
-const maxWeekForPool = (pool?: Pick<Pool, 'include_playoffs' | 'test_mode'> | null) =>
-  pool?.test_mode && pool.include_playoffs ? TEST_PLAYOFF_MAX_WEEK : REGULAR_SEASON_MAX_WEEK
-const weekLabel = (week: number) => FULL_PLAYOFF_WEEK_LABELS[week] || `Week ${week}`
-const shortWeekLabel = (week: number) => SHORT_PLAYOFF_WEEK_LABELS[week] || `W${week}`
+const weekLabel = weekLongLabel
+const shortWeekLabel = weekShortLabel
 
 const displayNameForMember = (m: Profile) =>
   m.username ||
@@ -303,7 +287,7 @@ function addDaysYmd(ymd: string, days: number): string {
   const date = new Date(Date.UTC(y, m - 1, d + days, 12, 0, 0))
   return date.toISOString().slice(0, 10)
 }
-function currentPickWeek(rows: SeasonWeek[], now = new Date(), maxWeek = REGULAR_SEASON_MAX_WEEK): number {
+function currentPickWeek(rows: SeasonWeek[], now = new Date(), maxWeek = REGULAR_SEASON_LAST_WEEK): number {
   if (rows.length === 0) return 1
   const sorted = [...rows].sort((a, b) => a.week - b.week)
   let current = sorted[0]?.week ?? 1
@@ -1221,7 +1205,7 @@ function MyPoolsContent() {
         }
 
         const weeksBySeason = new Map<number, SeasonWeek[]>()
-        for (const row of ((seasonRows || []) as SeasonWeek[]).filter((week) => week.week >= 1 && week.week <= 18)) {
+        for (const row of ((seasonRows || []) as SeasonWeek[]).filter((week) => week.week >= 1 && week.week <= 22)) {
           const list = weeksBySeason.get(row.season) || []
           list.push(row)
           weeksBySeason.set(row.season, list)
