@@ -929,7 +929,7 @@ function MyPoolsContent() {
   const leagueHasStarted = isTestMode ? simulatedWeek >= (pool?.start_week ?? 1) : poolStartKnown && Date.now() >= poolStartMs
   const canInvite = !!pool && !isTestMode && pool.activation_status !== 'cancelled' && poolStartKnown && !leagueHasStarted
   const selectedWeekLockedByTestMode = isTestMode && selectedPickWeek < simulatedWeek
-  const selectedWeekUnavailable = selectedPickWeek !== openPickWeek
+  const selectedWeekUnavailable = selectedPickWeek < openPickWeek
   const myStats = selectedEntryId ? statsByUser[selectedEntryId] : undefined
   const selectedEntry = myEntries.find((entry) => entry.id === selectedEntryId) || null
   const myEliminatedWeek = myStats?.eliminated && myStats.eliminated_week ? myStats.eliminated_week : null
@@ -940,7 +940,7 @@ function MyPoolsContent() {
     .filter((week): week is number => typeof week === 'number' && Number.isFinite(week))
     .reduce<number | null>((cutoff, week) => (cutoff === null ? week : Math.min(cutoff, week)), null)
   const uniqueMemberCount = useMemo(() => new Set(members.map((member) => member.profile_id || member.id)).size || memberCount, [members, memberCount])
-  const canMakePicks = !!pool && !!selectedEntryId && !isEliminated && !poolDecided && selectedPickWeek === openPickWeek && selectedPickWeek >= pool.start_week && !selectedWeekLockedByTestMode
+  const canMakePicks = !!pool && !!selectedEntryId && !isEliminated && !poolDecided && selectedPickWeek >= openPickWeek && selectedPickWeek >= pool.start_week && !selectedWeekLockedByTestMode
   const deadlineLabel =
     pool?.deadline_mode === 'rolling'
       ? 'Rolling: each game locks at kickoff'
@@ -1509,8 +1509,8 @@ function MyPoolsContent() {
       showMessage('Pool has not started', `This pool starts in Week ${pool.start_week}.`, 'warning')
       return false
     }
-    if (week !== openPickWeek) {
-      showMessage('Week not available', `${weekLabel(openPickWeek)} is currently open for picks.`, 'warning')
+    if (week < openPickWeek) {
+      showMessage('Week locked', `${weekLabel(week)} has passed. ${weekLabel(openPickWeek)} and scheduled future weeks are available.`, 'warning')
       return false
     }
     if (pool?.test_mode && week < (pool.test_current_week || pool.start_week || 1)) {
@@ -2573,7 +2573,7 @@ function MyPoolsContent() {
                       <div className="grid grid-cols-[repeat(auto-fit,minmax(44px,1fr))] gap-1.5">
                         {availableWeeks.map((w) => {
                           const selected = selectedPickWeek === w
-                          const unavailable = w > openPickWeek
+                          const pastWeek = w < openPickWeek
                           const required = picksAllowedForWeek(w)
                           const finalPicksForWeek = Array.from({ length: required }, (_, i) => myFinalPicks[pickKey(w, i + 1)]).filter(Boolean)
                           const hasDraft = Array.from({ length: required }, (_, i) => myDraftPicks[pickKey(w, i + 1)]).some(Boolean)
@@ -2584,8 +2584,7 @@ function MyPoolsContent() {
                             <button
                               key={`week-button-${w}`}
                               type="button"
-                              disabled={unavailable}
-                              title={unavailable ? `${weekLabel(w)} opens later in the season.` : undefined}
+                              title={pastWeek ? `${weekLabel(w)} has passed and is view-only.` : `${weekLabel(w)} is available for advance picks when its matchups are scheduled.`}
                               onClick={() => {
                                 setSelectedPickWeek(w)
                                 setTeamPickerTarget(null)
@@ -2602,8 +2601,8 @@ function MyPoolsContent() {
                                     ? 'border-slate-300 bg-slate-100 text-slate-700'
                                     : hasDraft
                                       ? 'border-blue-300 bg-blue-50 text-blue-700'
-                                      : unavailable
-                                        ? 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400'
+                                      : pastWeek
+                                        ? 'border-gray-200 bg-gray-50 text-gray-500'
                                         : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
                               }`}
                             >
@@ -2641,7 +2640,7 @@ function MyPoolsContent() {
                       )}
                       {selectedWeekUnavailable && !selectedWeekLockedByTestMode && (
                         <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                          {weekLabel(selectedPickWeek)} is view-only. {weekLabel(openPickWeek)} is currently open for picks.
+                          {weekLabel(selectedPickWeek)} has passed and is view-only. {weekLabel(openPickWeek)} and scheduled future weeks are available for picks.
                         </div>
                       )}
 
