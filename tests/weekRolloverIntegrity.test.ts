@@ -4,19 +4,22 @@ import test from 'node:test'
 
 const read = (path: string) => readFile(new URL(`../${path}`, import.meta.url), 'utf8')
 
-test('the database owns the one survivor week that is open for picks', async () => {
+test('the database blocks past weeks while allowing scheduled future-week picks', async () => {
   const migration = await read('supabase/migrations/20260813000100_week_rollover_integrity.sql')
+  const pickAhead = await read('supabase/migrations/20260813000300_restore_pick_ahead.sql')
   const dashboard = await read('app/pools/page.tsx')
 
   assert.match(migration, /create or replace function public\.pool_open_pick_week/)
   assert.match(migration, /public\.pool_effective_now\(p_pool_id\)/)
   assert.match(migration, /time '06:00'\) at time zone 'America\/New_York'/)
-  assert.match(migration, /if p_week is distinct from v_open_week then[\s\S]*not available for picks/i)
-  assert.match(migration, /create or replace function public\.clear_entry_draft_pick[\s\S]*p_week is distinct from v_open_week/)
+  assert.match(pickAhead, /if p_week < v_current_week then[\s\S]*no longer available for picks/i)
+  assert.match(pickAhead, /create or replace function public\.clear_entry_draft_pick[\s\S]*if p_week < v_current_week/i)
+  assert.match(pickAhead, /save_entry_draft_pick_unserialized/)
 
   assert.match(dashboard, /supabase\.rpc\('pool_open_pick_week'/)
-  assert.match(dashboard, /selectedPickWeek === openPickWeek/)
-  assert.match(dashboard, /disabled=\{unavailable\}/)
+  assert.match(dashboard, /selectedPickWeek >= openPickWeek/)
+  assert.doesNotMatch(dashboard, /disabled=\{unavailable\}/)
+  assert.match(dashboard, /scheduled future weeks are available/)
   assert.match(dashboard, /setInterval\(refreshLockedPicks, 30_000\)/)
   assert.match(dashboard, /selectedWeek === previousOpenWeek \? nextOpenWeek : selectedWeek/)
 })

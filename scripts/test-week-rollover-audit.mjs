@@ -68,16 +68,22 @@ try {
   await rpc(owner.client, 'superadmin_set_pool_test_mode', { p_pool_id: poolId, p_enabled: true })
   await rpc(owner.client, 'superadmin_set_test_pool_week', { p_pool_id: poolId, p_week: 1 })
   const games = await rpc(owner.client, 'superadmin_test_pool_week_options', { p_pool_id: poolId, p_week: 1 })
-  assert(games.length >= 2, 'Week 1 schedule is unavailable.')
+  const futureGames = await rpc(owner.client, 'superadmin_test_pool_week_options', { p_pool_id: poolId, p_week: 2 })
+  assert(games.length >= 2 && futureGames.length >= 1, 'Week 1 or Week 2 schedule is unavailable.')
+  const futureTeam = futureGames.flatMap((game) => [game.home_team, game.away_team]).find((team) => ![games[0].home_team, games[1].home_team].includes(team))
+  assert(futureTeam, 'No independent Week 2 team was available for the pick-ahead test.')
 
   const futureAttempt = await player.client.rpc('save_entry_draft_pick', {
     p_pool_id: poolId,
     p_entry_id: playerEntry.id,
     p_week: 2,
     p_slot: 1,
-    p_team_abbr: games[0].home_team,
+    p_team_abbr: futureTeam,
   })
-  assert(futureAttempt.error && /not available|currently open/i.test(futureAttempt.error.message), 'Future-week direct request was accepted.')
+  assert(!futureAttempt.error, `Future-week direct request was rejected: ${futureAttempt.error?.message}`)
+  const savedFuture = await service.from('pool_pick_drafts').select('team_abbr').eq('pool_id', poolId).eq('entry_id', playerEntry.id).eq('week', 2).eq('slot', 1).maybeSingle()
+  if (savedFuture.error) throw savedFuture.error
+  assert(savedFuture.data?.team_abbr === futureTeam, 'Future-week pick was not persisted.')
 
   const picks = await service.from('pool_picks').insert([
     { pool_id: poolId, user_id: owner.userId, entry_id: ownerEntry.id, week: 1, slot: 1, team_abbr: games[0].home_team, locked_at: new Date().toISOString(), result: 'loss', adjudicated_at: new Date().toISOString() },
