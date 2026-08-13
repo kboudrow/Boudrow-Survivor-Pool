@@ -9,7 +9,7 @@ test('applied migrations are checksum-protected and the legacy baseline stays im
   const guide = read('supabase/migrations.md')
   const manifest = JSON.parse(readFileSync('supabase/applied-migration-checksums.json', 'utf8'))
 
-  assert.equal(Object.keys(manifest).length, 73)
+  assert.equal(Object.keys(manifest).length, 74)
   assert.match(checker, /applied migration was modified/)
   assert.match(guide, /do \*\*not\*\* replace or edit/)
   assert.match(guide, /cannot currently build a brand-new database/)
