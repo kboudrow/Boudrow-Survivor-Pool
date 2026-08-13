@@ -902,6 +902,7 @@ function MyPoolsContent() {
   const maxPickWeek = maxWeekForPool(pool)
   const weeks = useMemo(() => Array.from({ length: maxPickWeek }, (_, i) => i + 1), [maxPickWeek])
   const [selectedPickWeek, setSelectedPickWeek] = useState(1)
+  const [openPickWeek, setOpenPickWeek] = useState(1)
   const [myDraftPicks, setMyDraftPicks] = useState<Record<string, Team | null>>({})
   const [myFinalPicks, setMyFinalPicks] = useState<Record<string, FinalPickRow>>({})
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null)
@@ -944,6 +945,7 @@ function MyPoolsContent() {
   const leagueHasStarted = isTestMode ? simulatedWeek >= (pool?.start_week ?? 1) : poolStartKnown && Date.now() >= poolStartMs
   const canInvite = !!pool && !isTestMode && pool.activation_status !== 'cancelled' && poolStartKnown && !leagueHasStarted
   const selectedWeekLockedByTestMode = isTestMode && selectedPickWeek < simulatedWeek
+  const selectedWeekUnavailable = selectedPickWeek !== openPickWeek
   const myStats = selectedEntryId ? statsByUser[selectedEntryId] : undefined
   const selectedEntry = myEntries.find((entry) => entry.id === selectedEntryId) || null
   const myEliminatedWeek = myStats?.eliminated && myStats.eliminated_week ? myStats.eliminated_week : null
@@ -954,7 +956,7 @@ function MyPoolsContent() {
     .filter((week): week is number => typeof week === 'number' && Number.isFinite(week))
     .reduce<number | null>((cutoff, week) => (cutoff === null ? week : Math.min(cutoff, week)), null)
   const uniqueMemberCount = useMemo(() => new Set(members.map((member) => member.profile_id || member.id)).size || memberCount, [members, memberCount])
-  const canMakePicks = !!pool && !!selectedEntryId && !isEliminated && !poolDecided && selectedPickWeek >= pool.start_week && !selectedWeekLockedByTestMode
+  const canMakePicks = !!pool && !!selectedEntryId && !isEliminated && !poolDecided && selectedPickWeek === openPickWeek && selectedPickWeek >= pool.start_week && !selectedWeekLockedByTestMode
   const deadlineLabel =
     pool?.deadline_mode === 'rolling'
       ? 'Rolling: each game locks at kickoff'
@@ -1472,12 +1474,26 @@ function MyPoolsContent() {
         await restoreUnlockedPicks(selectedId)
         await loadMyPicks(selectedId, pool.start_week, selectedEntryId)
 
-        const { data: myStat } = await supabase
-          .from('pool_member_stats')
-          .select('pool_id, user_id, entry_id, wins, losses, pushes, strikes_used, eliminated, eliminated_week')
-          .eq('pool_id', selectedId)
-          .eq('entry_id', selectedEntryId)
-          .maybeSingle<MemberStats>()
+        const [{ data: myStat }, openWeekResult] = await Promise.all([
+          supabase
+            .from('pool_member_stats')
+            .select('pool_id, user_id, entry_id, wins, losses, pushes, strikes_used, eliminated, eliminated_week')
+            .eq('pool_id', selectedId)
+            .eq('entry_id', selectedEntryId)
+            .maybeSingle<MemberStats>(),
+          supabase.rpc('pool_open_pick_week', { p_pool_id: selectedId }),
+        ])
+        if (openWeekResult.error) throw openWeekResult.error
+        const nextOpenWeek = Number(openWeekResult.data)
+        if (Number.isFinite(nextOpenWeek) && nextOpenWeek >= pool.start_week) {
+          setOpenPickWeek((previousOpenWeek) => {
+            if (previousOpenWeek !== nextOpenWeek) {
+              setSelectedPickWeek((selectedWeek) => selectedWeek === previousOpenWeek ? nextOpenWeek : selectedWeek)
+              setStandingsWeek((selectedWeek) => selectedWeek === previousOpenWeek ? nextOpenWeek : selectedWeek)
+            }
+            return nextOpenWeek
+          })
+        }
         setStatsByUser((prev) => (myStat ? { ...prev, [myStat.entry_id]: myStat } : prev))
         await loadPoolWinner(selectedId)
       } catch (e) {
@@ -1487,6 +1503,11 @@ function MyPoolsContent() {
     }
 
     refreshLockedPicks()
+    const refreshTimer = window.setInterval(refreshLockedPicks, 30_000)
+    return () => {
+      window.clearInterval(refreshTimer)
+      if (backgroundRefreshRef.current === refreshKey) backgroundRefreshRef.current = null
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, detailsLoading, selectedId, pool, userId, selectedEntryId])
 
@@ -1502,6 +1523,10 @@ function MyPoolsContent() {
     if (!selectedId || !userId || !selectedEntryId) return false
     if (pool && week < pool.start_week) {
       showMessage('Pool has not started', `This pool starts in Week ${pool.start_week}.`, 'warning')
+      return false
+    }
+    if (week !== openPickWeek) {
+      showMessage('Week not available', `${weekLabel(openPickWeek)} is currently open for picks.`, 'warning')
       return false
     }
     if (pool?.test_mode && week < (pool.test_current_week || pool.start_week || 1)) {
@@ -2206,6 +2231,7 @@ function MyPoolsContent() {
     setPoolStartAt(null)
     setCanManagePool(false)
     setSelectedPickWeek(1)
+    setOpenPickWeek(1)
     setGamesLoading(false)
     setFixedLockUtc(null)
     setStandingsWeek(1)
@@ -2233,7 +2259,7 @@ function MyPoolsContent() {
       if (nextEntryId) window.localStorage.setItem(selectedEntryStorageKey(id), nextEntryId)
 
       const season = poolRow.season ?? new Date().getFullYear()
-      const [{ data: weekRows }, { data: firstStartGame }, { data: myStat }, { data: canManage }, winnerResult] = await Promise.all([
+      const [{ data: weekRows }, { data: firstStartGame }, { data: myStat }, { data: canManage }, winnerResult, openWeekResult] = await Promise.all([
         supabase
           .from('season_weeks')
           .select('season, week, week_sunday_date')
@@ -2253,15 +2279,18 @@ function MyPoolsContent() {
           : Promise.resolve({ data: null }),
         supabase.rpc('admin_can_manage', { p_pool_id: id }),
         supabase.rpc('pool_winner_status', { p_pool_id: id }),
+        supabase.rpc('pool_open_pick_week', { p_pool_id: id }),
       ])
       setCanManagePool(!!canManage)
       if (winnerResult.error) throw winnerResult.error
+      if (openWeekResult.error) throw openWeekResult.error
       const winner = (((winnerResult.data || []) as PoolWinnerStatus[])[0] || null) as PoolWinnerStatus | null
       setPoolWinner(winner)
 
       const nextMaxWeek = maxWeekForPool(poolRow)
       const nextSeasonWeeks = ((weekRows || []) as SeasonWeek[]).filter((row) => row.week >= 1 && row.week <= nextMaxWeek)
-      const currentWeek = currentWeekForPool(poolRow, nextSeasonWeeks)
+      const currentWeek = Number(openWeekResult.data) || currentWeekForPool(poolRow, nextSeasonWeeks)
+      setOpenPickWeek(currentWeek)
       setSelectedPickWeek(currentWeek)
       setStandingsWeek(currentWeek)
 
@@ -2560,6 +2589,7 @@ function MyPoolsContent() {
                       <div className="grid grid-cols-[repeat(auto-fit,minmax(44px,1fr))] gap-1.5">
                         {availableWeeks.map((w) => {
                           const selected = selectedPickWeek === w
+                          const unavailable = w > openPickWeek
                           const required = picksAllowedForWeek(w)
                           const finalPicksForWeek = Array.from({ length: required }, (_, i) => myFinalPicks[pickKey(w, i + 1)]).filter(Boolean)
                           const hasDraft = Array.from({ length: required }, (_, i) => myDraftPicks[pickKey(w, i + 1)]).some(Boolean)
@@ -2570,6 +2600,8 @@ function MyPoolsContent() {
                             <button
                               key={`week-button-${w}`}
                               type="button"
+                              disabled={unavailable}
+                              title={unavailable ? `${weekLabel(w)} opens later in the season.` : undefined}
                               onClick={() => {
                                 setSelectedPickWeek(w)
                                 setTeamPickerTarget(null)
@@ -2586,7 +2618,9 @@ function MyPoolsContent() {
                                     ? 'border-slate-300 bg-slate-100 text-slate-700'
                                     : hasDraft
                                       ? 'border-blue-300 bg-blue-50 text-blue-700'
-                                      : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                                      : unavailable
+                                        ? 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400'
+                                        : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
                               }`}
                             >
                               {shortWeekLabel(w)}
@@ -2619,6 +2653,11 @@ function MyPoolsContent() {
                       {selectedWeekLockedByTestMode && (
                         <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                           {weekLabel(selectedPickWeek)} is already locked in this test pool.
+                        </div>
+                      )}
+                      {selectedWeekUnavailable && !selectedWeekLockedByTestMode && (
+                        <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                          {weekLabel(selectedPickWeek)} is view-only. {weekLabel(openPickWeek)} is currently open for picks.
                         </div>
                       )}
 

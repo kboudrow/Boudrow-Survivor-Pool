@@ -229,7 +229,7 @@ async function simulatePool(config) {
   if (config.startWeek > 1) {
     await rpc(clients[emails[0]], 'superadmin_set_test_pool_clock', { p_pool_id: poolId, p_week: config.startWeek, p_stage: 'before_week' })
     const games = await rpc(clients[emails[0]], 'superadmin_test_pool_week_options', { p_pool_id: poolId, p_week: config.startWeek })
-    await reject(`Pool ${config.key} pre-start week`, () => savePick(poolId, entries[0], config.startWeek - 1, 1, games[0].home_team), /outside|start|playable/i)
+    await reject(`Pool ${config.key} pre-start week`, () => savePick(poolId, entries[0], config.startWeek - 1, 1, games[0].home_team), /outside|start|playable|not available|currently open/i)
   }
 
   for (let week = config.startWeek; week <= config.endWeek; week += 1) {

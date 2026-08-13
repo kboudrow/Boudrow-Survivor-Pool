@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test": "node --no-warnings --test tests/*.test.ts",
     "test:season-sim": "node --env-file=.env.local scripts/test-multi-pool-season-simulation.mjs",
+    "test:week-rollover": "node --env-file=.env.local scripts/test-week-rollover-audit.mjs",
     "test:concurrency": "node --env-file=.env.local scripts/test-concurrency-audit.mjs",
     "test:partial-failure": "node --env-file=.env.local scripts/test-partial-failure-recovery.mjs",
     "test:pick-secrecy": "node --env-file=.env.local scripts/test-pick-secrecy-audit.mjs",
