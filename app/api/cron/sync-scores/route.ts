@@ -4,6 +4,7 @@ import { getErrorMessage } from '@/lib/errorMessage'
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
 import type { Json } from '@/supabase/database.types'
 import { fetchProviderWeek, validateProviderWeek, type ExistingNflGame } from '@/lib/nflFeed'
+import { targetWeeksForScoreSync, type SeasonWeekWindow } from '@/lib/nflWeekSync'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -22,23 +23,6 @@ function isAuthorized(request: NextRequest) {
 
   if (!secret) return false
   return auth === `Bearer ${secret}`
-}
-
-function targetWeeksFromGames(games: ExistingNflGame[]) {
-  const now = Date.now()
-  const lookBehindMs = 10 * 24 * 60 * 60 * 1000
-  const lookAheadMs = 35 * 24 * 60 * 60 * 1000
-  const weeks = new Set<number>()
-
-  for (const game of games) {
-    const kickoffMs = Date.parse(game.kickoff_at_utc || game.game_time)
-    if (!Number.isFinite(kickoffMs)) continue
-    const status = String(game.status || '').toLowerCase()
-    const inWindow = kickoffMs >= now - lookBehindMs && kickoffMs <= now + lookAheadMs
-    if (inWindow || status === 'in_progress' || status === 'postponed' || !game.kickoff_confirmed) weeks.add(game.week)
-  }
-
-  return Array.from(weeks).filter((week) => week >= 1 && week <= 22).sort((a, b) => a - b)
 }
 
 function currentNflSeason(now = new Date()) {
@@ -110,8 +94,18 @@ export async function GET(request: NextRequest) {
         continue
       }
 
+      const { data: seasonWeeks, error: seasonWeeksError } = await supabaseAdmin
+        .from('season_weeks')
+        .select('week, week_sunday_date')
+        .eq('season', season)
+
+      if (seasonWeeksError) {
+        syncErrors.push(`${season}: ${seasonWeeksError.message}`)
+        continue
+      }
+
       const knownGames = (existingGames || []) as ExistingNflGame[]
-      const targetWeeks = targetWeeksFromGames(knownGames)
+      const targetWeeks = targetWeeksForScoreSync(knownGames, (seasonWeeks || []) as SeasonWeekWindow[])
       syncedBySeasonWeek[String(season)] = targetWeeks
 
       for (const week of targetWeeks) {

@@ -10,6 +10,7 @@ import { getErrorMessage } from '@/lib/errorMessage'
 import { isUnlimitedPoolCapacity, poolEntryCountLabel } from '@/lib/poolCapacity'
 import { poolImageUrl } from '@/lib/poolImages'
 import { makeStorageObjectPath, validatePublicImageUpload } from '@/lib/security'
+import { REGULAR_SEASON_LAST_WEEK, configurableDoublePickWeeks, maxWeekForPool, weekLongLabel, weekShortLabel } from '@/lib/seasonModel'
 import { supabase } from '@/lib/supabaseClient'
 
 const SUPERADMIN_EMAIL = 'survivesunday1@gmail.com'
@@ -181,16 +182,7 @@ type PoolLifecycleStatus = {
   result_processing_pending: boolean
 }
 
-const REGULAR_SEASON_MAX_WEEK = 18
-const TEST_PLAYOFF_MAX_WEEK = 22
-const PLAYOFF_WEEK_LABELS: Record<number, string> = {
-  19: 'WC',
-  20: 'DIV',
-  21: 'CONF',
-  22: 'SB',
-}
-
-const ALL_WEEKS = Array.from({ length: REGULAR_SEASON_MAX_WEEK }, (_, i) => i + 1)
+const REGULAR_SEASON_WEEKS = Array.from({ length: REGULAR_SEASON_LAST_WEEK }, (_, i) => i + 1)
 const TEST_CLOCK_STAGES = [
   {
     value: 'before_week',
@@ -280,10 +272,9 @@ const fmtShort = (value?: string | null) =>
         minute: '2-digit',
       })
     : '-'
-const maxTestWeekForPool = (pool?: Pick<Pool, 'include_playoffs' | 'test_mode'> | null) =>
-  pool?.test_mode && pool.include_playoffs ? TEST_PLAYOFF_MAX_WEEK : REGULAR_SEASON_MAX_WEEK
-const weekLabel = (week: number) => PLAYOFF_WEEK_LABELS[week] || `Week ${week}`
-const shortWeekLabel = (week: number) => PLAYOFF_WEEK_LABELS[week] || `W${week}`
+const maxTestWeekForPool = maxWeekForPool
+const weekLabel = weekLongLabel
+const shortWeekLabel = weekShortLabel
 const avatarInitials = (name: string) =>
   name
     .trim()
@@ -478,6 +469,7 @@ export default function PoolAdminPage() {
   const isPoolJoinable = pool?.activation_status !== 'cancelled'
   const testStartWeek = pool?.start_week || 1
   const testMaxWeek = maxTestWeekForPool(pool)
+  const doublePickWeekOptions = useMemo(() => configurableDoublePickWeeks(pool), [pool])
   const testWeekOptions = useMemo(
     () => Array.from({ length: Math.max(0, testMaxWeek - testStartWeek + 1) }, (_, index) => testStartWeek + index),
     [testMaxWeek, testStartWeek],
@@ -526,9 +518,9 @@ export default function PoolAdminPage() {
       doubleWeeksText
         .split(',')
         .map((s) => parseInt(s.trim(), 10))
-        .filter((n) => Number.isFinite(n) && n >= 1 && n <= 18),
+        .filter((n) => Number.isFinite(n) && n >= 1 && n <= (pool?.include_playoffs ? 21 : 18)),
       )
-  }, [doubleWeeksText])
+  }, [doubleWeeksText, pool?.include_playoffs])
   const doubleWeekCount = selectedDoubleWeeks.size
   const savedDoubleWeeksText = (pool?.double_pick_weeks || []).filter((week) => week >= (pool?.start_week || 1)).sort((a, b) => a - b).join(',')
   const selectedDoubleWeeksText = Array.from(selectedDoubleWeeks).sort((a, b) => a - b).join(',')
@@ -919,7 +911,7 @@ export default function PoolAdminPage() {
       const weeks = doubleWeeksText
         .split(',')
         .map((s) => parseInt(s.trim(), 10))
-        .filter((n) => Number.isFinite(n) && n >= (pool?.start_week ?? 1) && n <= 18)
+        .filter((n) => Number.isFinite(n) && n >= (pool?.start_week ?? 1) && n <= (pool.include_playoffs ? 21 : 18))
 
       const { error } = await supabase.rpc('admin_set_double_weeks', {
         p_pool_id: pool.id,
@@ -929,7 +921,7 @@ export default function PoolAdminPage() {
       setNotice('Double-pick weeks saved.')
       setPool({ ...pool, double_pick_weeks: weeks })
     } catch (e: unknown) {
-      const expected = [...new Set(doubleWeeksText.split(',').map((value) => Number.parseInt(value.trim(), 10)).filter((week) => Number.isFinite(week) && week >= (pool.start_week ?? 1) && week <= 18))].sort((a, b) => a - b)
+      const expected = [...new Set(doubleWeeksText.split(',').map((value) => Number.parseInt(value.trim(), 10)).filter((week) => Number.isFinite(week) && week >= (pool.start_week ?? 1) && week <= (pool.include_playoffs ? 21 : 18)))].sort((a, b) => a - b)
       const confirmed = await confirmPoolSettings((row) => JSON.stringify([...(row.double_pick_weeks || [])].sort((a, b) => a - b)) === JSON.stringify(expected))
       await loadOverview(selectedWeek)
       if (confirmed) setNotice('Double-pick weeks saved and confirmed after the delayed response.')
@@ -2230,7 +2222,7 @@ export default function PoolAdminPage() {
                     <label className="text-sm font-medium text-slate-800">
                       Start week
                       <select value={startWeekDraft} onChange={(e) => setStartWeekDraft(e.target.value)} disabled={settingsLocked} className="mt-1 w-full rounded-md border bg-white px-3 py-2 disabled:bg-slate-100">
-                        {ALL_WEEKS.map((week) => <option key={week} value={week}>Week {week}</option>)}
+                        {REGULAR_SEASON_WEEKS.map((week) => <option key={week} value={week}>Week {week}</option>)}
                       </select>
                       <span className="mt-1 block text-xs font-normal text-slate-600">Earlier weeks do not count. Moving it later is blocked if picks already exist in a week that would be skipped.</span>
                     </label>
@@ -2391,7 +2383,7 @@ export default function PoolAdminPage() {
                     </button>
                   </div>
                   <div className="mb-3 flex flex-wrap gap-2">
-                    {ALL_WEEKS.map((week) => {
+                    {doublePickWeekOptions.map((week) => {
                       const selected = selectedDoubleWeeks.has(week)
                       return (
                         <button
@@ -2417,6 +2409,9 @@ export default function PoolAdminPage() {
                     className="w-full rounded-md border px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-500"
                     placeholder="e.g. 5,8,12"
                   />
+                  {pool.include_playoffs && (
+                    <p className="mt-2 text-xs text-amber-700">Playoff rounds are Wild Card 19, Divisional 20, Conference Championship 21, and Super Bowl 22. Super Bowl cannot be a double-pick round because its two teams play each other, forcing one losing pick.</p>
+                  )}
                 </div>
               </div>
             </section>

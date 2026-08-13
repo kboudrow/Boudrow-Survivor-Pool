@@ -6,8 +6,8 @@ import { supabase } from '@/lib/supabaseClient'
 import { trackConversion } from '@/lib/monitoring'
 import { defaultPoolImage } from '@/lib/poolImages'
 import { makeStorageObjectPath, validatePublicImageUpload } from '@/lib/security'
+import { configurableDoublePickWeeks, weekShortLabel } from '@/lib/seasonModel'
 
-const ALL_WEEKS = Array.from({ length: 18 }, (_, i) => i + 1)
 const START_WEEKS = Array.from({ length: 12 }, (_, i) => i + 1)
 const DEFAULT_SEASON = 2026
 const MEMBER_LIMIT_OPTIONS = [10, 25, 50, 100, 250, 500]
@@ -132,6 +132,12 @@ export default function CreatePoolPage() {
     [startWeek]
   )
   const max_members = maxMembers === 'unlimited' ? null : maxMembers === 'custom' ? Number(customMaxMembers) : Number(maxMembers)
+  const includePlayoffs = seasonLength === 'Regular Season & Playoffs'
+  const doublePickWeekOptions = useMemo(() => configurableDoublePickWeeks({ include_playoffs: includePlayoffs }), [includePlayoffs])
+
+  useEffect(() => {
+    if (!includePlayoffs) setDoubleWeeks((weeks) => weeks.filter((week) => week <= 18))
+  }, [includePlayoffs])
 
   useEffect(() => {
     let alive = true
@@ -312,7 +318,7 @@ export default function CreatePoolPage() {
         throw new Error('Entries per user must be between 1 and 10.')
       }
 
-      const include_playoffs = seasonLength === 'Regular Season & Playoffs'
+      const include_playoffs = includePlayoffs
       const strikes_allowed = String(mulligans) // DB column currently text in your schema
       const tie_rule = tiebreaker.toLowerCase() as 'win' | 'loss'
       const validDoubleWeeks = doubleWeeks.filter((week) => week >= start_week)
@@ -600,7 +606,7 @@ export default function CreatePoolPage() {
         <div className="field">
           <label>Double-Pick Weeks</label>
           <div className="weekGrid">
-            {ALL_WEEKS.map((w) => (
+            {doublePickWeekOptions.map((w) => (
               <button
                 type="button"
                 key={w}
@@ -609,11 +615,11 @@ export default function CreatePoolPage() {
                 onClick={() => toggleWeek(w)}
                 title={w < start_week ? 'This pool starts later, so this week is not available.' : undefined}
               >
-                {w}
+                {weekShortLabel(w)}
               </button>
             ))}
           </div>
-          <p className="hint">Every alive entry must submit two different teams during selected weeks. Each losing or missing pick counts as a loss.</p>
+          <p className="hint">Every alive entry must submit two different teams during selected weeks. Each losing or missing pick counts as a loss. The Super Bowl cannot be selected because its two teams play each other, which would force one loss.</p>
         </div>
 
         <div className="field">
