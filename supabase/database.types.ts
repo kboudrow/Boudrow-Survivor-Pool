@@ -2644,6 +2644,7 @@ export type Database = {
           total_members: number
         }[]
       }
+      pool_open_pick_week: { Args: { p_pool_id: string }; Returns: number }
       pool_pick_phase: { Args: { p_week: number }; Returns: string }
       pool_reinvite_overview: {
         Args: { p_pool_id: string }
@@ -2707,6 +2708,10 @@ export type Database = {
           week: number
           winner: string
         }[]
+      }
+      pool_week_grading_complete: {
+        Args: { p_pool_id: string; p_week: number }
+        Returns: boolean
       }
       pool_week_pick_completion: {
         Args: { p_pool_id: string; p_week: number }
