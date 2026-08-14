@@ -4,12 +4,37 @@ import { useState } from 'react'
 
 type PreviewTab = 'picks' | 'standings' | 'members'
 
-const entries = [
-  { name: 'Sunday Crew', status: 'Alive', mulligans: '1 left', picks: ['BUF W', 'DAL W', 'BAL'] },
-  { name: 'Fourth & Long', status: 'Alive', mulligans: '1 left', picks: ['KC W', 'SF W', 'BUF'] },
-  { name: 'Upset Special', status: 'Alive', mulligans: '0 left', picks: ['DET L', 'PHI W', 'KC'] },
-  { name: 'Office Rookie', status: 'Eliminated W2', mulligans: '—', picks: ['MIA L', 'DET L', '—'] },
+type PreviewResult = 'win' | 'loss' | 'pending'
+
+type PreviewPick = {
+  team: string
+  result: PreviewResult
+}
+
+const entries: Array<{
+  name: string
+  alive: boolean
+  eliminatedWeek?: number
+  mulligansLeft: number
+  losses: number
+  picks: PreviewPick[]
+}> = [
+  { name: 'Sunday Crew', alive: true, mulligansLeft: 1, losses: 0, picks: [{ team: 'BUF', result: 'win' }, { team: 'DAL', result: 'win' }, { team: 'BAL', result: 'pending' }] },
+  { name: 'Fourth & Long', alive: true, mulligansLeft: 1, losses: 0, picks: [{ team: 'KC', result: 'win' }, { team: 'SF', result: 'win' }, { team: 'BUF', result: 'pending' }] },
+  { name: 'Upset Special', alive: true, mulligansLeft: 0, losses: 1, picks: [{ team: 'DET', result: 'loss' }, { team: 'PHI', result: 'win' }, { team: 'KC', result: 'pending' }] },
+  { name: 'Office Rookie', alive: false, eliminatedWeek: 2, mulligansLeft: 0, losses: 2, picks: [{ team: 'MIA', result: 'loss' }, { team: 'DET', result: 'loss' }] },
 ]
+
+const teamNames: Record<string, string> = {
+  BAL: 'Baltimore Ravens',
+  BUF: 'Buffalo Bills',
+  DAL: 'Dallas Cowboys',
+  DET: 'Detroit Lions',
+  KC: 'Kansas City Chiefs',
+  MIA: 'Miami Dolphins',
+  PHI: 'Philadelphia Eagles',
+  SF: 'San Francisco 49ers',
+}
 
 const matchups = [
   { away: 'BAL', home: 'BUF', time: 'Sun 1:00 PM' },
@@ -79,23 +104,131 @@ export function HomeProductPreview() {
 function StandingsPreview() {
   return (
     <div id="preview-standings" role="tabpanel" aria-labelledby="preview-tab-standings" tabIndex={0}>
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <Metric label="Alive" value="3" tone="green" />
-        <Metric label="Eliminated" value="1" tone="red" />
-        <div className="col-span-2 sm:col-span-1"><Metric label="Week 3 picks" value="3 / 3" /></div>
-      </div>
-      <div className="space-y-2">
-        {entries.map((entry) => (
-          <div key={entry.name} className="grid grid-cols-[1fr_auto] gap-3 rounded-xl border border-slate-200 p-3 sm:grid-cols-[1.4fr_.7fr_.7fr_1.4fr] sm:items-center">
-            <div className="min-w-0 font-semibold text-slate-950">{entry.name}</div>
-            <span className={`justify-self-end rounded-full px-2 py-0.5 text-xs font-bold sm:justify-self-start ${entry.status === 'Alive' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>{entry.status}</span>
-            <div className="text-xs text-slate-500 sm:text-sm">{entry.mulligans}</div>
-            <div className="flex justify-end gap-1 text-xs font-semibold sm:justify-start">
-              {entry.picks.map((pick, index) => <span key={`${entry.name}-${index}`} className="rounded bg-slate-100 px-2 py-1 text-slate-700">{pick}</span>)}
-            </div>
+      <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <h3 className="text-lg font-bold text-slate-950">Entry Progression</h3>
+          <p className="mt-1 text-sm text-slate-600">Follow every entry from week to week.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Week 3 picks made</div>
+            <div className="mt-1 text-lg font-bold text-slate-950">3/3</div>
+            <div className="mt-0.5 text-xs text-slate-500">Teams stay hidden until each pick locks.</div>
           </div>
-        ))}
+          <PreviewSurvivalChart alive={3} total={4} week={3} />
+        </div>
       </div>
+
+      <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Sample standings through Week 3">
+        <table className="isolate w-full border-separate border-spacing-0 text-sm" style={{ minWidth: 760 }}>
+          <caption className="sr-only">Sample pool entry progression through Week 3</caption>
+          <thead>
+            <tr>
+              <th scope="col" className="sticky left-0 z-30 w-[210px] min-w-[210px] border-b border-r border-slate-200 bg-white p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 shadow-[6px_0_10px_-10px_rgba(15,23,42,0.75)]">Entry</th>
+              <th scope="col" className="border-b border-slate-200 p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Progress</th>
+              <th scope="col" className="border-b border-slate-200 p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Mulligans remaining</th>
+              {[1, 2, 3].map((week) => (
+                <th key={week} scope="col" className="border-b border-slate-200 p-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <span className="block">W{week}</span>
+                  <span className="mt-0.5 block text-[10px] font-medium normal-case tracking-normal text-slate-400">{week === 1 ? '4/4' : '3/4'} alive</span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map((entry) => (
+              <tr key={entry.name} className={entry.alive ? 'align-top' : 'align-top bg-slate-50 text-slate-500'}>
+                <th scope="row" className={`sticky left-0 z-20 w-[210px] min-w-[210px] border-b border-r border-slate-100 p-2 text-left font-normal shadow-[6px_0_10px_-10px_rgba(15,23,42,0.75)] ${entry.alive ? 'bg-white' : 'bg-slate-50'}`}>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-400 bg-slate-50 text-xs font-semibold text-slate-600">{entry.name.split(' ').map((word) => word[0]).join('').slice(0, 2)}</div>
+                    <div className="min-w-0">
+                      <div className="truncate font-semibold text-slate-950">{entry.name}</div>
+                      <div className="text-xs text-slate-500">Entry 1</div>
+                    </div>
+                  </div>
+                </th>
+                <td className="border-b border-slate-100 p-2">
+                  {entry.alive ? (
+                    <span className="inline-flex rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-semibold text-white">Alive</span>
+                  ) : (
+                    <span className="inline-flex rounded-full bg-red-600 px-2 py-0.5 text-xs font-semibold text-white">Eliminated W{entry.eliminatedWeek}</span>
+                  )}
+                </td>
+                <td className="border-b border-slate-100 p-2">
+                  {entry.alive ? (
+                    <div>
+                      <span className="font-semibold text-slate-950">{entry.mulligansLeft}</span>
+                      <span className="ml-1 text-xs text-slate-500">left</span>
+                      <div className="text-xs text-slate-500">{entry.losses} {entry.losses === 1 ? 'loss' : 'losses'}</div>
+                    </div>
+                  ) : (
+                    <span className="text-slate-400">-</span>
+                  )}
+                </td>
+                {[0, 1, 2].map((pickIndex) => (
+                  <td key={`${entry.name}-${pickIndex}`} className="border-b border-slate-100 p-2">
+                    {entry.eliminatedWeek && pickIndex + 1 > entry.eliminatedWeek ? (
+                      <div className="h-8 rounded-md bg-slate-50" aria-label="Entry was already eliminated" />
+                    ) : entry.picks[pickIndex] ? (
+                      <PreviewWeekPick pick={entry.picks[pickIndex]} />
+                    ) : (
+                      <span className="text-slate-300">-</span>
+                    )}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function PreviewSurvivalChart({ alive, total, week }: { alive: number; total: number; week: number }) {
+  const eliminated = total - alive
+  const alivePct = Math.round((alive / total) * 100)
+  const radius = 28
+  const circumference = 2 * Math.PI * radius
+  const aliveLength = (alive / total) * circumference
+
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
+      <svg width="72" height="72" viewBox="0 0 72 72" className="shrink-0" aria-label={`${alive} of ${total} entries alive`}>
+        <g transform="translate(36,36) rotate(-90)">
+          <circle r={radius} fill="transparent" stroke="#e2e8f0" strokeWidth="10" />
+          <circle r={radius} fill="transparent" stroke="#059669" strokeWidth="10" strokeDasharray={`${aliveLength} ${circumference - aliveLength}`} />
+          <circle r={radius} fill="transparent" stroke="#dc2626" strokeWidth="10" strokeDasharray={`${circumference - aliveLength} ${aliveLength}`} strokeDashoffset={-aliveLength} />
+        </g>
+        <text x="36" y="34" textAnchor="middle" className="fill-slate-950 text-[13px] font-bold">{alive}/{total}</text>
+        <text x="36" y="46" textAnchor="middle" className="fill-slate-500 text-[8px] font-semibold">alive</text>
+      </svg>
+      <div className="min-w-[108px] text-xs">
+        <div className="mb-1 font-semibold uppercase tracking-wide text-slate-500">Through Week {week}</div>
+        <div className="flex items-center justify-between gap-2 text-slate-700"><span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-emerald-600" />Alive</span><span className="font-semibold text-slate-950">{alive} ({alivePct}%)</span></div>
+        <div className="mt-1 flex items-center justify-between gap-2 text-slate-700"><span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-red-600" />Eliminated</span><span className="font-semibold text-slate-950">{eliminated} ({100 - alivePct}%)</span></div>
+      </div>
+    </div>
+  )
+}
+
+function PreviewWeekPick({ pick }: { pick: PreviewPick }) {
+  const resultClass = pick.result === 'win'
+    ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+    : pick.result === 'loss'
+      ? 'border-red-200 bg-red-50 text-red-800'
+      : 'border-slate-200 bg-white text-slate-700'
+  const resultLabel = pick.result === 'win' ? 'W' : pick.result === 'loss' ? 'L' : ''
+  const teamName = teamNames[pick.team] || pick.team
+
+  return (
+    <div className={`inline-flex min-w-[86px] items-center justify-between gap-1 rounded-md border px-1.5 py-1 text-xs font-semibold ${resultClass}`} title={teamName}>
+      <span className="inline-flex min-w-0 items-center gap-1">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={`https://a.espncdn.com/i/teamlogos/nfl/500/scoreboard/${pick.team.toLowerCase()}.png`} alt="" className="h-4 w-4 object-contain" />
+        <span>{pick.team}</span>
+      </span>
+      {resultLabel && <span>{resultLabel}</span>}
     </div>
   )
 }
@@ -131,9 +264,4 @@ function MembersPreview() {
       ))}
     </div>
   )
-}
-
-function Metric({ label, value, tone }: { label: string; value: string; tone?: 'green' | 'red' }) {
-  const color = tone === 'green' ? 'text-emerald-700' : tone === 'red' ? 'text-red-700' : 'text-slate-950'
-  return <div className="rounded-xl bg-slate-50 p-3"><div className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</div><div className={`mt-1 text-2xl font-extrabold ${color}`}>{value}</div></div>
 }
