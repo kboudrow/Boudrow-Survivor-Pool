@@ -18,11 +18,13 @@ type ActivePool = {
 }
 
 function isAuthorized(request: NextRequest) {
-  const secret = cleanEnvValue(process.env.CRON_SECRET)
   const auth = request.headers.get('authorization')
+  const secrets = [
+    cleanEnvValue(process.env.CRON_SECRET),
+    cleanEnvValue(process.env.SUPABASE_CRON_SECRET),
+  ].filter(Boolean)
 
-  if (!secret) return false
-  return auth === `Bearer ${secret}`
+  return secrets.some((secret) => auth === `Bearer ${secret}`)
 }
 
 function currentNflSeason(now = new Date()) {

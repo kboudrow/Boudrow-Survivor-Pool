@@ -116,13 +116,14 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY
 NEXT_PUBLIC_SITE_URL
 SUPABASE_SERVICE_ROLE_KEY
 CRON_SECRET
+SUPABASE_CRON_SECRET
 ```
 
 Then deploy from the GitHub repository connected to Vercel.
 
 `CRON_SECRET` is required for scheduled pick locking and scoring. The cron route rejects requests without `Authorization: Bearer <CRON_SECRET>`.
 
-Production cron schedules live in `vercel.json`. The current Vercel Hobby fallback is daily, because Hobby rejects higher-frequency cron schedules. For the NFL season, use Vercel Pro crons or an external scheduler to call score sync every 10 minutes and pick locking every 5 minutes. The routes are safe to run repeatedly. See `docs/cron-setup.md`.
+Supabase Cron provides the NFL-season schedule: score sync every 10 minutes and pick locking every 5 minutes. `vercel.json` retains a once-daily Vercel Hobby fallback, and the routes are safe to run repeatedly. Supabase Vault must contain `survive_sunday_cron_secret` with the same value as Vercel's dedicated `SUPABASE_CRON_SECRET`. See `docs/cron-setup.md`.
 
 The superadmin page shows cron health, score-feed health, and recent production event logs.
 

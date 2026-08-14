@@ -10,11 +10,13 @@ export const maxDuration = 60
 const CRON_TIME_BUDGET_MS = Number(process.env.CRON_TIME_BUDGET_MS || 50_000)
 
 function isAuthorized(request: NextRequest) {
-  const secret = cleanEnvValue(process.env.CRON_SECRET)
   const auth = request.headers.get('authorization')
+  const secrets = [
+    cleanEnvValue(process.env.CRON_SECRET),
+    cleanEnvValue(process.env.SUPABASE_CRON_SECRET),
+  ].filter(Boolean)
 
-  if (!secret) return false
-  return auth === `Bearer ${secret}`
+  return secrets.some((secret) => auth === `Bearer ${secret}`)
 }
 
 export async function GET(request: NextRequest) {
