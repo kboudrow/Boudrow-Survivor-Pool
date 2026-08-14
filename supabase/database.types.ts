@@ -2515,6 +2515,7 @@ export type Database = {
           id: string
           include_playoffs: boolean
           is_public: boolean
+          join_allowed: boolean
           max_members: number
           member_count: number
           name: string

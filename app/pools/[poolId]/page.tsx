@@ -32,6 +32,7 @@ type Pool = {
   entry_count?: number | null
   test_mode?: boolean | null
   test_current_week?: number | null
+  join_allowed?: boolean | null
 }
 
 type RosterExportRow = {
@@ -74,10 +75,7 @@ export default function PoolDetailPage() {
   const isFull = !!(pool && !isUnlimitedPoolCapacity(pool.max_members) && entryCount >= (pool.max_members ?? 0))
   const poolStartMs = poolStartAt ? Date.parse(poolStartAt) : null
   const poolStartKnown = poolStartMs !== null && Number.isFinite(poolStartMs)
-  const leagueHasStarted = !!pool && (
-    (!!pool.test_mode && (pool.test_current_week || pool.start_week || 1) >= (pool.start_week || 1))
-    || (poolStartKnown && Date.now() >= poolStartMs)
-  )
+  const leagueHasStarted = !!pool && (pool.join_allowed === false || (pool.join_allowed == null && poolStartKnown && Date.now() >= poolStartMs))
   const canInvite = !!pool && isJoinable && poolStartKnown && !leagueHasStarted && (alreadyMember || isOwner)
   const authReturnTo = `/pools/${poolId}`
   const signInHref = `/?auth=signin&returnTo=${encodeURIComponent(authReturnTo)}`
