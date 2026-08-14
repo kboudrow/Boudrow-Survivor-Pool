@@ -941,6 +941,13 @@ function MyPoolsContent() {
     .reduce<number | null>((cutoff, week) => (cutoff === null ? week : Math.min(cutoff, week)), null)
   const uniqueMemberCount = useMemo(() => new Set(members.map((member) => member.profile_id || member.id)).size || memberCount, [members, memberCount])
   const canMakePicks = !!pool && !!selectedEntryId && !isEliminated && !poolDecided && selectedPickWeek >= openPickWeek && selectedPickWeek >= pool.start_week && !selectedWeekLockedByTestMode
+  useEffect(() => {
+    if (visiblePickCutoffWeek === null) return
+    setMyDraftPicks((current) => Object.fromEntries(
+      Object.entries(current).filter(([key]) => Number.parseInt(key.split(':')[0] || '', 10) <= visiblePickCutoffWeek),
+    ))
+    setDraftSavedAt(null)
+  }, [visiblePickCutoffWeek])
   const deadlineLabel =
     pool?.deadline_mode === 'rolling'
       ? 'Rolling: each game locks at kickoff'

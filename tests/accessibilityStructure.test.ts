@@ -60,7 +60,8 @@ test('standings table has a caption and a keyboard-scrollable region', async () 
 
 test('test mode exposes a guided week workflow and double-pick status', async () => {
   const adminPage = await read('app/pools/[poolId]/admin/page.tsx')
-  assert.match(adminPage, /Start This Week/)
+  assert.match(adminPage, /Reset Week Clock/)
+  assert.match(adminPage, /Advanced week override/)
   assert.match(adminPage, /Finish Week & Score/)
   assert.match(adminPage, /Pick slots filled/)
   assert.match(adminPage, /2 picks required/)

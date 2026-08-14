@@ -2741,6 +2741,14 @@ export type Database = {
           winner_user_id: string
         }[]
       }
+      pool_wipeout_survival_credits: {
+        Args: { p_pool_id: string; p_week: number }
+        Returns: {
+          entry_id: string
+          strike_credits: number
+          week: number
+        }[]
+      }
       prune_picks_after_elimination: {
         Args: { p_pool_id?: string }
         Returns: number
@@ -2850,6 +2858,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      superadmin_assert_current_test_week: {
+        Args: { p_pool_id: string; p_week: number }
+        Returns: undefined
+      }
       superadmin_assert_test_pool: {
         Args: { p_pool_id: string }
         Returns: undefined
@@ -2899,6 +2911,10 @@ export type Database = {
           detail: string
           status: string
         }[]
+      }
+      superadmin_override_test_pool_week: {
+        Args: { p_pool_id: string; p_reason: string; p_week: number }
+        Returns: string
       }
       superadmin_pool_entries: {
         Args: { p_pool_id: string }
