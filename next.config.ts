@@ -85,6 +85,7 @@ export default sentryConfigured
       project: process.env.SENTRY_PROJECT,
       authToken: process.env.SENTRY_AUTH_TOKEN,
       silent: true,
+      widenClientFileUpload: true,
       sourcemaps: {
         disable: !process.env.SENTRY_AUTH_TOKEN,
       },

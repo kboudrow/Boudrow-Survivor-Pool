@@ -1,5 +1,14 @@
 import type { Breadcrumb, ErrorEvent } from '@sentry/nextjs'
 
+type ScrubbableTransaction = {
+  transaction?: string
+  request?: ErrorEvent['request']
+  spans?: Array<{
+    description?: string
+    data?: Record<string, unknown>
+  }>
+}
+
 const sensitiveHeaderNames = new Set(['authorization', 'cookie', 'set-cookie', 'x-supabase-api-key'])
 
 function stripQueryString(value: string | undefined) {
@@ -21,6 +30,31 @@ export function sanitizeSentryEvent(event: ErrorEvent) {
       event.request.headers = Object.fromEntries(
         Object.entries(event.request.headers).filter(([name]) => !sensitiveHeaderNames.has(name.toLowerCase())),
       )
+    }
+  }
+
+  return event
+}
+
+export function sanitizeSentryTransaction<T extends ScrubbableTransaction>(event: T) {
+  event.transaction = stripQueryString(event.transaction)
+
+  if (event.request) {
+    event.request.url = stripQueryString(event.request.url)
+    event.request.query_string = undefined
+    event.request.cookies = undefined
+    event.request.data = undefined
+    event.request.headers = undefined
+  }
+
+  for (const span of event.spans || []) {
+    span.description = stripQueryString(span.description)
+    if (span.data) {
+      for (const key of ['url', 'http.url', 'server.address']) {
+        if (typeof span.data[key] === 'string') {
+          span.data[key] = stripQueryString(span.data[key] as string)
+        }
+      }
     }
   }
 

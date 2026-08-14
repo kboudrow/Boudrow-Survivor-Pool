@@ -132,7 +132,7 @@ Supabase Cron provides the NFL-season schedule: score sync every 10 minutes and 
 
 The superadmin page shows cron health, score-feed health, and recent production event logs.
 
-Sentry error reporting is opt-in and remains disabled until a DSN is configured. Production configuration intentionally excludes default personal information, form-input breadcrumbs, request bodies, cookies, authorization headers, and URL query strings. Session Replay is disabled. `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, and `SENTRY_PROJECT` are optional but recommended for readable source-mapped browser stack traces.
+Sentry error reporting and performance tracing are opt-in and remain disabled until a DSN is configured. Production traces are sampled at 10%. The configuration intentionally excludes default personal information, form-input breadcrumbs, request bodies, cookies, authorization headers, and URL query strings from both errors and traces. Session Replay is disabled. `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, and `SENTRY_PROJECT` are required in the production build for readable source-mapped browser stack traces and release association.
 
 AdSense is opt-in. Set `NEXT_PUBLIC_ENABLE_ADSENSE=true`, `NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT`, and the relevant `NEXT_PUBLIC_AD_SLOT_*` values only when ads should render.
 
