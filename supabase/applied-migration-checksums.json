@@ -76,5 +76,6 @@
   "20260813000200_postseason_integrity.sql": "0703ec919ecf588c5be654d4aa2cdebee71b65d896ad092ddfb05627ed035436",
   "20260813000300_restore_pick_ahead.sql": "d778cff65f3f0ecb8d83b02309200ecfedc44838ac6bd25b61e9415d57ee8924",
   "20260814000100_single_survivor_elimination.sql": "784f1e163876f6ecb7a9cf3c87c868bc44417c5d6df48a7d67982801e5f10197",
-  "20260814000200_survivor_maintenance_hardening.sql": "9e4acd66d25d837de8467cb6b0af2440d1a21e62713c0bfcc97de02abdc23f06"
+  "20260814000200_survivor_maintenance_hardening.sql": "9e4acd66d25d837de8467cb6b0af2440d1a21e62713c0bfcc97de02abdc23f06",
+  "20260814000300_test_pool_reset_invites.sql": "a3ff12a49ba25a38caf1ce2e67e745e51f6a54587cb7972068b33ab729494b7b"
 }

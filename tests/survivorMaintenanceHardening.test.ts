@@ -46,3 +46,19 @@ test('one canonical function owns wipeout qualification for scoring and the safe
   assert.match(migration, /rebuild_pool_member_stats_concurrency_internal[\s\S]*pool_wipeout_survival_credits\(p_pool_id, v_latest_week\)/i)
   assert.match(migration, /drop function if exists public\.pool_alive_entries_entering_week/i)
 })
+
+test('reset test pools remain inviteable until the simulated first kickoff', async () => {
+  const [migration, dashboard, invitePage] = await Promise.all([
+    read('supabase/migrations/20260814000300_test_pool_reset_invites.sql'),
+    read('app/pools/page.tsx'),
+    read('app/pools/[poolId]/page.tsx'),
+  ])
+
+  assert.match(migration, /pool_has_started[\s\S]*pool_effective_now\(p\.id\) >= public\.pool_start_at\(p\.id\)/i)
+  assert.doesNotMatch(migration, /test_current_week[\s\S]*>=\s*coalesce\(p\.start_week/i)
+  assert.match(migration, /superadmin_reset_test_pool[\s\S]*delete from public\.pool_entry_week_history/i)
+  assert.match(migration, /get_pool_invite[\s\S]*join_allowed boolean/i)
+  assert.match(migration, /search_pools[\s\S]*not public\.pool_has_started\(p\.id\)/i)
+  assert.match(dashboard, /selectedLifecycleStatus[\s\S]*selectedLifecycleStatus\.join_allowed/i)
+  assert.match(invitePage, /pool\.join_allowed === false/i)
+})

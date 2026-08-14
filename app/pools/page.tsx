@@ -926,8 +926,13 @@ function MyPoolsContent() {
   const simulatedWeek = pool?.test_current_week || pool?.start_week || 1
   const testNowMs = pool?.test_mode && pool.test_now_at ? Date.parse(pool.test_now_at) : null
   const effectiveNowMs = testNowMs !== null && Number.isFinite(testNowMs) ? testNowMs : nowTick
-  const leagueHasStarted = isTestMode ? simulatedWeek >= (pool?.start_week ?? 1) : poolStartKnown && Date.now() >= poolStartMs
-  const canInvite = !!pool && !isTestMode && pool.activation_status !== 'cancelled' && poolStartKnown && !leagueHasStarted
+  const selectedLifecycleStatus = pool ? poolLifecycleStatuses[pool.id] : undefined
+  const leagueHasStarted = selectedLifecycleStatus
+    ? !selectedLifecycleStatus.join_allowed
+    : poolStartKnown && effectiveNowMs >= poolStartMs
+  const canInvite = !!pool
+    && pool.activation_status !== 'cancelled'
+    && (selectedLifecycleStatus ? selectedLifecycleStatus.join_allowed : poolStartKnown && !leagueHasStarted)
   const selectedWeekLockedByTestMode = isTestMode && selectedPickWeek < simulatedWeek
   const selectedWeekUnavailable = selectedPickWeek < openPickWeek
   const myStats = selectedEntryId ? statsByUser[selectedEntryId] : undefined
