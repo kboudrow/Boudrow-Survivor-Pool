@@ -29,10 +29,11 @@
     "staging:seed": "node --env-file=.env.local --env-file-if-exists=.env.staging.local scripts/seed-staging.mjs"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.70.0",
     "@supabase/supabase-js": "^2.55.0",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
-    "next": "^15.5.19",
+    "next": "^15.5.23",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

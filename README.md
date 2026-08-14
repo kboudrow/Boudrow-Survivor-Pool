@@ -117,6 +117,11 @@ NEXT_PUBLIC_SITE_URL
 SUPABASE_SERVICE_ROLE_KEY
 CRON_SECRET
 SUPABASE_CRON_SECRET
+NEXT_PUBLIC_SENTRY_DSN
+SENTRY_DSN
+SENTRY_ORG
+SENTRY_PROJECT
+SENTRY_AUTH_TOKEN
 ```
 
 Then deploy from the GitHub repository connected to Vercel.
@@ -126,6 +131,8 @@ Then deploy from the GitHub repository connected to Vercel.
 Supabase Cron provides the NFL-season schedule: score sync every 10 minutes and pick locking every 5 minutes. `vercel.json` retains a once-daily Vercel Hobby fallback, and the routes are safe to run repeatedly. Supabase Vault must contain `survive_sunday_cron_secret` with the same value as Vercel's dedicated `SUPABASE_CRON_SECRET`. See `docs/cron-setup.md`.
 
 The superadmin page shows cron health, score-feed health, and recent production event logs.
+
+Sentry error reporting is opt-in and remains disabled until a DSN is configured. Production configuration intentionally excludes default personal information, form-input breadcrumbs, request bodies, cookies, authorization headers, and URL query strings. Session Replay is disabled. `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, and `SENTRY_PROJECT` are optional but recommended for readable source-mapped browser stack traces.
 
 AdSense is opt-in. Set `NEXT_PUBLIC_ENABLE_ADSENSE=true`, `NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT`, and the relevant `NEXT_PUBLIC_AD_SLOT_*` values only when ads should render.
 

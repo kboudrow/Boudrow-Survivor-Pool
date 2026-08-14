@@ -3,9 +3,11 @@
 import Link from 'next/link'
 import { useEffect } from 'react'
 import { logAppEvent } from '@/lib/monitoring'
+import { captureClientException } from '@/lib/sentryClient'
 
 export default function ErrorPage({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
+    void captureClientException(error)
     void logAppEvent({ eventType: 'route_render_failed', error, metadata: { digest: error.digest || null } })
   }, [error])
 
