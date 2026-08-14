@@ -437,6 +437,7 @@ export default function PoolAdminPage() {
   const [inviteOpen, setInviteOpen] = useState(false)
   const [memberSearch, setMemberSearch] = useState('')
   const [testWeek, setTestWeek] = useState('1')
+  const [advancedTestWeekOverride, setAdvancedTestWeekOverride] = useState(false)
   const [testClockStage, setTestClockStage] = useState<(typeof TEST_CLOCK_STAGES)[number]['value']>('before_week')
   const [testGames, setTestGames] = useState<TestGameOption[]>([])
   const [testToolsLoading, setTestToolsLoading] = useState(false)
@@ -772,6 +773,7 @@ export default function PoolAdminPage() {
       setRows((overview || []) as AdminRow[])
       const nextTestWeek = String(p.test_current_week || p.start_week || 1)
       setTestWeek(nextTestWeek)
+      setAdvancedTestWeekOverride(false)
       if (nextIsSuperAdmin && p.test_mode) {
         await loadTestOptions(p.id, nextTestWeek)
       } else {
@@ -1446,6 +1448,11 @@ export default function PoolAdminPage() {
   const runTestAction = async (action: 'randomize-outcomes' | 'score' | 'clear' | 'reset') => {
     if (!pool || !isSuperAdmin) return
     const week = parseInt(testWeek, 10)
+    const currentTestWeek = pool.test_current_week || pool.start_week || 1
+    if (action === 'score' && week !== currentTestWeek) {
+      setError(`This pool is currently on ${weekLabel(currentTestWeek)}. Use the Advanced week override before scoring another week.`)
+      return
+    }
     const maxTestWeek = maxTestWeekForPool(pool)
     const nextWeek = Math.min(maxTestWeek, week + 1)
     const selectedLabel = weekLabel(week)
@@ -1521,6 +1528,11 @@ export default function PoolAdminPage() {
     if (!pool || !isSuperAdmin) return
     const week = Number.parseInt(testWeek, 10)
     if (!Number.isFinite(week)) return
+    const currentTestWeek = pool.test_current_week || pool.start_week || 1
+    if (week !== currentTestWeek) {
+      setError(`This pool is currently on ${weekLabel(currentTestWeek)}. Use the Advanced week override before changing another week.`)
+      return
+    }
 
     if (action === 'finish-week') {
       const confirmed = await requestConfirm({
@@ -1569,6 +1581,39 @@ export default function PoolAdminPage() {
       await loadOverview(reloadWeek)
     } catch (e: unknown) {
       setError(getErrorMessage(e, 'Test shortcut failed.'))
+    } finally {
+      setRunningAction(null)
+    }
+  }
+
+  const overrideTestWeek = async () => {
+    if (!pool || !isSuperAdmin || !advancedTestWeekOverride) return
+    const week = Number.parseInt(testWeek, 10)
+    const currentTestWeek = pool.test_current_week || pool.start_week || 1
+    if (!Number.isFinite(week) || week === currentTestWeek) return
+    const confirmed = await requestConfirm({
+      title: `Jump from ${weekLabel(currentTestWeek)} to ${weekLabel(week)}?`,
+      message: `Advanced override changes the simulated week without scoring any skipped weeks. Existing picks, results, and standings remain in place. Use this only to repair or intentionally construct a test scenario.`,
+      confirmLabel: 'Override test week',
+      tone: 'danger',
+    })
+    if (!confirmed) return
+    setRunningAction('test-week-override')
+    setError(null)
+    setNotice(null)
+    try {
+      const reason = `Manual Test Admin override from Week ${currentTestWeek} to Week ${week}.`
+      const { data, error: overrideErr } = await supabase.rpc('superadmin_override_test_pool_week', {
+        p_pool_id: pool.id,
+        p_week: week,
+        p_reason: reason,
+      })
+      if (overrideErr) throw overrideErr
+      setNotice(String(data || `${weekLabel(week)} is now the current test week.`))
+      setSelectedWeek(week)
+      await loadOverview(week)
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Advanced week override failed.'))
     } finally {
       setRunningAction(null)
     }
@@ -1908,10 +1953,11 @@ export default function PoolAdminPage() {
                     <div className="grid gap-3 lg:grid-cols-[minmax(240px,320px)_1fr]">
                       <div className="rounded-md border border-violet-200 bg-white p-3">
                         <label className="text-sm font-semibold text-slate-800">
-                          Pool is pretending it is
+                          Current test week
                           <select
                             value={testWeek}
                             onChange={(event) => setTestWeek(event.target.value)}
+                            disabled={!advancedTestWeekOverride}
                             className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
                           >
                             {testWeekOptions.map((week) => (
@@ -1921,11 +1967,25 @@ export default function PoolAdminPage() {
                         </label>
                         <div className="mt-2 grid grid-cols-2 gap-2">
                           <button
-                            onClick={() => runTestShortcut('start-week')}
+                            onClick={() => {
+                              const currentTestWeek = pool.test_current_week || pool.start_week || 1
+                              if (parsedTestWeek === currentTestWeek) void runTestShortcut('start-week')
+                              else void overrideTestWeek()
+                            }}
                             disabled={!!runningAction}
-                            className="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                            className={`rounded-md px-3 py-2 text-sm font-semibold text-white disabled:opacity-50 ${
+                              parsedTestWeek === (pool.test_current_week || pool.start_week || 1)
+                                ? 'bg-slate-900 hover:bg-slate-800'
+                                : 'bg-amber-700 hover:bg-amber-800'
+                            }`}
                           >
-                            {runningAction === 'test-start-week' ? 'Starting...' : 'Start This Week'}
+                            {runningAction === 'test-start-week'
+                              ? 'Resetting...'
+                              : runningAction === 'test-week-override'
+                                ? 'Overriding...'
+                                : parsedTestWeek === (pool.test_current_week || pool.start_week || 1)
+                                  ? 'Reset Week Clock'
+                                  : 'Override Test Week'}
                           </button>
                           <button
                             onClick={() => loadTestOptions(pool.id, testWeek)}
@@ -1935,7 +1995,20 @@ export default function PoolAdminPage() {
                             {testToolsLoading ? 'Loading...' : 'Refresh'}
                           </button>
                         </div>
-                        <p className="mt-2 text-xs text-slate-600">Starts the selected week before its first kickoff. Members can immediately make picks.</p>
+                        <p className="mt-2 text-xs text-slate-600">Normal testing advances one week at a time. Resetting moves the current week back before its first kickoff.</p>
+                        <label className="mt-3 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+                          <input
+                            type="checkbox"
+                            checked={advancedTestWeekOverride}
+                            onChange={(event) => {
+                              const enabled = event.target.checked
+                              setAdvancedTestWeekOverride(enabled)
+                              if (!enabled) setTestWeek(String(pool.test_current_week || pool.start_week || 1))
+                            }}
+                            className="mt-0.5"
+                          />
+                          <span><strong>Advanced week override.</strong> Allows a deliberate jump without scoring skipped weeks. Existing competition history is not erased.</span>
+                        </label>
                       </div>
 
                       <div className="rounded-md border border-violet-200 bg-white p-3">
