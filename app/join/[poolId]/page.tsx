@@ -31,6 +31,7 @@ type Pool = {
   entry_count?: number | null
   test_mode?: boolean | null
   test_current_week?: number | null
+  join_allowed?: boolean | null
 }
 
 function isMissingAuthSession(error: unknown) {
@@ -63,8 +64,8 @@ export default function JoinPoolPage() {
   const poolStartMs = poolStartAt ? Date.parse(poolStartAt) : null
   const poolStartKnown = poolStartMs !== null && Number.isFinite(poolStartMs)
   const poolStarted = !!pool && (
-    (!!pool.test_mode && (pool.test_current_week || pool.start_week || 1) >= (pool.start_week || 1))
-    || (poolStartKnown && Date.now() >= poolStartMs)
+    pool.join_allowed === false
+    || (pool.join_allowed == null && poolStartKnown && Date.now() >= poolStartMs)
   )
   const authReturnTo = `/join/${poolId}`
   const signInHref = `/?auth=signin&returnTo=${encodeURIComponent(authReturnTo)}`

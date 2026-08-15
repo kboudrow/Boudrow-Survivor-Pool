@@ -48,10 +48,12 @@ test('one canonical function owns wipeout qualification for scoring and the safe
 })
 
 test('reset test pools remain inviteable until the simulated first kickoff', async () => {
-  const [migration, dashboard, invitePage] = await Promise.all([
+  const [migration, joinMigration, dashboard, invitePage, legacyInvitePage] = await Promise.all([
     read('supabase/migrations/20260814000300_test_pool_reset_invites.sql'),
+    read('supabase/migrations/20260815000100_test_pool_preseason_join_consistency.sql'),
     read('app/pools/page.tsx'),
     read('app/pools/[poolId]/page.tsx'),
+    read('app/join/[poolId]/page.tsx'),
   ])
 
   assert.match(migration, /pool_has_started[\s\S]*pool_effective_now\(p\.id\) >= public\.pool_start_at\(p\.id\)/i)
@@ -61,4 +63,7 @@ test('reset test pools remain inviteable until the simulated first kickoff', asy
   assert.match(migration, /search_pools[\s\S]*not public\.pool_has_started\(p\.id\)/i)
   assert.match(dashboard, /selectedLifecycleStatus[\s\S]*selectedLifecycleStatus\.join_allowed/i)
   assert.match(invitePage, /pool\.join_allowed === false/i)
+  assert.match(legacyInvitePage, /pool\.join_allowed === false/i)
+  assert.match(joinMigration, /if public\.pool_has_started\(p_pool_id\) then/i)
+  assert.doesNotMatch(joinMigration, /test_current_week[\s\S]*>=\s*coalesce\(v_pool\.start_week/i)
 })
