@@ -2505,7 +2505,7 @@ function MyPoolsContent() {
                   )}
 
                   {!poolDecided && (
-                  <div className="mb-8">
+                  <div className="mb-8 flex flex-col">
                     {weekGamesError && (
                       <p role="alert" className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                         {weekGamesError}
@@ -2515,10 +2515,10 @@ function MyPoolsContent() {
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
                           <span className="rounded-full bg-slate-100 px-2 py-1 font-semibold">{weekLabel(selectedPickWeek)}</span>
-                          <span className="rounded-full bg-slate-100 px-2 py-1 font-semibold">{deadlineLabel}</span>
                           <span className="rounded-full bg-slate-100 px-2 py-1 font-semibold">
                             {picksAllowedForWeek(selectedPickWeek)} {picksAllowedForWeek(selectedPickWeek) === 1 ? 'pick' : 'picks'}
                           </span>
+                          <span className="rounded-full bg-slate-100 px-2 py-1 font-semibold">{deadlineLabel}</span>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
                           {myEntries.length > 1 && (
@@ -2581,8 +2581,9 @@ function MyPoolsContent() {
                       </details>
                     </div>
 
-                    <div className="mb-4">
-                      <div className="grid grid-cols-[repeat(auto-fit,minmax(44px,1fr))] gap-1.5">
+                    <div className="order-3 mb-4 mt-4 sm:order-none sm:mt-0">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 sm:hidden">Choose another week</div>
+                      <div className="flex gap-2 overflow-x-auto pb-2 sm:grid sm:grid-cols-[repeat(auto-fit,minmax(44px,1fr))] sm:gap-1.5 sm:overflow-visible sm:pb-0">
                         {availableWeeks.map((w) => {
                           const selected = selectedPickWeek === w
                           const pastWeek = w < openPickWeek
@@ -2602,7 +2603,7 @@ function MyPoolsContent() {
                                 setTeamPickerTarget(null)
                                 setTeamSearch('')
                               }}
-                              className={`min-h-9 rounded-md border px-1.5 py-1.5 text-xs font-semibold ${
+                              className={`min-h-9 min-w-[3.25rem] shrink-0 rounded-md border px-1.5 py-1.5 text-xs font-semibold sm:min-w-0 ${
                                 selected
                                   ? 'border-slate-950 bg-slate-950 text-white'
                                   : hasLoss
@@ -2626,7 +2627,7 @@ function MyPoolsContent() {
                       </div>
                     </div>
 
-                    <section className="rounded-lg border border-gray-200 bg-white p-4">
+                    <section className="order-2 rounded-lg border border-gray-200 bg-white p-4 sm:order-none">
                       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
