@@ -21,6 +21,9 @@ function AuthCallbackContent() {
     const finishSignIn = async () => {
       const returnTo = safeReturnTo(searchParams.get('returnTo'))
       try {
+        const providerError = searchParams.get('error_description') || searchParams.get('error')
+        if (providerError) throw new Error(providerError)
+
         const code = searchParams.get('code')
         if (code) {
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
@@ -31,7 +34,12 @@ function AuthCallbackContent() {
         if (userError) throw userError
         if (!data.user) throw new Error('Sign-in did not complete. Please try again.')
 
-        await ensureProfile()
+        let profileResult = await ensureProfile()
+        if (!profileResult.ok) {
+          await new Promise((resolve) => window.setTimeout(resolve, 300))
+          profileResult = await ensureProfile()
+        }
+        if (!profileResult.ok) throw new Error(profileResult.error || 'Your account was created, but your player profile could not be prepared. Please try again.')
         if (alive) router.replace(returnTo)
       } catch (e: unknown) {
         void logAppEvent({ eventType: 'auth_callback_failed', error: e, metadata: { return_to: returnTo } })
@@ -52,8 +60,8 @@ function AuthCallbackContent() {
         {error ? (
           <>
             <p className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>
-            <Link href="/?auth=signin" className="mt-4 inline-flex rounded-md bg-[#c5161d] px-4 py-2 text-sm font-semibold text-white hover:bg-[#a91218]">
-              Try again
+            <Link href={`/?auth=signin&returnTo=${encodeURIComponent(safeReturnTo(searchParams.get('returnTo'), '/pools'))}`} className="mt-4 inline-flex rounded-md bg-[#c5161d] px-4 py-2 text-sm font-semibold text-white hover:bg-[#a91218]">
+              Return to sign in
             </Link>
           </>
         ) : (

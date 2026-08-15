@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { safeReturnTo } from '../../lib/authRedirect'
 import { supabase } from '../../lib/supabaseClient'
 import { getErrorMessage } from '../../lib/errorMessage'
 
@@ -14,6 +15,8 @@ export default function ResetPage() {
   const [saving, setSaving] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [returnTo, setReturnTo] = useState('/pools')
+  const [showPassword, setShowPassword] = useState(false)
 
   // Same password rules as signup
   const pwChecks = useMemo(() => {
@@ -35,11 +38,14 @@ export default function ResetPage() {
     const doExchange = async () => {
       // Case 1: PKCE flow (?code=...)
       const url = new URL(window.location.href)
+      const safeDestination = safeReturnTo(url.searchParams.get('returnTo'), '/pools')
+      setReturnTo(safeDestination)
       const code = url.searchParams.get('code')
 
       if (code) {
         const { error } = await supabase.auth.exchangeCodeForSession(window.location.href)
         if (error) setExchangeError(getErrorMessage(error, 'This reset link could not be opened. Please request a new one.'))
+        else window.history.replaceState(null, '', `/reset?returnTo=${encodeURIComponent(safeDestination)}`)
         setReady(true)
         return
       }
@@ -53,6 +59,7 @@ export default function ResetPage() {
       if (type === 'recovery' && access_token && refresh_token) {
         const { error } = await supabase.auth.setSession({ access_token, refresh_token })
         if (error) setExchangeError(getErrorMessage(error, 'This reset link could not be opened. Please request a new one.'))
+        else window.history.replaceState(null, '', `/reset?returnTo=${encodeURIComponent(safeDestination)}`)
         setReady(true)
         return
       }
@@ -76,7 +83,9 @@ export default function ResetPage() {
     const { error } = await supabase.auth.updateUser({ password })
     setSaving(false)
     if (error) { setError(getErrorMessage(error, 'Password could not be updated. Please try again.')); return }
-    setStatus('Password updated. You can now return to the home page.')
+    setPassword('')
+    setPassword2('')
+    setStatus('Password updated successfully.')
   }
 
   return (
@@ -88,11 +97,11 @@ export default function ResetPage() {
 
         {ready && exchangeError && (
           <>
-            <p className="text-red-600 mb-3">{exchangeError}</p>
+            <p role="alert" className="text-red-600 mb-3">{exchangeError}</p>
             <ol className="list-decimal ml-5 text-sm mb-3">
-              <li>Go to <Link href="/forgot" className="underline">Forgot Password</Link> and request a new link.</li>
-              <li>Open the email <b>on the same device & browser</b> you used to request it.</li>
-              <li>Click the link. It should open this page with a code or tokens.</li>
+              <li>Go to <Link href={`/forgot?returnTo=${encodeURIComponent(returnTo)}`} className="underline">Forgot Password</Link> and request a new link.</li>
+              <li>Open the newest reset email. Older links may have expired.</li>
+              <li>Click the reset link to return to this page.</li>
             </ol>
             <Link href="/" className="px-4 py-2 rounded-md bg-gray-600 text-white inline-block">Home</Link>
           </>
@@ -104,7 +113,8 @@ export default function ResetPage() {
               <label className="text-sm">
                 New password
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2"
@@ -114,7 +124,8 @@ export default function ResetPage() {
               <label className="text-sm">
                 Re-enter password
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
                   value={password2}
                   onChange={(e) => setPassword2(e.target.value)}
                   className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2"
@@ -132,8 +143,12 @@ export default function ResetPage() {
               <li className={pwChecks.match ? 'text-green-700' : ''}>Passwords match</li>
             </ul>
 
-            {error && <div className="text-red-600 mb-3">{error}</div>}
-            {status && <div className="text-green-700 mb-3">{status}</div>}
+            <button type="button" onClick={() => setShowPassword((visible) => !visible)} className="mb-3 text-sm font-semibold text-slate-600 underline" aria-label={showPassword ? 'Hide passwords' : 'Show passwords'}>
+              {showPassword ? 'Hide passwords' : 'Show passwords'}
+            </button>
+
+            {error && <div role="alert" aria-live="assertive" className="text-red-600 mb-3">{error}</div>}
+            {status && <div role="status" aria-live="polite" className="text-green-700 mb-3">{status}</div>}
 
             <div className="flex gap-2">
               <button
@@ -143,7 +158,7 @@ export default function ResetPage() {
               >
                 {saving ? 'Saving...' : 'Set new password'}
               </button>
-              <Link href="/" className="px-4 py-2 rounded-md bg-gray-600 text-white text-center">Home</Link>
+              <Link href={returnTo} className="px-4 py-2 rounded-md bg-gray-600 text-white text-center">Continue to Survive Sunday</Link>
             </div>
           </>
         )}
@@ -151,4 +166,3 @@ export default function ResetPage() {
     </main>
   )
 }
-

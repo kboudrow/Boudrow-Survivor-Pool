@@ -94,15 +94,24 @@ export function AuthNav() {
 
       const {
         data: { user },
+        error: userError,
       } = await supabase.auth.getUser()
 
       if (!alive) return
+      if (userError) {
+        handleSignedOut()
+        return
+      }
       setEmail(user?.email ?? null)
-      await Promise.all([
+      setLoaded(true)
+      void Promise.all([
         loadProfile(supabase, user?.id ?? null),
         loadBlogAccess(supabase, user?.id ?? null),
-      ])
-      setLoaded(true)
+      ]).catch(() => {
+        if (!alive) return
+        setProfile(null)
+        setHasBlogAccess(false)
+      })
 
       const { data } = supabase.auth.onAuthStateChange((_event, session) => {
         if (!session?.user) {
@@ -157,7 +166,16 @@ export function AuthNav() {
     window.location.href = '/'
   }
 
-  if (!loaded || !isAuthed) {
+  if (!loaded) {
+    return (
+      <div className="flex shrink-0 items-center gap-2" aria-label="Checking account" aria-busy="true">
+        <span className="hidden h-4 w-14 animate-pulse rounded bg-white/15 sm:block" />
+        <span className="h-9 w-9 animate-pulse rounded-full bg-white/15" />
+      </div>
+    )
+  }
+
+  if (!isAuthed) {
     return (
       <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
         <Link href="/about" className="rounded-md px-2 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 hover:text-white sm:px-3">

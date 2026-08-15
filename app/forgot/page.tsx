@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { safeReturnTo } from '@/lib/authRedirect'
 import { getErrorMessage } from '@/lib/errorMessage'
 import { normalizeEmailAddress, validateEmailAddress } from '@/lib/security'
 import { supabase } from '@/lib/supabaseClient'
@@ -11,6 +12,12 @@ export default function ForgotPasswordPage() {
   const [sending, setSending] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [returnTo, setReturnTo] = useState('/pools')
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    setReturnTo(safeReturnTo(params.get('returnTo'), '/pools'))
+  }, [])
 
   const sendResetEmail = async () => {
     setStatus(null)
@@ -31,10 +38,10 @@ export default function ForgotPasswordPage() {
     try {
       const origin = window.location.origin
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
-        redirectTo: `${origin}/reset`,
+        redirectTo: `${origin}/reset?returnTo=${encodeURIComponent(returnTo)}`,
       })
       if (resetError) throw resetError
-      setStatus('Password reset email sent. Check your inbox and open the link on this device.')
+      setStatus('If an account uses that email, a password reset link is on its way. Check your inbox and spam folder.')
     } catch (e: unknown) {
       setError(getErrorMessage(e, 'Failed to send password reset email.'))
     } finally {
@@ -66,8 +73,8 @@ export default function ForgotPasswordPage() {
           />
         </label>
 
-        {error && <p className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-        {status && <p className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{status}</p>}
+        {error && <p role="alert" aria-live="assertive" className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+        {status && <p role="status" aria-live="polite" className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{status}</p>}
 
         <div className="mt-5 flex flex-wrap items-center gap-2">
           <button
@@ -78,7 +85,7 @@ export default function ForgotPasswordPage() {
           >
             {sending ? 'Sending...' : 'Send Reset Email'}
           </button>
-          <Link href="/?auth=signin" className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50">
+          <Link href={`/?auth=signin&returnTo=${encodeURIComponent(returnTo)}`} className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50">
             Back to Sign In
           </Link>
         </div>

@@ -12,6 +12,7 @@ import { trackConversion } from '@/lib/monitoring'
 
 type Mode = 'idle' | 'signin' | 'signup'
 type AuthIntent = 'create' | 'join' | 'signin'
+type AuthSubmission = 'email-signin' | 'google' | 'email-signup' | 'resend-confirmation' | null
 type SupabaseClientModule = typeof import('@/lib/supabaseClient')
 type EnsureProfileModule = typeof import('@/lib/ensureProfile')
 
@@ -29,6 +30,7 @@ export default function Home() {
   const [, setStatus] = useState('Not signed in')
   const [returnTo, setReturnTo] = useState<string | null>(null)
   const ensuredUserIdRef = useRef<string | null>(null)
+  const profilePreparationRef = useRef<{ userId: string; promise: Promise<void> } | null>(null)
   const returnToRef = useRef<string | null>(null)
 
   // auth form state
@@ -40,12 +42,16 @@ export default function Home() {
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [password2, setPassword2] = useState('')
+  const [authSubmitting, setAuthSubmitting] = useState<AuthSubmission>(null)
+  const [showPassword, setShowPassword] = useState(false)
+  const [confirmationEmail, setConfirmationEmail] = useState<string | null>(null)
 
   // focus/scroll refs
   const signInPanelRef = useRef<HTMLDivElement | null>(null)
   const signUpPanelRef = useRef<HTMLDivElement | null>(null)
   const signInEmailRef = useRef<HTMLInputElement | null>(null)
   const signUpFirstRef = useRef<HTMLInputElement | null>(null)
+  const authDialogRef = useRef<HTMLDivElement | null>(null)
 
   // password checks
   const pw = {
@@ -83,15 +89,32 @@ export default function Home() {
   const runEnsureProfileOnce = async (userId: string | null) => {
     if (!userId) {
       ensuredUserIdRef.current = null
+      profilePreparationRef.current = null
       return
     }
     if (ensuredUserIdRef.current === userId) return
-    ensuredUserIdRef.current = userId
-    setStatus('Signed in, ensuring profile...')
-    const { ensureProfile }: EnsureProfileModule = await import('@/lib/ensureProfile')
-    const res = await ensureProfile()
-    setStatus(res.ok ? 'Profile ready' : `Profile error: ${res.error}`)
-    setMode('idle')
+    if (profilePreparationRef.current?.userId === userId) return profilePreparationRef.current.promise
+
+    const promise = (async () => {
+      setStatus('Signed in, ensuring profile...')
+      const { ensureProfile }: EnsureProfileModule = await import('@/lib/ensureProfile')
+      const res = await ensureProfile()
+      if (res.ok) ensuredUserIdRef.current = userId
+      setStatus(res.ok ? 'Profile ready' : `Profile error: ${res.error}`)
+      if (!res.ok) throw new Error(res.error || 'Your account is signed in, but your player profile could not be prepared.')
+    })()
+    profilePreparationRef.current = { userId, promise }
+    try {
+      await promise
+    } finally {
+      if (profilePreparationRef.current?.promise === promise) profilePreparationRef.current = null
+    }
+  }
+
+  const intentFromReturnTo = (path: string | null): AuthIntent => {
+    if (path === '/pools/new') return 'create'
+    if (path?.startsWith('/join')) return 'join'
+    return 'signin'
   }
 
   const openSignIn = (intent: AuthIntent = 'signin') => {
@@ -125,12 +148,12 @@ export default function Home() {
     setReturnTo(nextReturnTo)
     returnToRef.current = nextReturnTo
     if (params.get('auth') === 'signin') {
-      setAuthIntent('signin')
+      setAuthIntent(intentFromReturnTo(nextReturnTo))
       setMode('signin')
       requestAnimationFrame(() => signInEmailRef.current?.focus())
       window.history.replaceState(null, '', window.location.pathname)
     } else if (params.get('auth') === 'signup') {
-      setAuthIntent('signin')
+      setAuthIntent(intentFromReturnTo(nextReturnTo))
       setMode('signup')
       requestAnimationFrame(() => signUpFirstRef.current?.focus())
       window.history.replaceState(null, '', window.location.pathname)
@@ -151,46 +174,73 @@ export default function Home() {
   useEffect(() => {
     if (mode === 'idle') return
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMode('idle')
+      if (event.key === 'Escape' && !authSubmitting) setMode('idle')
+      if (event.key !== 'Tab') return
+      const focusable = Array.from(authDialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled])') || [])
+      if (focusable.length === 0) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [mode])
+  }, [authSubmitting, mode])
 
   // auth handlers
   const signInWithGoogle = async () => {
+    if (authSubmitting) return
     setAuthError(null)
     setAuthNotice(null)
-    const redirectTo = authCallbackUrl(returnToRef.current || returnTo || '/pools')
-    const supabase = await getSupabase()
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo,
-        queryParams: { prompt: 'select_account' },
-      },
-    })
-    if (error) setAuthError(getErrorMessage(error, 'Could not start Google sign-in.'))
+    setAuthSubmitting('google')
+    try {
+      const redirectTo = authCallbackUrl(returnToRef.current || returnTo || '/pools')
+      const supabase = await getSupabase()
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo,
+          queryParams: { prompt: 'select_account' },
+        },
+      })
+      if (error) throw error
+    } catch (error: unknown) {
+      setAuthError(getErrorMessage(error, 'Could not start Google sign-in.'))
+      setAuthSubmitting(null)
+    }
   }
 
   const signInWithEmail = async () => {
+    if (authSubmitting) return
     setAuthError(null)
     setAuthNotice(null)
     const trimmedEmail = normalizeEmailAddress(email)
     if (!trimmedEmail || !password) return setAuthError('Please enter email and password.')
     const emailError = validateEmailAddress(trimmedEmail)
     if (emailError) return setAuthError(emailError)
-    const supabase = await getSupabase()
-    const { data, error } = await supabase.auth.signInWithPassword({ email: trimmedEmail, password })
-    if (error) return setAuthError(getErrorMessage(error, 'Could not sign in. Check your email and password.'))
-    if (data.user) {
+    setAuthSubmitting('email-signin')
+    try {
+      const supabase = await getSupabase()
+      const { data, error } = await supabase.auth.signInWithPassword({ email: trimmedEmail, password })
+      if (error) throw error
+      if (!data.user) throw new Error('Sign-in did not complete. Please try again.')
       await runEnsureProfileOnce(data.user.id)
       void trackConversion('conversion.auth_completed', { method: 'email', intent: authIntent })
       router.push(returnToRef.current || '/pools')
+    } catch (error: unknown) {
+      setAuthError(getErrorMessage(error, 'Could not sign in. Check your email and password.'))
+    } finally {
+      setAuthSubmitting(null)
     }
   }
 
   const signUpWithEmail = async () => {
+    if (authSubmitting) return
     setAuthError(null)
     setAuthNotice(null)
     if (!firstName || !lastName) return setAuthError('Please enter your first and last name.')
@@ -207,37 +257,61 @@ export default function Home() {
     if (!password2) return setAuthError('Please re-enter your password.')
     if (!allPwOk) return setAuthError('Please meet all password requirements.')
 
-    const supabase = await getSupabase()
-    const { data: available, error: availabilityErr } = await supabase.rpc('username_available', { p_username: cleanUsername })
-    if (availabilityErr) return setAuthError(getErrorMessage(availabilityErr, 'Could not check that username. Please try again.'))
-    if (!available) return setAuthError('That username is already taken. Try another one.')
+    setAuthSubmitting('email-signup')
+    try {
+      const supabase = await getSupabase()
+      const { data: available, error: availabilityErr } = await supabase.rpc('username_available', { p_username: cleanUsername })
+      if (availabilityErr) throw availabilityErr
+      if (!available) throw new Error('That username is already taken. Try another one.')
 
-    const { data, error } = await supabase.auth.signUp({
-      email: trimmedEmail,
-      password,
-      options: {
-        emailRedirectTo: authCallbackUrl(returnToRef.current || returnTo || '/pools'),
-        data: { first_name: firstName.trim(), last_name: lastName.trim(), username: cleanUsername },
-      },
-    })
-    if (error) return setAuthError(getErrorMessage(error, 'Could not create that account. Please try again.'))
+      const { data, error } = await supabase.auth.signUp({
+        email: trimmedEmail,
+        password,
+        options: {
+          emailRedirectTo: authCallbackUrl(returnToRef.current || returnTo || '/pools'),
+          data: { first_name: firstName.trim(), last_name: lastName.trim(), username: cleanUsername },
+        },
+      })
+      if (error) throw error
 
-    if (!data?.session) {
-      setEmail(trimmedEmail)
-      setPassword('')
-      setPassword2('')
-      setMode('signin')
-      setAuthNotice('Check your email to confirm your account, then sign in.')
-      return
-    } else {
-      try {
+      if (!data?.session) {
+        setEmail(trimmedEmail)
+        setConfirmationEmail(trimmedEmail)
+        setPassword('')
+        setPassword2('')
+        setMode('signin')
+        setAuthNotice(`Confirmation email sent to ${trimmedEmail}. Open it to finish creating your account.`)
+      } else {
         await runEnsureProfileOnce(data.session.user.id)
         await saveSignupProfile(cleanUsername)
         void trackConversion('conversion.signup_completed', { method: 'email', intent: authIntent })
-      } catch (e: unknown) {
-        return setAuthError(authMessage(e, 'Account created, but we could not save that username.'))
+        router.push(returnToRef.current || '/pools')
       }
-      router.push(returnToRef.current || '/pools')
+    } catch (error: unknown) {
+      setAuthError(authMessage(error, 'Could not create that account. Please try again.'))
+    } finally {
+      setAuthSubmitting(null)
+    }
+  }
+
+  const resendConfirmation = async () => {
+    if (!confirmationEmail || authSubmitting) return
+    setAuthError(null)
+    setAuthNotice(null)
+    setAuthSubmitting('resend-confirmation')
+    try {
+      const supabase = await getSupabase()
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: confirmationEmail,
+        options: { emailRedirectTo: authCallbackUrl(returnToRef.current || returnTo || '/pools') },
+      })
+      if (error) throw error
+      setAuthNotice(`A new confirmation email was sent to ${confirmationEmail}.`)
+    } catch (error: unknown) {
+      setAuthError(getErrorMessage(error, 'Could not resend the confirmation email. Please try again shortly.'))
+    } finally {
+      setAuthSubmitting(null)
     }
   }
 
@@ -252,7 +326,12 @@ export default function Home() {
       } else if (user) {
         setIsAuthed(true)
         setStatus('Signed in')
-        await runEnsureProfileOnce(user.id)
+        try {
+          await runEnsureProfileOnce(user.id)
+        } catch (profileError: unknown) {
+          setStatus('Signed in; profile repair will retry')
+          console.warn('Profile preparation failed:', getErrorMessage(profileError, 'Unknown profile error'))
+        }
         if (returnToRef.current) router.push(returnToRef.current)
       } else {
         setIsAuthed(false)
@@ -264,11 +343,12 @@ export default function Home() {
         const nowAuthed = !!uid
         setIsAuthed(nowAuthed)
         setStatus(nowAuthed ? 'Signed in' : 'Not signed in')
-        runEnsureProfileOnce(uid)
+        void runEnsureProfileOnce(uid).catch((profileError: unknown) => {
+          console.warn('Profile preparation failed:', getErrorMessage(profileError, 'Unknown profile error'))
+        })
 
-        // If they were trying to do something (CTAs), collapse auth panel on success
+        // Return authenticated users to the action they originally requested.
         if (nowAuthed) {
-          setMode('idle')
           if (returnToRef.current) router.push(returnToRef.current)
         }
       })
@@ -413,13 +493,13 @@ export default function Home() {
         {/* Auth panels */}
         {mode !== 'idle' && (
           <section className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto px-4 py-8" aria-label="Account access">
-            <button type="button" aria-label="Close account dialog" onClick={() => setMode('idle')} className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm" />
-            <div role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title" className="relative w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
+            <button type="button" aria-label="Close account dialog" disabled={!!authSubmitting} onClick={() => setMode('idle')} className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm disabled:cursor-wait" />
+            <div ref={authDialogRef} role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title" aria-describedby="auth-dialog-description" className="relative w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-2xl">
               {mode === 'signin' ? (
                 <div ref={signInPanelRef}>
                   <p className="text-xs font-bold uppercase tracking-wide text-[#c5161d]">{authIntent === 'create' ? 'Create a pool' : authIntent === 'join' ? 'Join a pool' : 'Welcome back'}</p>
                   <h2 id="auth-dialog-title" className="mb-1 mt-1 text-xl font-semibold">Sign in to continue</h2>
-                  <p className="mb-4 text-sm text-slate-600">{authIntent === 'create' ? 'Your new pool settings will be ready right after sign-in.' : authIntent === 'join' ? 'You will return to pool discovery after sign-in.' : 'Access your pools, picks, and profile.'}</p>
+                  <p id="auth-dialog-description" className="mb-4 text-sm text-slate-600">{authIntent === 'create' ? 'Your new pool settings will be ready right after sign-in.' : authIntent === 'join' ? (returnTo?.startsWith('/join/') ? 'You will return to your pool invitation after sign-in.' : 'You will return to pool discovery after sign-in.') : 'Access your pools, picks, and profile.'}</p>
 
                   <label className="text-sm block mb-2">
                     Email
@@ -427,6 +507,8 @@ export default function Home() {
                       ref={signInEmailRef}
                       className="mt-1 w-full border rounded px-3 py-2"
                       type="email"
+                      inputMode="email"
+                      autoComplete="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') signInWithEmail() }}
@@ -435,17 +517,23 @@ export default function Home() {
 
                   <label className="text-sm block mb-2">
                     Password
-                    <input
-                      className="mt-1 w-full border rounded px-3 py-2"
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') signInWithEmail() }}
-                    />
+                    <span className="relative mt-1 block">
+                      <input
+                        className="w-full rounded border py-2 pl-3 pr-16"
+                        type={showPassword ? 'text' : 'password'}
+                        autoComplete="current-password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') signInWithEmail() }}
+                      />
+                      <button type="button" onClick={() => setShowPassword((visible) => !visible)} className="absolute inset-y-0 right-0 px-3 text-xs font-semibold text-slate-600" aria-label={showPassword ? 'Hide password' : 'Show password'}>
+                        {showPassword ? 'Hide' : 'Show'}
+                      </button>
+                    </span>
                   </label>
 
                   <div className="flex items-center justify-between mb-2">
-                    <Link href="/forgot" className="text-sm underline text-gray-700">
+                    <Link href={`/forgot?returnTo=${encodeURIComponent(returnToRef.current || returnTo || '/pools')}`} className="text-sm underline text-gray-700">
                       Forgot password?
                     </Link>
                     <button
@@ -457,17 +545,27 @@ export default function Home() {
                     </button>
                   </div>
 
-                  {authNotice && <p className="mb-2 rounded-md border border-green-200 bg-green-50 p-2 text-sm text-green-800">{authNotice}</p>}
-                  {authError && <p className="text-red-600 mb-2">{authError}</p>}
+                  {authNotice && <p role="status" aria-live="polite" className="mb-2 rounded-md border border-green-200 bg-green-50 p-2 text-sm text-green-800">{authNotice}</p>}
+                  {confirmationEmail && (
+                    <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
+                      <button type="button" onClick={resendConfirmation} disabled={!!authSubmitting} className="font-semibold text-[#c5161d] underline disabled:opacity-50">
+                        {authSubmitting === 'resend-confirmation' ? 'Resending...' : 'Resend confirmation email'}
+                      </button>
+                      <button type="button" onClick={() => { setConfirmationEmail(null); setAuthNotice(null); setMode('signup') }} disabled={!!authSubmitting} className="text-slate-600 underline disabled:opacity-50">
+                        Use a different email
+                      </button>
+                    </div>
+                  )}
+                  {authError && <p role="alert" aria-live="assertive" className="text-red-600 mb-2">{authError}</p>}
 
-                  <div className="flex gap-2">
-                    <button type="button" onClick={signInWithEmail} className="px-4 py-2 rounded bg-black text-white">
-                      Sign In
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" disabled={!!authSubmitting} onClick={signInWithEmail} className="px-4 py-2 rounded bg-black text-white disabled:opacity-50">
+                      {authSubmitting === 'email-signin' ? 'Signing in...' : 'Sign In'}
                     </button>
-                    <button type="button" onClick={signInWithGoogle} className="px-4 py-2 rounded bg-[#4285F4] text-white">
-                      Google
+                    <button type="button" disabled={!!authSubmitting} onClick={signInWithGoogle} className="px-4 py-2 rounded bg-[#4285F4] text-white disabled:opacity-50">
+                      {authSubmitting === 'google' ? 'Opening Google...' : 'Continue with Google'}
                     </button>
-                    <button type="button" onClick={() => setMode('idle')} className="px-4 py-2 rounded bg-gray-200">
+                    <button type="button" disabled={!!authSubmitting} onClick={() => setMode('idle')} className="px-4 py-2 rounded bg-gray-200 disabled:opacity-50">
                       Cancel
                     </button>
                   </div>
@@ -475,7 +573,8 @@ export default function Home() {
               ) : (
                 <div ref={signUpPanelRef}>
                   <p className="text-xs font-bold uppercase tracking-wide text-[#c5161d]">Free for 2026</p>
-                  <h2 id="auth-dialog-title" className="mb-3 mt-1 text-xl font-semibold">Create your account</h2>
+                  <h2 id="auth-dialog-title" className="mb-1 mt-1 text-xl font-semibold">Create your account</h2>
+                  <p id="auth-dialog-description" className="mb-3 text-sm text-slate-600">{authIntent === 'join' ? 'Create your free account, confirm your email, and return to your pool invitation.' : 'Create a free profile for your pools, picks, and standings.'}</p>
 
                   <div className="grid grid-cols-2 gap-2">
                     <label className="text-sm">
@@ -483,6 +582,7 @@ export default function Home() {
                       <input
                         ref={signUpFirstRef}
                         className="mt-1 w-full border rounded px-3 py-2"
+                        autoComplete="given-name"
                         value={firstName}
                         onChange={(e) => setFirstName(e.target.value)}
                       />
@@ -491,6 +591,7 @@ export default function Home() {
                       Last name
                       <input
                         className="mt-1 w-full border rounded px-3 py-2"
+                        autoComplete="family-name"
                         value={lastName}
                         onChange={(e) => setLastName(e.target.value)}
                       />
@@ -501,6 +602,7 @@ export default function Home() {
                     Username
                     <input
                       className="mt-1 w-full border rounded px-3 py-2"
+                      autoComplete="username"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
                       placeholder="e.g. Sunday Crew"
@@ -513,6 +615,8 @@ export default function Home() {
                     <input
                       className="mt-1 w-full border rounded px-3 py-2"
                       type="email"
+                      inputMode="email"
+                      autoComplete="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                     />
@@ -520,19 +624,26 @@ export default function Home() {
 
                   <label className="text-sm block mt-2">
                     Password
-                    <input
-                      className="mt-1 w-full border rounded px-3 py-2"
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                    />
+                    <span className="relative mt-1 block">
+                      <input
+                        className="w-full rounded border py-2 pl-3 pr-16"
+                        type={showPassword ? 'text' : 'password'}
+                        autoComplete="new-password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                      />
+                      <button type="button" onClick={() => setShowPassword((visible) => !visible)} className="absolute inset-y-0 right-0 px-3 text-xs font-semibold text-slate-600" aria-label={showPassword ? 'Hide passwords' : 'Show passwords'}>
+                        {showPassword ? 'Hide' : 'Show'}
+                      </button>
+                    </span>
                   </label>
 
                   <label className="text-sm block mt-2">
                     Re-enter password
                     <input
                       className="mt-1 w-full border rounded px-3 py-2"
-                      type="password"
+                      type={showPassword ? 'text' : 'password'}
+                      autoComplete="new-password"
                       value={password2}
                       onChange={(e) => setPassword2(e.target.value)}
                     />
@@ -547,19 +658,22 @@ export default function Home() {
                     <li className={pw.match ? 'text-green-700' : ''}>Passwords match</li>
                   </ul>
 
-                  {authNotice && <p className="mt-2 rounded-md border border-green-200 bg-green-50 p-2 text-sm text-green-800">{authNotice}</p>}
-                  {authError && <p className="text-red-600 mt-2">{authError}</p>}
+                  {authNotice && <p role="status" aria-live="polite" className="mt-2 rounded-md border border-green-200 bg-green-50 p-2 text-sm text-green-800">{authNotice}</p>}
+                  {authError && <p role="alert" aria-live="assertive" className="text-red-600 mt-2">{authError}</p>}
 
-                  <div className="mt-2 flex gap-2">
+                  <div className="mt-2 flex flex-wrap gap-2">
                     <button
                       type="button"
-                      disabled={!allPwOk}
+                      disabled={!allPwOk || !!authSubmitting}
                       onClick={signUpWithEmail}
                       className="px-4 py-2 rounded bg-indigo-600 text-white disabled:opacity-50"
                     >
-                      Create Account
+                      {authSubmitting === 'email-signup' ? 'Creating account...' : 'Create Account'}
                     </button>
-                    <button type="button" onClick={() => setMode('idle')} className="px-4 py-2 rounded bg-gray-200">
+                    <button type="button" onClick={signInWithGoogle} disabled={!!authSubmitting} className="px-4 py-2 rounded bg-[#4285F4] text-white disabled:opacity-50">
+                      {authSubmitting === 'google' ? 'Opening Google...' : 'Continue with Google'}
+                    </button>
+                    <button type="button" disabled={!!authSubmitting} onClick={() => setMode('idle')} className="px-4 py-2 rounded bg-gray-200 disabled:opacity-50">
                       Cancel
                     </button>
                   </div>

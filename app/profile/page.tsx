@@ -155,6 +155,7 @@ export default function ProfilePage() {
   const [newPassword2, setNewPassword2] = useState('')
   const [savingPw, setSavingPw] = useState(false)
   const [pwMsg, setPwMsg] = useState<string | null>(null)
+  const [showNewPassword, setShowNewPassword] = useState(false)
 
   // reset email
   const [resetSending, setResetSending] = useState(false)
@@ -250,15 +251,16 @@ export default function ProfilePage() {
           return
         }
 
-        // best-effort profile row creation
-        const ensured = await ensureProfile()
-        if (!ensured.ok) console.warn('ensureProfile failed:', ensured.error)
-
         if (!alive) return
         setUserId(user.id)
         setCurrentEmail(user.email || '')
         setNewEmail(user.email || '')
 
+        // best-effort profile row creation
+        const ensured = await ensureProfile()
+        if (!ensured.ok) console.warn('ensureProfile failed:', ensured.error)
+
+        if (!alive) return
         // load username
         const profileWithFavorite = await supabase
           .from('profiles')
@@ -285,7 +287,7 @@ export default function ProfilePage() {
         setFavoriteTeam(profileRow?.favorite_team || '')
         setAvatarUrl(profileRow?.avatar_url || null)
 
-        await loadHistory()
+        void loadHistory()
       } catch (e: unknown) {
         if (!alive) return
         setErr(getErrorMessage(e, 'Failed to load profile.'))
@@ -445,7 +447,10 @@ export default function ProfilePage() {
       setNewPassword2('')
       setPwMsg('Password updated.')
     } catch (e: unknown) {
-      setErr(getErrorMessage(e, 'Failed to update password.'))
+      const message = getErrorMessage(e, 'Failed to update password.')
+      setErr(/reauth|recently logged in|nonce/i.test(message)
+        ? 'For security, this session is too old to change your password directly. Use “Send me a password reset email” below.'
+        : message)
     } finally {
       setSavingPw(false)
     }
@@ -485,17 +490,26 @@ export default function ProfilePage() {
       <div className="mx-auto w-full max-w-4xl">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-bold">Profile</h1>
-          <div className="flex flex-wrap items-center gap-2">
-            <Link href="/pools" className="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200">
-              My Pools
-            </Link>
-            <button onClick={signOut} className="px-3 py-2 rounded-md bg-gray-700 text-white hover:bg-gray-800">
-              Sign out
-            </button>
-          </div>
+          {userId ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Link href="/pools" className="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200">
+                My Pools
+              </Link>
+              <button onClick={signOut} className="px-3 py-2 rounded-md bg-gray-700 text-white hover:bg-gray-800">
+                Sign out
+              </button>
+            </div>
+          ) : (
+            <div className="h-10 w-40 animate-pulse rounded-md bg-slate-200" aria-label="Checking account" />
+          )}
         </div>
 
-        {loading && <p>Loading...</p>}
+        {loading && (
+          <div className="grid gap-3" aria-label="Loading profile" aria-busy="true">
+            <div className="h-24 animate-pulse rounded-lg bg-slate-100" />
+            <div className="h-40 animate-pulse rounded-lg bg-slate-100" />
+          </div>
+        )}
         {!loading && err && <div className="mb-3 text-red-600">{err}</div>}
 
         {!loading && (
@@ -687,7 +701,8 @@ export default function ProfilePage() {
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     className="w-full border rounded-md px-3 py-2"
-                    type="password"
+                    type={showNewPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
                   />
                 </label>
 
@@ -697,10 +712,15 @@ export default function ProfilePage() {
                     value={newPassword2}
                     onChange={(e) => setNewPassword2(e.target.value)}
                     className="w-full border rounded-md px-3 py-2"
-                    type="password"
+                    type={showNewPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
                   />
                 </label>
               </div>
+
+              <button type="button" onClick={() => setShowNewPassword((visible) => !visible)} className="mt-2 text-sm font-semibold text-slate-600 underline" aria-label={showNewPassword ? 'Hide new passwords' : 'Show new passwords'}>
+                {showNewPassword ? 'Hide passwords' : 'Show passwords'}
+              </button>
 
               <ul className="text-xs text-gray-600 mt-3 list-disc pl-5">
                 <li className={pwChecks.len ? 'text-green-700' : ''}>At least 8 characters</li>
@@ -711,7 +731,7 @@ export default function ProfilePage() {
                 <li className={pwChecks.match ? 'text-green-700' : ''}>Passwords match</li>
               </ul>
 
-              {pwMsg && <div className="text-sm text-emerald-700 mt-2">{pwMsg}</div>}
+              {pwMsg && <div role="status" aria-live="polite" className="text-sm text-emerald-700 mt-2">{pwMsg}</div>}
 
               <div className="mt-3">
                 <button

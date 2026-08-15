@@ -20,6 +20,16 @@ function normalizeUsername(value: unknown) {
   return typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : null
 }
 
+function validUsernameOrFallback(value: unknown, fallback: string) {
+  const candidate = normalizeUsername(value)
+  if (!candidate || candidate.length < 3 || candidate.length > 30 || !/^[A-Za-z0-9_. -]+$/.test(candidate)) return fallback
+  return candidate
+}
+
+function isShellUsername(value: string | null | undefined) {
+  return /^Player [0-9a-f]{8}$/i.test(value?.trim() || '')
+}
+
 function isDuplicateUsernameError(error: { message?: string } | null | undefined) {
   const message = (error?.message || '').toLowerCase()
   return message.includes('profiles_username_lower_unique') || message.includes('profiles_username_normalized_unique') || message.includes('duplicate key') || message.includes('unique constraint')
@@ -38,8 +48,9 @@ export async function ensureProfile() {
   const metadata = user.user_metadata || {}
   const emailName = user.email?.split('@')[0] || 'Player'
   const displayName = firstNonEmpty(metadata.username, metadata.name, metadata.full_name, `${metadata.first_name || ''} ${metadata.last_name || ''}`, emailName) || 'Player'
-  const username = normalizeUsername(firstNonEmpty(metadata.username, displayName)) || displayName
-  const fallbackUsername = normalizeUsername(`${username} ${user.id.slice(0, 4)}`) || `Player ${user.id.slice(0, 8)}`
+  const shellUsername = `Player ${user.id.slice(0, 8)}`
+  const username = validUsernameOrFallback(firstNonEmpty(metadata.username, displayName), shellUsername)
+  const fallbackUsername = validUsernameOrFallback(`${username} ${user.id.slice(0, 4)}`, shellUsername)
   const firstName = firstNonEmpty(metadata.first_name, metadata.given_name)
   const lastName = firstNonEmpty(metadata.last_name, metadata.family_name)
   const avatarUrl = firstNonEmpty(metadata.avatar_url, metadata.picture)
@@ -72,9 +83,9 @@ export async function ensureProfile() {
   }
 
   const updates: ProfileSeed = {}
-  if (!existing.User_name) updates.User_name = displayName
-  if (!existing.username) updates.username = username
-  if (!existing.display_name) updates.display_name = username
+  if (!existing.User_name || isShellUsername(existing.User_name)) updates.User_name = username
+  if (!existing.username || isShellUsername(existing.username)) updates.username = username
+  if (!existing.display_name || isShellUsername(existing.display_name)) updates.display_name = username
   if (!existing.first_name && firstName) updates.first_name = firstName
   if (!existing.last_name && lastName) updates.last_name = lastName
   if (!existing.avatar_url && avatarUrl) updates.avatar_url = avatarUrl
