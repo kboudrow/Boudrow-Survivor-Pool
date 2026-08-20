@@ -1623,7 +1623,7 @@ export default function PoolAdminPage() {
     if (!pool) return
     const confirmed = await requestConfirm({
       title: 'Repair scoring state?',
-      message: `Rebuild scoring for ${pool.name} from the pick ledger?\n\nThis recalculates wins, counted losses, mulligans remaining, alive/eliminated status, and clears picks after an entry has been eliminated. It only affects this pool.`,
+      message: `Rebuild scoring for ${pool.name} from the pick ledger?\n\nThis recalculates wins, counted losses, mulligans remaining, and alive/eliminated status. Future drafts for eliminated entries remain retained but inactive. It only affects this pool.`,
       confirmLabel: 'Repair scoring',
       tone: 'warning',
     })

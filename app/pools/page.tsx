@@ -92,7 +92,7 @@ type WeekPickCompletion = {
   partial_entries: number
   missing_slots: number
 }
-type PoolPickStatus = { week: number; made: number; needed: number; entries: number }
+type PoolPickStatus = { week: number; made: number; needed: number; entries: number; eliminated?: boolean }
 type PoolMemberSummary = { total: number; alive: number; totalEntries: number; aliveEntries: number }
 type PoolWinnerStatus = {
   is_decided: boolean
@@ -381,12 +381,16 @@ function PoolStagePill({ pool, pickStatus, isDecided, lifecycle }: { pool: Pool;
   if (isDecided || lifecycle?.phase === 'completed_winner') {
     return <span className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">Winner</span>
   }
+  if (pickStatus?.eliminated) {
+    return <span className="shrink-0 rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">Eliminated</span>
+  }
   if (lifecycle?.phase === 'completed_season') {
     return <span className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">Season complete</span>
   }
   if (lifecycle?.phase === 'waiting_results') {
     return <span className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Processing</span>
   }
+
   if (lifecycle?.phase === 'open' || lifecycle?.phase === 'draft') {
     return <span className="shrink-0 rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">{lifecycle.label}</span>
   }
@@ -401,6 +405,14 @@ function PickStatusCard({ status, isDecided, lifecycle }: { status: PoolPickStat
     return (
       <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
         Pool complete: winner decided
+      </div>
+    )
+  }
+
+  if (status.eliminated) {
+    return (
+      <div className="mt-3 rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">
+        Eliminated — no picks required
       </div>
     )
   }
@@ -1046,17 +1058,19 @@ function MyPoolsContent() {
 
     try {
       const entryIds = entriesOverride?.length
-        ? entriesOverride.map((entry) => entry.id).filter(Boolean)
+        ? entriesOverride.filter((entry) => entry.status !== 'eliminated').map((entry) => entry.id).filter(Boolean)
         : ((await supabase
             .from('pool_members')
-            .select('id')
+            .select('id,status')
             .eq('pool_id', poolToRefresh.id)
-            .eq('profile_id', userId)).data || []).map((entry) => entry.id)
+            .eq('profile_id', userId)).data || [])
+            .filter((entry) => entry.status !== 'eliminated')
+            .map((entry) => entry.id)
 
       if (entryIds.length === 0) {
         setPoolPickStatuses((prev) => ({
           ...prev,
-          [poolToRefresh.id]: { week: poolToRefresh.start_week, made: 0, needed: 0, entries: 0 },
+          [poolToRefresh.id]: { week: poolToRefresh.test_current_week ?? poolToRefresh.start_week, made: 0, needed: 0, entries: 0, eliminated: true },
         }))
         return
       }
@@ -1176,7 +1190,7 @@ function MyPoolsContent() {
           .order('created_at', { ascending: false })
         if (createdErr) throw createdErr
 
-        const { data: memberships, error: memErr } = await supabase.from('pool_members').select('id,pool_id').eq('profile_id', user.id)
+        const { data: memberships, error: memErr } = await supabase.from('pool_members').select('id,pool_id,status').eq('profile_id', user.id)
         if (memErr) throw memErr
 
         let memberPools: Pool[] = []
@@ -1241,6 +1255,7 @@ function MyPoolsContent() {
         }
         const entriesByPool = new Map<string, string[]>()
         for (const membership of memberships || []) {
+          if (membership.status === 'eliminated') continue
           const list = entriesByPool.get(membership.pool_id) || []
           list.push(membership.id)
           entriesByPool.set(membership.pool_id, list)
@@ -1294,7 +1309,14 @@ function MyPoolsContent() {
               if (pickedSlots.has(`${pool.id}:${entryId}:${targetWeek}:${slot}`)) made += 1
             }
           }
-          statuses[pool.id] = { week: targetWeek, made, needed, entries: entryIds.length }
+          const hasMembership = (memberships || []).some((membership) => membership.pool_id === pool.id)
+          statuses[pool.id] = {
+            week: targetWeek,
+            made,
+            needed,
+            entries: entryIds.length,
+            eliminated: hasMembership && entryIds.length === 0,
+          }
         }
 
         if (!alive) return
