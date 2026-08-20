@@ -92,28 +92,8 @@ export function AuthNav() {
         }
       }
 
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser()
-
-      if (!alive) return
-      if (userError) {
-        handleSignedOut()
-        return
-      }
-      setEmail(user?.email ?? null)
-      setLoaded(true)
-      void Promise.all([
-        loadProfile(supabase, user?.id ?? null),
-        loadBlogAccess(supabase, user?.id ?? null),
-      ]).catch(() => {
-        if (!alive) return
-        setProfile(null)
-        setHasBlogAccess(false)
-      })
-
       const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (!alive) return
         if (!session?.user) {
           handleSignedOut()
           return
@@ -124,6 +104,26 @@ export function AuthNav() {
         setLoaded(true)
       })
       unsubscribe = () => data.subscription.unsubscribe()
+
+      // Subscribe before reading the stored session so a sign-in or token refresh
+      // cannot land in the gap between the initial read and listener setup.
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+      if (!alive) return
+      if (sessionError || !sessionData.session?.user) {
+        handleSignedOut()
+        return
+      }
+      const user = sessionData.session.user
+      setEmail(user.email ?? null)
+      setLoaded(true)
+      void Promise.all([
+        loadProfile(supabase, user.id),
+        loadBlogAccess(supabase, user.id),
+      ]).catch(() => {
+        if (!alive) return
+        setProfile(null)
+        setHasBlogAccess(false)
+      })
 
       const onStorage = (event: StorageEvent) => {
         if (event.key === AUTH_EVENT_KEY && event.newValue === 'signed-out') {

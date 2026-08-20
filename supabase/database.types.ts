@@ -2950,6 +2950,8 @@ export type Database = {
           entries_count: number
           final_picks_count: number
           is_public: boolean
+          lifecycle_label: string
+          lifecycle_phase: string
           max_entries_per_user: number
           max_members: number
           name: string
@@ -2963,6 +2965,20 @@ export type Database = {
           test_mode: boolean
           test_now_at: string
           unique_members_count: number
+        }[]
+      }
+      superadmin_user_overview: {
+        Args: never
+        Returns: {
+          display_name: string
+          email: string
+          entries_count: number
+          last_sign_in_at: string | null
+          latest_pool_created_at: string | null
+          pools_created: number
+          pools_joined: number
+          profile_id: string
+          signed_up_at: string | null
         }[]
       }
       superadmin_randomize_test_week_outcomes: {

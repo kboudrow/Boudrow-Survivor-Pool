@@ -16,6 +16,8 @@ type PoolOverview = {
   is_public: boolean
   archived: boolean
   activation_status: string
+  lifecycle_phase: string
+  lifecycle_label: string
   payment_status: string
   season: number
   start_week: number
@@ -50,6 +52,18 @@ type PoolEntry = {
   strikes_used: number
   eliminated: boolean
   eliminated_week: number | null
+}
+
+type UserOverview = {
+  profile_id: string
+  email: string
+  display_name: string
+  signed_up_at: string | null
+  last_sign_in_at: string | null
+  pools_created: number
+  pools_joined: number
+  entries_count: number
+  latest_pool_created_at: string | null
 }
 
 type ScheduleAuditRow = {
@@ -131,7 +145,9 @@ function fmt(value?: string | null) {
 
 function statusClass(status: string) {
   const lower = status.toLowerCase()
-  if (lower === 'active' || lower === 'paid') return 'border-emerald-200 bg-emerald-50 text-emerald-700'
+  if (lower === 'active' || lower === 'open' || lower === 'paid') return 'border-emerald-200 bg-emerald-50 text-emerald-700'
+  if (['live_week', 'between_weeks', 'waiting_results'].includes(lower)) return 'border-blue-200 bg-blue-50 text-blue-700'
+  if (lower.startsWith('completed_')) return 'border-violet-200 bg-violet-50 text-violet-700'
   if (lower === 'draft' || lower === 'unpaid') return 'border-amber-200 bg-amber-50 text-amber-700'
   if (lower === 'error') return 'border-red-200 bg-red-50 text-red-700'
   if (lower === 'warning') return 'border-amber-200 bg-amber-50 text-amber-700'
@@ -140,6 +156,14 @@ function statusClass(status: string) {
   if (lower === 'late') return 'border-amber-200 bg-amber-50 text-amber-700'
   if (lower === 'missing') return 'border-slate-200 bg-slate-50 text-slate-700'
   return 'border-slate-200 bg-slate-50 text-slate-700'
+}
+
+function poolStatus(pool: PoolOverview) {
+  return pool.lifecycle_phase || (pool.archived ? 'archived' : pool.activation_status || 'draft')
+}
+
+function poolStatusLabel(pool: PoolOverview) {
+  return pool.lifecycle_label || poolStatus(pool).replaceAll('_', ' ')
 }
 
 function compactJson(value: unknown) {
@@ -264,6 +288,8 @@ export default function SuperAdminPage() {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [pools, setPools] = useState<PoolOverview[]>([])
+  const [users, setUsers] = useState<UserOverview[]>([])
+  const [userQuery, setUserQuery] = useState('')
   const [selectedPoolId, setSelectedPoolId] = useState<string | null>(null)
   const [entries, setEntries] = useState<PoolEntry[]>([])
   const [entriesLoading, setEntriesLoading] = useState(false)
@@ -288,7 +314,11 @@ export default function SuperAdminPage() {
   const filteredPools = useMemo(() => {
     const q = query.trim().toLowerCase()
     return pools.filter((pool) => {
-      const matchesStatus = statusFilter === 'all' || pool.activation_status === statusFilter || (statusFilter === 'archived' && pool.archived)
+      const lifecycle = poolStatus(pool)
+      const matchesStatus = statusFilter === 'all'
+        || lifecycle === statusFilter
+        || (statusFilter === 'in_progress' && ['open', 'live_week', 'between_weeks', 'waiting_results'].includes(lifecycle))
+        || (statusFilter === 'completed' && lifecycle.startsWith('completed_'))
       if (!matchesStatus) return false
       if (!q) return true
       return [pool.name, pool.owner_email || '', pool.pool_id, pool.created_by]
@@ -302,13 +332,18 @@ export default function SuperAdminPage() {
         acc.pools += 1
         acc.entries += pool.entries_count
         acc.members += pool.unique_members_count
-        if (pool.activation_status === 'active') acc.active += 1
+        if (['open', 'live_week', 'between_weeks', 'waiting_results'].includes(poolStatus(pool))) acc.active += 1
         if (pool.archived) acc.archived += 1
         return acc
       },
       { pools: 0, entries: 0, members: 0, active: 0, archived: 0 },
     )
   }, [pools])
+  const filteredUsers = useMemo(() => {
+    const q = userQuery.trim().toLowerCase()
+    if (!q) return users
+    return users.filter((user) => [user.display_name, user.email, user.profile_id].some((value) => value.toLowerCase().includes(q)))
+  }, [userQuery, users])
   const auditIssues = useMemo(() => scheduleAudit.filter((row) => row.issue_count > 0), [scheduleAudit])
   const eventHealth = useMemo(() => {
     const errors = eventLogs.filter((event) => ['error', 'critical'].includes(event.severity.toLowerCase())).length
@@ -356,6 +391,12 @@ export default function SuperAdminPage() {
     setPools(nextPools)
     setSelectedPoolId((current) => current || nextPools[0]?.pool_id || null)
     return nextPools
+  }
+
+  const loadUsers = async () => {
+    const { data, error: usersErr } = await supabase.rpc('superadmin_user_overview')
+    if (usersErr) throw usersErr
+    setUsers((data || []) as UserOverview[])
   }
 
   const loadScheduleAudit = async (seasonText = auditSeason) => {
@@ -452,7 +493,7 @@ export default function SuperAdminPage() {
         const canAccess = userEmail === SUPERADMIN_EMAIL
         setAuthorized(canAccess)
         if (!canAccess) return
-        await Promise.all([loadPools(), loadScheduleAudit(), loadScoreFeedHealth(), loadCronHealth(), loadEventLogs()])
+        await Promise.all([loadPools(), loadUsers(), loadScheduleAudit(), loadScoreFeedHealth(), loadCronHealth(), loadEventLogs()])
       } catch (e: unknown) {
         if (!alive) return
         setError(getErrorMessage(e, 'Failed to load superadmin dashboard.'))
@@ -474,6 +515,7 @@ export default function SuperAdminPage() {
 
   const refreshSelectedPool = async () => {
     await loadPools()
+    await loadUsers()
     await loadScoreFeedHealth()
     await loadCronHealth()
     await loadEventLogs()
@@ -594,7 +636,7 @@ export default function SuperAdminPage() {
 
   return (
     <main className="min-h-[70vh] bg-slate-50 px-4 py-8">
-      <div className="mx-auto max-w-7xl">
+      <div className="mx-auto flex max-w-7xl flex-col">
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs font-bold uppercase tracking-wide text-[#c5161d]">Platform Admin</p>
@@ -611,15 +653,15 @@ export default function SuperAdminPage() {
         {error && <p className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
         {notice && <p className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{notice}</p>}
 
-        <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <section className="order-1 mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <Stat label="Pools" value={totals.pools} />
-          <Stat label="Active" value={totals.active} />
+          <Stat label="Open / In progress" value={totals.active} />
           <Stat label="Archived" value={totals.archived} />
           <Stat label="Unique Members" value={totals.members} />
           <Stat label="Entries" value={totals.entries} />
         </section>
 
-        <section className="mb-5 rounded-lg border border-slate-200 bg-white p-4">
+        <section className="order-4 mb-5 rounded-lg border border-slate-200 bg-white p-4">
           <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="font-semibold text-slate-950">Site Health</h2>
@@ -652,7 +694,7 @@ export default function SuperAdminPage() {
           )}
         </section>
 
-        <details className="mb-5 rounded-lg border border-slate-200 bg-white p-4" open>
+        <details className="order-5 mb-5 rounded-lg border border-slate-200 bg-white p-4">
           <summary className="cursor-pointer font-semibold text-slate-950">Automation health</summary>
           <div className="mt-3 mb-3 flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -686,7 +728,7 @@ export default function SuperAdminPage() {
           )}
         </details>
 
-        <details className="mb-5 rounded-lg border border-slate-200 bg-white p-4">
+        <details className="order-5 mb-5 rounded-lg border border-slate-200 bg-white p-4">
           <summary className="cursor-pointer font-semibold text-slate-950">Backup and recovery</summary>
           <div className="mt-3 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.55fr)]">
             <div>
@@ -709,7 +751,7 @@ export default function SuperAdminPage() {
           </div>
         </details>
 
-        <details className="mb-5 rounded-lg border border-slate-200 bg-white p-4" open>
+        <details className="order-5 mb-5 rounded-lg border border-slate-200 bg-white p-4">
           <summary className="cursor-pointer font-semibold text-slate-950">Score feed health</summary>
           <div className="mt-3 mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -787,7 +829,7 @@ export default function SuperAdminPage() {
           </div>
         </details>
 
-        <details className="mb-5 rounded-lg border border-slate-200 bg-white p-4">
+        <details className="order-5 mb-5 rounded-lg border border-slate-200 bg-white p-4">
           <summary className="cursor-pointer font-semibold text-slate-950">Schedule audit</summary>
           <div className="mt-3 mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -858,7 +900,7 @@ export default function SuperAdminPage() {
           )}
         </details>
 
-        <details className="mb-5 rounded-lg border border-slate-200 bg-white p-4">
+        <details className="order-5 mb-5 rounded-lg border border-slate-200 bg-white p-4">
           <summary className="cursor-pointer font-semibold text-slate-950">Production event logs</summary>
           <div className="mt-3 mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -914,7 +956,52 @@ export default function SuperAdminPage() {
           )}
         </details>
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(360px,460px)_1fr]">
+        <section className="order-2 mb-5 rounded-lg border border-slate-200 bg-white">
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 p-4">
+            <div>
+              <h2 className="font-semibold text-slate-950">Users</h2>
+              <p className="text-sm text-slate-600">Every account, newest first. Use this to spot unfamiliar signups and see who created leagues.</p>
+            </div>
+            <input
+              value={userQuery}
+              onChange={(event) => setUserQuery(event.target.value)}
+              placeholder="Search name, email, or ID"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm sm:w-72"
+            />
+          </div>
+          <div className="max-h-[440px] overflow-auto">
+            <table className="w-full min-w-[860px] border-collapse text-sm">
+              <thead className="sticky top-0 bg-slate-50">
+                <tr>
+                  <th className="border-b p-3 text-left">User</th>
+                  <th className="border-b p-3 text-left">Signed up</th>
+                  <th className="border-b p-3 text-left">Last sign-in</th>
+                  <th className="border-b p-3 text-left">Leagues created</th>
+                  <th className="border-b p-3 text-left">Leagues joined</th>
+                  <th className="border-b p-3 text-left">Entries</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredUsers.map((user) => (
+                  <tr key={user.profile_id} className={user.pools_created > 0 ? 'bg-amber-50/40 hover:bg-amber-50' : 'hover:bg-slate-50'}>
+                    <td className="border-b p-3">
+                      <div className="font-medium text-slate-950">{user.display_name || 'Unnamed user'}</div>
+                      <div className="text-xs text-slate-600">{user.email}</div>
+                    </td>
+                    <td className="border-b p-3 whitespace-nowrap">{fmt(user.signed_up_at)}</td>
+                    <td className="border-b p-3 whitespace-nowrap">{fmt(user.last_sign_in_at)}</td>
+                    <td className="border-b p-3 font-semibold">{user.pools_created}</td>
+                    <td className="border-b p-3">{user.pools_joined}</td>
+                    <td className="border-b p-3">{user.entries_count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {filteredUsers.length === 0 && <p className="p-4 text-sm text-slate-500">No users match that search.</p>}
+          </div>
+        </section>
+
+        <div className="order-3 mb-5 grid gap-5 lg:grid-cols-[minmax(360px,460px)_1fr]">
           <section className="rounded-lg border border-slate-200 bg-white">
             <div className="border-b border-slate-200 p-3">
               <div className="flex flex-wrap gap-2">
@@ -926,8 +1013,11 @@ export default function SuperAdminPage() {
                 />
                 <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
                   <option value="all">All</option>
+                  <option value="open">Open</option>
+                  <option value="in_progress">Open / In progress</option>
+                  <option value="completed">Completed</option>
+                  <option value="review_required">Needs review</option>
                   <option value="draft">Draft</option>
-                  <option value="active">Active</option>
                   <option value="cancelled">Cancelled</option>
                   <option value="archived">Archived</option>
                 </select>
@@ -946,8 +1036,8 @@ export default function SuperAdminPage() {
                       <div className="truncate font-semibold text-slate-950">{pool.name}</div>
                       <div className="mt-1 truncate text-xs text-slate-500">{pool.owner_email || pool.created_by}</div>
                     </div>
-                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-semibold ${statusClass(pool.activation_status)}`}>
-                      {pool.activation_status}
+                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-semibold ${statusClass(poolStatus(pool))}`}>
+                      {poolStatusLabel(pool)}
                     </span>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
@@ -994,7 +1084,7 @@ export default function SuperAdminPage() {
                 </div>
 
                 <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <Info label="Status" value={selectedPool.activation_status === 'cancelled' ? 'Closed' : 'Open'} />
+                  <Info label="Status" value={poolStatusLabel(selectedPool)} />
                   <Info label="Visibility" value={selectedPool.is_public ? 'Public' : 'Private'} />
                   <Info label="Entries" value={poolEntryCountLabel(selectedPool.entries_count, selectedPool.max_members)} />
                   <Info label="Multi Entry" value={selectedPool.allow_multiple_entries ? `Up to ${selectedPool.max_entries_per_user}` : 'Single entry'} />

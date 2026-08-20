@@ -48,7 +48,11 @@ test('auth navigation has a neutral loading state instead of showing signed-out 
   assert.ok(loadingBranch >= 0)
   assert.ok(signedOutBranch > loadingBranch)
   assert.match(nav, /aria-label="Checking account"/)
-  assert.match(nav, /setEmail\(user\?\.email \?\? null\)[\s\S]*setLoaded\(true\)[\s\S]*void Promise\.all/)
+  const subscription = nav.indexOf('supabase.auth.onAuthStateChange')
+  const sessionRead = nav.indexOf('supabase.auth.getSession')
+  assert.ok(subscription >= 0)
+  assert.ok(sessionRead > subscription)
+  assert.match(nav, /setEmail\(user\.email \?\? null\)[\s\S]*setLoaded\(true\)[\s\S]*void Promise\.all/)
 })
 
 test('callback verifies profile readiness and password policy matches the UI', async () => {
