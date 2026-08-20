@@ -23,9 +23,10 @@ test('ordinary Test Admin actions are sequential and week jumps require an expli
 })
 
 test('post-elimination future drafts stay in evidence but are hidden from the player', async () => {
-  const [migration, retainedDraftsMigration, player, admin] = await Promise.all([
+  const [migration, retainedDraftsMigration, testFinalizerMigration, player, admin] = await Promise.all([
     read('supabase/migrations/20260814000200_survivor_maintenance_hardening.sql'),
     read('supabase/migrations/20260820000500_retained_eliminated_drafts.sql'),
+    read('supabase/migrations/20260820000600_skip_eliminated_test_drafts.sql'),
     read('app/pools/page.tsx'),
     read('app/pools/[poolId]/admin/page.tsx'),
   ])
@@ -42,6 +43,8 @@ test('post-elimination future drafts stay in evidence but are hidden from the pl
   assert.match(retainedDraftsMigration, /Future saved drafts for eliminated entries are retained as inactive evidence/i)
   assert.match(retainedDraftsMigration, /from public\.pool_picks pick[\s\S]*pick\.week > stats\.eliminated_week/i)
   assert.doesNotMatch(retainedDraftsMigration, /from public\.pool_pick_drafts[\s\S]*locked_count/i)
+  assert.match(testFinalizerMigration, /superadmin_finalize_test_locked_picks[\s\S]*coalesce\(stats\.eliminated,false\) = false/i)
+  assert.match(testFinalizerMigration, /superadmin_finalize_test_week_drafts[\s\S]*coalesce\(stats\.eliminated,false\)=false/i)
   assert.match(admin, /Future drafts for eliminated entries remain retained but inactive/i)
 })
 
