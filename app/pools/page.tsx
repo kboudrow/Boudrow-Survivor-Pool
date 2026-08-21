@@ -894,6 +894,7 @@ function MyPoolsContent() {
   const openedPoolParamRef = useRef<string | null>(null)
   const backgroundRefreshRef = useRef<string | null>(null)
   const myPicksRequestRef = useRef(0)
+  const standingsRequestRef = useRef(0)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [poolStartAt, setPoolStartAt] = useState<string | null>(null)
   const [canManagePool, setCanManagePool] = useState(false)
@@ -1446,6 +1447,7 @@ function MyPoolsContent() {
   const loadStandings = async (week: number, poolId?: string, poolStartWeek = pool?.start_week ?? 1) => {
     const pid = poolId ?? selectedId
     if (!pid) return
+    const requestId = ++standingsRequestRef.current
     setStandingsLoading(true)
     try {
       if (membersLoadedFor !== pid) {
@@ -1470,6 +1472,7 @@ function MyPoolsContent() {
       const completion = snapshot?.completion || null
       const map: Record<string, MemberStats> = {}
       for (const s of stats) map[s.entry_id] = s
+      if (requestId !== standingsRequestRef.current) return
       setStandingsGamesForWeek(weekGames)
       setStatsByUser(map)
       setPicksThisWeek(visibleRows)
@@ -1480,10 +1483,11 @@ function MyPoolsContent() {
       setStandingsResultsVisible(visibleRows.some((pick) => !!pick.result))
 
     } catch (e: unknown) {
+      if (requestId !== standingsRequestRef.current) return
       void logAppEvent({ eventType: 'pool_results_refresh_failed', error: e, poolId: pid })
       console.warn('Failed to refresh finalized picks or standings results', e)
     } finally {
-      setStandingsLoading(false)
+      if (requestId === standingsRequestRef.current) setStandingsLoading(false)
     }
   }
 
@@ -1495,9 +1499,24 @@ function MyPoolsContent() {
   }, [isOpen, selectedId, activeTab, membersLoadedFor])
 
   useEffect(() => {
-    if (isOpen && selectedId && activeTab === 'standings') loadStandings(standingsWeek)
+    if (!isOpen || !selectedId || activeTab !== 'standings') return
+
+    const refreshStandings = () => {
+      if (document.visibilityState === 'visible') void loadStandings(standingsWeek)
+    }
+
+    refreshStandings()
+    const refreshTimer = window.setInterval(refreshStandings, isTestMode ? 10_000 : 30_000)
+    window.addEventListener('focus', refreshStandings)
+    document.addEventListener('visibilitychange', refreshStandings)
+
+    return () => {
+      window.clearInterval(refreshTimer)
+      window.removeEventListener('focus', refreshStandings)
+      document.removeEventListener('visibilitychange', refreshStandings)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, selectedId, activeTab, standingsWeek, members.length])
+  }, [isOpen, selectedId, activeTab, standingsWeek, members.length, isTestMode])
 
   useEffect(() => {
     const refreshKey = `${selectedId}:${selectedEntryId}`
@@ -2083,7 +2102,10 @@ function MyPoolsContent() {
         const strikesUsedThroughWeek = progress.strikesUsed
         const winsThroughWeek = entryPicksThroughWeek.filter((pick) => pick.result === 'win').length
         const lossesThroughWeek = entryPicksThroughWeek.filter((pick) => pick.result === 'loss').length
-        const aliveThroughWeek = progress.alive
+        const explicitlyEliminatedByWeek = !!stats.eliminated
+          && typeof stats.eliminated_week === 'number'
+          && stats.eliminated_week <= standingsWeek
+        const aliveThroughWeek = progress.alive && !explicitlyEliminatedByWeek
         const strikesLeft = progress.strikesLeft
         return {
           member,
@@ -2122,8 +2144,12 @@ function MyPoolsContent() {
       }
       const alive = members.filter((member) => {
         const strikes = strikesByEntry.get(member.id) || 0
-        const credits = survivalCreditsThroughWeek(standingsStatsByEntry[member.id]?.survival_graces, week)
-        return strikes <= strikesAllowed + credits
+        const stats = standingsStatsByEntry[member.id]
+        const credits = survivalCreditsThroughWeek(stats?.survival_graces, week)
+        const explicitlyEliminatedByWeek = !!stats?.eliminated
+          && typeof stats.eliminated_week === 'number'
+          && stats.eliminated_week <= week
+        return !explicitlyEliminatedByWeek && strikes <= strikesAllowed + credits
       }).length
       survival.set(week, alive)
     }
