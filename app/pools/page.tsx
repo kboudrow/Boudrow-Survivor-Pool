@@ -378,11 +378,11 @@ function PoolStagePill({ pool, pickStatus, isDecided, lifecycle }: { pool: Pool;
   if (pool.activation_status === 'cancelled') {
     return <span className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">Closed</span>
   }
-  if (isDecided || lifecycle?.phase === 'completed_winner') {
-    return <span className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">Winner</span>
-  }
   if (pickStatus?.eliminated) {
     return <span className="shrink-0 rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">Eliminated</span>
+  }
+  if (isDecided || lifecycle?.phase === 'completed_winner') {
+    return <span className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">Winner</span>
   }
   if (lifecycle?.phase === 'completed_season') {
     return <span className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">Season complete</span>
@@ -401,18 +401,18 @@ function PoolStagePill({ pool, pickStatus, isDecided, lifecycle }: { pool: Pool;
 }
 
 function PickStatusCard({ status, isDecided, lifecycle }: { status: PoolPickStatus; isDecided?: boolean; lifecycle?: PoolLifecycleStatus }) {
-  if (isDecided || lifecycle?.phase === 'completed_winner') {
-    return (
-      <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
-        Pool complete: winner decided
-      </div>
-    )
-  }
-
   if (status.eliminated) {
     return (
       <div className="mt-3 rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">
         Eliminated — no picks required
+      </div>
+    )
+  }
+
+  if (isDecided || lifecycle?.phase === 'completed_winner') {
+    return (
+      <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+        Pool complete: winner decided
       </div>
     )
   }

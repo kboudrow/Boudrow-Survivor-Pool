@@ -31,3 +31,12 @@ test('a declared winner reveals all finalized picks through the deciding week', 
   assert.match(migration, /v_decided_week is not null and pp\.week <= v_decided_week/)
   assert.match(migration, /pp\.week <= s\.eliminated_week/)
 })
+
+test('completed pool cards identify eliminated viewers before labeling the winner', async () => {
+  const page = await readPoolsPage()
+  const stagePill = page.slice(page.indexOf('function PoolStagePill'), page.indexOf('function PickStatusCard'))
+  const pickStatusCard = page.slice(page.indexOf('function PickStatusCard'), page.indexOf('function WinnerAvatar'))
+
+  assert.ok(stagePill.indexOf('pickStatus?.eliminated') < stagePill.indexOf("lifecycle?.phase === 'completed_winner'"))
+  assert.ok(pickStatusCard.indexOf('status.eliminated') < pickStatusCard.indexOf("lifecycle?.phase === 'completed_winner'"))
+})
